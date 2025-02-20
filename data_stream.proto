@@ -1,0 +1,43 @@
+//data_stream.proto
+syntax = "proto3";
+
+package stream;
+
+// 定义服务StreamService
+service THStreamService {
+    // 双向流式RPC，客户端和服务端可以同时发送和接收消息
+    rpc BidirectionalStream (stream THStreamRequest) returns (stream THStreamResponse);
+}
+
+// 定义请求消息StreamRequest
+message THStreamRequest {
+    // 序列号，字符串类型，不为空
+    string seqNo = 1;
+
+    // RGB数据，二进制数据，可为空
+    bytes rgbData = 2;
+
+    // 点云数据，二进制数据，可为空
+    bytes pointData = 3;
+
+    // 面部数据，二进制数据，可为空
+    bytes faceData = 4;
+
+    // 肢体数据，二进制数据，可为空
+    bytes limbData = 5;
+
+    // 扩展数据，可为空，预留
+    bytes extData = 6;
+
+    // 扩展数据，可为空，预留
+    string extDesc = 7;
+}
+
+// 定义响应消息StreamResponse
+message THStreamResponse {
+    //错误码
+    int32 retCode = 1;
+
+    //错误信息
+    string retMsg = 2;
+}
