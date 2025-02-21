@@ -1,6 +1,5 @@
 import cv2
 import time
-from tqdm import tqdm
 import bpy
 import os
 import shutil
@@ -41,7 +40,14 @@ def images_to_video(image_folder, video_path, fps=30):
     video.release()
     print(f"Video saved at {video_path}")
 
-def setup_render_environment(render_output_path):
+def setup_render_environment(render_output_path, 
+                             Avatar_path, 
+                             camera_location,
+                             camera_rotation,
+                             light_location,
+                             light_energy,
+                             render_engine,
+                             render_samples):
     clear_folder(render_output_path)
 
     # 删除所有对象
@@ -49,7 +55,7 @@ def setup_render_environment(render_output_path):
     bpy.ops.object.delete(use_global=False)
 
     # 加载 .blend 文件
-    bpy.ops.wm.open_mainfile(filepath="/home/ztw/MediaPipe/face_detec/data/boy52blendshapes.blend")
+    bpy.ops.wm.open_mainfile(filepath=Avatar_path)
     # 获取导入的对象
     render = None
     for obj in bpy.context.selected_objects:
@@ -61,23 +67,24 @@ def setup_render_environment(render_output_path):
         raise ValueError("没有找到 MESH 类型的对象")
 
     # 添加一个相机
-    bpy.ops.object.camera_add(location=(0, 2, 1.4))
+    bpy.ops.object.camera_add(location=camera_location)
     camera = bpy.context.active_object
-    camera.rotation_euler = (-1.5708, 3.1415926, 0)  # 旋转相机，使其面向模型
+    camera.rotation_euler = camera_rotation  # 旋转相机，使其面向模型
 
     # 设置相机为活动相机
     bpy.context.scene.camera = camera
 
     # 添加光照
-    bpy.ops.object.light_add(type='POINT', location=(0, -3, 3))
+    bpy.ops.object.light_add(type='POINT', location=light_location)
     light = bpy.context.active_object
-    light.data.energy = 1000  # 设置光照强度
+    light.data.energy = light_energy  # 设置光照强度
 
     # 设置渲染引擎为 Eevee
-    bpy.context.scene.render.engine = 'BLENDER_EEVEE'
+    bpy.context.scene.render.engine = render_engine
+    # bpy.context.scene.render.image_settings.file_format = 'PNG'  # 设置输出文件格式为 PNG
 
     # 设置渲染采样率
-    bpy.context.scene.eevee.taa_render_samples = 1  # 设置 Eevee 的采样率为 1
+    bpy.context.scene.eevee.taa_render_samples = render_samples  # 设置 Eevee 的采样率为 1
 
     return render
 
@@ -116,10 +123,16 @@ def process_face_data(servicer, render, render_output_path, index_to_category_na
                 bpy.ops.render.render(write_still=True)
         time.sleep(1./30.)
 
-def main():
+def main(render_output_path, Avatar_path):
     # 设置渲染输出文件的路径
-    render_output_path = "/home/ztw/MediaPipe/face_detec/res/render_res"
-    render = setup_render_environment(render_output_path)
+    render = setup_render_environment(render_output_path,
+                                      Avatar_path,
+                                      camera_location=(0, 2, 1.4),
+                                      camera_rotation=(-1.5708, 3.1415926, 0),
+                                      light_location=(0, -3, 3),
+                                      light_energy=1000,
+                                      render_engine='BLENDER_EEVEE',
+                                      render_samples=1)
 
     # 开启服务器线程
     servicer = THStreamServiceServicer()
@@ -185,5 +198,7 @@ def main():
     process_face_data(servicer, render, render_output_path, index_to_category_name)
 
 if __name__ == "__main__":
-    main()
+    render_output_path = "res/render_res"
+    Avatar_path = "data/boy52blendshapes.blend"
+    main(render_output_path, Avatar_path)
 
