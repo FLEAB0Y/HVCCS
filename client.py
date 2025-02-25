@@ -2,7 +2,7 @@ import grpc
 import data_stream_pb2
 import data_stream_pb2_grpc
 import time
-import multiprocessing
+import threading
 from THStreamData import THStreamDataPayload, THDataWarehouse
 
 class THStreamClient:
@@ -12,7 +12,7 @@ class THStreamClient:
         self.seq_no = 0
         # 数据缓存
         self.send_data_buffer = THDataWarehouse(capacity= 100)
-        self.lock = multiprocessing.Lock()
+        self.lock = threading.Lock()
 
     def next_seq_no(self):
         with self.lock:
@@ -63,8 +63,8 @@ def run_client(client):
 
 if __name__ == '__main__':
     client = THStreamClient(host='127.0.0.1', port=50051)
-    client_process = multiprocessing.Process(target=run_client, args=(client,))
-    client_process.start()
+    client_thread = threading.Thread(target=run_client, args=(client,))
+    client_thread.start()
     i = 0
     while True:
         payload1 = THStreamDataPayload(rgb_data=b'\x01', point_data=b'\x02', face_data=b'\x03', limb_data=b'\x04',
