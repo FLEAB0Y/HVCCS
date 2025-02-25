@@ -5,9 +5,9 @@ bpy.ops.object.select_all(action='SELECT')
 bpy.ops.object.delete(use_global=False)
 
 # 加载三维文件
-bpy.ops.import_scene.fbx(filepath="/home/ztw/HVCCS/data/female-sports2.fbx")
+# bpy.ops.import_scene.fbx(filepath="/home/ztw/HVCCS/data/female-sports2.fbx")
 # bpy.ops.import_scene.gltf(filepath="your_path/charactor_with_blendshapes.glb")
-# bpy.ops.wm.open_mainfile(filepath="/home/ztw/HVCCS/data/female-sports2.blend")
+bpy.ops.wm.open_mainfile(filepath="/data/boy52blendshapes.blend")
 
 # 获取导入的对象
 render = None
