@@ -63,8 +63,12 @@ def main(server_addr='127.0.0.1', port_num =50051 , model_path='face_landmarker_
     client_thread = threading.Thread(target=run_client, args=(client,))
     client_thread.start()
     
+<<<<<<< HEAD
     running = True
     while cap.isOpened() and running:
+=======
+    while cap.isOpened():
+>>>>>>> 1523028b9d8c1eb4f63b40c0d36cf230151a6f6f
         
         # 从相机从捕获一帧图片
         ret, frame = cap.read()
@@ -82,10 +86,17 @@ def main(server_addr='127.0.0.1', port_num =50051 , model_path='face_landmarker_
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
         # 异步检测
         detector.detect_async(mp_image, int(frame_timestamp_ms))
+<<<<<<< HEAD
         # 输入q结束捕获
         if cv2.waitKey(25) & 0xFF == ord('q'):
             print('exited')
             running = False
+=======
+        # 输入esc结束捕获
+        if cv2.waitKey(25) == 27:
+            print('exited')
+            break
+>>>>>>> 1523028b9d8c1eb4f63b40c0d36cf230151a6f6f
         print(f"frame_timestamp_ms: {frame_timestamp_ms}")
         frame_timestamp_ms = int(time.time() * 1000)
 
