@@ -1,6 +1,5 @@
 import bpy
 
-
 # 删除所有对象
 bpy.ops.object.select_all(action='SELECT')
 bpy.ops.object.delete(use_global=False)
@@ -44,7 +43,7 @@ light = bpy.context.active_object
 light.data.energy = 1000  # 设置光照强度
 
 # 设置渲染输出文件的路径
-bpy.context.scene.render.filepath = "D:/HVCCS/res/render_res/render_output.png"
+bpy.context.scene.render.filepath = "/home/ztw/HVCCS/res/render_res/render_output.png"
 
 # 设置渲染采样率
 bpy.context.scene.cycles.samples = 4  # 设置采样率为1 
