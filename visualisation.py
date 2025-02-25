@@ -6,7 +6,7 @@ bpy.ops.object.select_all(action='SELECT')
 bpy.ops.object.delete(use_global=False)
 
 # 加载三维文件
-bpy.ops.import_scene.fbx(filepath="/home/ztw/MediaPipe/face_detec/data/woman_young1.fbx")
+bpy.ops.import_scene.fbx(filepath="data/woman_young1.fbx")
 # bpy.ops.import_scene.gltf(filepath="your_path/charactor_with_blendshapes.glb")
 # bpy.ops.wm.open_mainfile(filepath="boy52blendshapes.blend")
 
@@ -44,7 +44,7 @@ light = bpy.context.active_object
 light.data.energy = 1000  # 设置光照强度
 
 # 设置渲染输出文件的路径
-bpy.context.scene.render.filepath = "/home/ztw/MediaPipe/face_detec/res/render_res/render_output.png"
+bpy.context.scene.render.filepath = "D:/HVCCS/res/render_res/render_output.png"
 
 # 设置渲染采样率
 bpy.context.scene.cycles.samples = 4  # 设置采样率为1 
