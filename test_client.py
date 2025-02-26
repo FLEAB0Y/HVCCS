@@ -23,7 +23,6 @@ class THStreamClient:
     def send_data(self):
         try:
             send_data = self.request_generator()
-            time.sleep(10.)  # test
             if not send_data:
                 return
             response_iterator = self.stub.BidirectionalStream(send_data)
@@ -58,7 +57,7 @@ class THStreamClient:
                                                      extData=one_data.ext_data,
                                                      extDesc=one_data.ext_desc)
 
-    def run(self, interval=1.):
+    def run(self, interval=1./30.):
         """
         :param interval: 1秒30帧数据
         :return:
@@ -79,13 +78,10 @@ def data_sender_process(host, port, data_queue):
 
 def data_collector_process(data_queue, max_queue_size=100):
     """收集数据的独立进程"""
+    i = 0
     try:
         while True:
-            # 如果队列接近满，等待一段时间
-            if data_queue.qsize() >= max_queue_size * 0.8:
-                time.sleep(0.1)
-                continue
-                
+            i += 1
             time_sample_ms = int(time.time() * 1000)
             # 生成1500字节的随机数据
             random_data = os.urandom(1500)
@@ -97,14 +93,18 @@ def data_collector_process(data_queue, max_queue_size=100):
                 face_data=random_data[chunk_size*2:chunk_size*3],
                 limb_data=random_data[chunk_size*3:chunk_size*4],
                 ext_data=random_data[chunk_size*4:chunk_size*5],
-                ext_desc=f"{str(time_sample_ms)}"
+                ext_desc=f"{str(time_sample_ms)+ 'No.' +str(i).zfill(5)}"
             )
             
-            # 将数据放入队列
-            data_queue.put(payload)
+            # 如果队列长度小于80%的最大长度，将数据放入队列
+            if data_queue.qsize() <= max_queue_size * 0.8:
+                # 将数据放入队列
+                data_queue.put(payload)
+                continue
+            
             
             # 控制数据生成速率
-            time.sleep(0.01)  # 每秒约100帧
+            time.sleep(1./30.)  # 每秒约30帧
     except KeyboardInterrupt:
         print("Data collector stopped")
 
