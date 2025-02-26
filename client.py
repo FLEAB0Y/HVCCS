@@ -22,7 +22,6 @@ class THStreamClient:
     def send_data(self):
         try:
             send_data = self.request_generator()
-            time.sleep(10.) # test
             if not send_data:
                 return
             response_iterator = self.stub.BidirectionalStream(send_data)
