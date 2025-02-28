@@ -34,7 +34,7 @@ def setup_render_environment(render_output_path,
     # 获取导入的对象
     render = None
     for obj in bpy.context.selected_objects:
-        if obj.type == 'MESH':
+        if (obj.type == 'MESH'):
             render = obj
             break
 
@@ -93,10 +93,19 @@ def process_face_data(servicer, render, render_output_path, index_to_category_na
             if j != 52:
                 print("blendshape数量缺失")
             else:
-                # 渲染当前帧
-                bpy.context.scene.render.filepath = os.path.join(render_output_path, f"render_{str(payload_rec.extDesc).zfill(5)}.png")
-                bpy.ops.render.render(write_still=True)
-        time.sleep(1./30.)
+                # 计时开始
+                start_time = time.time()
+                
+                # 直接渲染并显示当前帧
+                bpy.ops.render.render('INVOKE_DEFAULT')
+                
+                # 计时结束
+                end_time = time.time()
+                
+                # 计算并打印渲染时间
+                render_time = end_time - start_time
+                print(f"渲染一帧耗时: {render_time:.4f} 秒")
+        # time.sleep(1./30.)
 
 def main(render_output_path, Avatar_path):
     # 设置渲染输出文件的路径
@@ -173,7 +182,7 @@ def main(render_output_path, Avatar_path):
     process_face_data(servicer, render, render_output_path, index_to_category_name)
 
 if __name__ == "__main__":
-    render_output_path = "res/render_res"
+    render_output_path = "/home/abc/ztw_HVCCS/HVCCS/res/render_res"
     Avatar_path = "data/boy52blendshapes.blend"
     main(render_output_path, Avatar_path)
 
