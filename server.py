@@ -15,16 +15,17 @@ class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
             for request in request_iterator:
                 print(f"***********Received request seqNo:{request.seqNo}***********")
                 self.receive_data_buffer.add_item(request)
-                if request.rgbData:
-                    print(f"Received RGB data of length {len(request.rgbData)}")
-                if request.pointData:
-                    print(f"Received point data of length {len(request.pointData)}")
-                if request.faceData:
-                    print(f"Received face data of length {len(request.faceData)}")
-                if request.limbData:
-                    print(f"Received limb data of length {len(request.limbData)}")
-                if request.extData:
-                    print(f"Received ext data of length {len(request.extData)}")
+                print(f"Received time (ms): {int(time.time() * 1000)}")
+                # if request.rgbData:
+                #     print(f"Received RGB data of length {len(request.rgbData)}")
+                # if request.pointData:
+                #     print(f"Received point data of length {len(request.pointData)}")
+                # if request.faceData:
+                #     print(f"Received face data of length {len(request.faceData)}")
+                # if request.limbData:
+                #     print(f"Received limb data of length {len(request.limbData)}")
+                # if request.extData:
+                #     print(f"Received ext data of length {len(request.extData)}")
                 if request.extDesc:
                     print(f"Received ext desc: {request.extDesc}")
 
