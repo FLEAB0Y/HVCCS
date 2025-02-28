@@ -63,34 +63,34 @@ def main(server_addr='127.0.0.1', port_num =50051 , model_path='face_landmarker_
     client_thread = threading.Thread(target=run_client, args=(client,))
     client_thread.start()
     
-    running = True
-    while cap.isOpened() and running:
-        
-        # 从相机从捕获一帧图片
-        ret, frame = cap.read()
-        if not ret:
-            break
-        
-        # 缓冲区满了就等待
-        buffer_size = client.send_data_buffer.get_size()
-        while buffer_size >= 10:
-            time.sleep(0.1)
+    try:
+        while cap.isOpened():
+            # 从相机从捕获一帧图片
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            # 缓冲区满了就等待
             buffer_size = client.send_data_buffer.get_size()
-
-        # 将图像从BGR颜色空间转换为RGB颜色空间
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-        # 异步检测
-        detector.detect_async(mp_image, int(frame_timestamp_ms))
-        # 输入q结束捕获
-        if cv2.waitKey(25) & 0xFF == ord('q'):
-            print('exited')
-            running = False
-        print(f"frame_timestamp_ms: {frame_timestamp_ms}")
-        frame_timestamp_ms = int(time.time() * 1000)
-
-    cap.release()
-    cv2.destroyAllWindows()
+            while buffer_size >= 10:
+                time.sleep(0.1)
+                buffer_size = client.send_data_buffer.get_size()
+    
+            # 将图像从BGR颜色空间转换为RGB颜色空间
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2RGB)
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+            # 异步检测
+            detector.detect_async(mp_image, int(frame_timestamp_ms))
+            
+            print(f"frame_timestamp_ms: {frame_timestamp_ms}")
+            frame_timestamp_ms = int(time.time() * 1000)
+            
+    except KeyboardInterrupt:
+        print('程序被用户中断')
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
+        print('资源已释放')
 
 if __name__ == "__main__":
     main(server_addr='183.173.48.193', port_num=50051, model_path='face_landmarker_v2_with_blendshapes.task')
