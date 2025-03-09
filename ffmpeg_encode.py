@@ -212,7 +212,8 @@ def main(image_folder="/home/ztw/HVCCS/res/render_res",
     # 创建并启动客户端线程
     client = THStreamClient(host=server_addr, port=port_num)
     client_thread = threading.Thread(target=run_client, args=(client,))
-    client_thread.daemon = True  # 设置为守护线程，主线程结束时自动退出
+    # 移除守护线程设置
+    # client_thread.daemon = True
     client_thread.start()
     
     try:
@@ -227,19 +228,11 @@ def main(image_folder="/home/ztw/HVCCS/res/render_res",
             max_buffer_size=10  # 设置最大缓冲区大小与face_blendshape示例一致
         )
         print(f"发送完成: {stats['chunk_count']} 块，共 {stats['total_bytes']} 字节，耗时 {stats['elapsed_seconds']:.2f} 秒")
-        
-        # 等待缓冲区清空
-        while client.send_data_buffer.get_size() > 0:
-            time.sleep(0.5)
-            print(f"等待缓冲区清空，当前大小: {client.send_data_buffer.get_size()}")
             
     except Exception as e:
         print(f"错误: {e}")
     finally:
-        # 等待一些时间让最后的数据发送完成
-        time.sleep(2)
-        client.stop()  # 停止客户端
-        client_thread.join(timeout=5)  # 等待客户端线程结束
+        print("关闭客户端...")
 
 if __name__ == "__main__":
-    main(server_addr='101.6.65.237', port_num=50051)  # 使用与face_blendshape示例相同的服务器
+    main(server_addr='127.0.0.1', port_num=50051)  # 使用与face_blendshape示例相同的服务器
