@@ -182,7 +182,7 @@ def main(render_output_path, Avatar_path):
     process_face_data(servicer, render, render_output_path, index_to_category_name)
 
 if __name__ == "__main__":
-    render_output_path = "/home/abc/ztw_HVCCS/HVCCS/res/render_res"
+    render_output_path = "/home/ztw/HVCCS/res/render_res"
     Avatar_path = "data/boy52blendshapes.blend"
     main(render_output_path, Avatar_path)
 
