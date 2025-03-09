@@ -63,7 +63,6 @@ def main(server_addr='127.0.0.1', port_num =50051, model_path='face_landmarker_v
     client_thread = threading.Thread(target=run_client, args=(client,))
     client_thread.start()
     
-<<<<<<< HEAD
     try:
         while cap.isOpened():
             # 从相机从捕获一帧图片
@@ -92,35 +91,6 @@ def main(server_addr='127.0.0.1', port_num =50051, model_path='face_landmarker_v
         cap.release()
         cv2.destroyAllWindows()
         print('资源已释放')
-=======
-    while cap.isOpened():
-        
-        # 从相机从捕获一帧图片
-        ret, frame = cap.read()
-        if not ret:
-            break
-        
-        # 缓冲区满了就等待
-        buffer_size = client.send_data_buffer.get_size()
-        while buffer_size >= 10:
-            time.sleep(0.1)
-            buffer_size = client.send_data_buffer.get_size()
-
-        # 将图像从BGR颜色空间转换为RGB颜色空间
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-        # 异步检测
-        detector.detect_async(mp_image, int(frame_timestamp_ms))
-        # 输入esc结束捕获
-        if cv2.waitKey(25) == 27:
-            print('exited')
-            break
-        print(f"frame_timestamp_ms: {frame_timestamp_ms}")
-        frame_timestamp_ms = int(time.time() * 1000)
-
-    cap.release()
-    cv2.destroyAllWindows()
->>>>>>> 11d01e3e25ff749f697266a89095705506cd2e89
 
 if __name__ == "__main__":
     main(server_addr='183.173.48.193', port_num=50051, model_path='face_landmarker_v2_with_blendshapes.task')
