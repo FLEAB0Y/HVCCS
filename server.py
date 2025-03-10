@@ -3,7 +3,7 @@ from concurrent import futures
 import data_stream_pb2
 import data_stream_pb2_grpc
 from THStreamData import THStreamDataPayload, THDataWarehouse
-import multiprocessing
+import threading
 import time
 
 class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
@@ -16,8 +16,8 @@ class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
                 print(f"***********Received request seqNo:{request.seqNo}***********")
                 print(f"Received time: {int(time.time() * 1000)}")
                 self.receive_data_buffer.add_item(request)
-                # if request.rgbData:
-                #     print(f"Received RGB data of length {len(request.rgbData)}")
+                if request.rgbData:
+                    print(f"Received RGB data of length {len(request.rgbData)}")
                 # if request.pointData:
                 #     print(f"Received point data of length {len(request.pointData)}")
                 # if request.faceData:
@@ -50,7 +50,7 @@ def serve(servicer):
 
 if __name__ == '__main__':
     servicer = THStreamServiceServicer()
-    server_process = multiprocessing.Process(target=serve, args=(servicer,))
+    server_process = threading.Thread(target=serve, args=(servicer,))
     server_process.start()
 
     while True:    

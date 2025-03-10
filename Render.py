@@ -96,8 +96,11 @@ def process_face_data(servicer, render, render_output_path, index_to_category_na
                 # 计时开始
                 start_time = time.time()
                 
-                # 直接渲染并显示当前帧
-                bpy.ops.render.render('INVOKE_DEFAULT')
+                # 渲染当前帧
+                bpy.context.scene.render.filepath = os.path.join(render_output_path, f"render_{str(payload_rec.extDesc).zfill(5)}.png")
+                bpy.ops.render.render(write_still=True)
+
+
                 
                 # 计时结束
                 end_time = time.time()
