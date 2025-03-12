@@ -8,7 +8,7 @@ maya.standalone.initialize()
 try:
     # 文件路径设置
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(current_dir, "nezha.mb")
+    file_path = os.path.join(current_dir, "/Users/twz/demo_sys_user/HVCCS/data/nezha.mb")
     
     # 打开Maya文件
     cmds.file(file_path, open=True, force=True)
