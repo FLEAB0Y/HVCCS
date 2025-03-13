@@ -95,11 +95,38 @@ def setup_and_render(blend_file_path, output_path):
     # 设置当前相机
     scene.camera = camera
     
-    # 添加光源（如果需要）
-    if not any(obj.type == 'LIGHT' for obj in bpy.data.objects):
-        bpy.ops.object.light_add(type='SUN', location=(5, 5, 5))
-        light = bpy.context.object
-        light.data.energy = 2.0  # 调整亮度
+    # 获取场景中的所有光源并修改它们的参数
+    light_sources = [obj for obj in bpy.data.objects if obj.type == 'LIGHT']
+    
+    if light_sources:
+        print(f"找到 {len(light_sources)} 个光源:")
+        for i, light in enumerate(light_sources):
+            # 根据光源类型设置不同的位置和强度
+            if i == 0:  # 第一个光源作为主光源
+                light.location = (1, -5, 3)
+                light.data.energy = 1500
+            else:  # 其他光源作为辅助光源
+                light.location = (-2, -3, 2)
+                light.data.energy = 500
+            
+            print(f"光源 '{light.name}' 类型: {light.data.type}, 位置: {light.location}, 强度: {light.data.energy}")
+    else:
+        # 如果没有光源，创建一个主光源和一个辅助光源
+        print("未找到光源，创建新光源")
+        
+        # 创建主光源 (Sun)
+        bpy.ops.object.light_add(type='SUN', location=(3, -2, 4))
+        main_light = bpy.context.object
+        main_light.name = "Main_Light"
+        main_light.data.energy = 2.5
+        print(f"创建主光源: {main_light.name}, 位置: {main_light.location}, 强度: {main_light.data.energy}")
+        
+        # 创建辅助光源 (Point)
+        bpy.ops.object.light_add(type='POINT', location=(-2, -3, 2))
+        fill_light = bpy.context.object
+        fill_light.name = "Fill_Light"
+        fill_light.data.energy = 1.5
+        print(f"创建辅助光源: {fill_light.name}, 位置: {fill_light.location}, 强度: {fill_light.data.energy}")
     
     # 执行渲染
     bpy.ops.render.render(write_still=True)
@@ -107,7 +134,7 @@ def setup_and_render(blend_file_path, output_path):
     print(f"渲染完成，输出路径: {output_path}")
 
 if __name__ == "__main__":
-    blend_file_path = "/home/ztw/Render/female-sports2.blend"
+    blend_file_path = "/home/ztw/Render/female-sports2_shape_key_rename.blend"
     output_path = "/home/ztw/HVCCS/res/render_res/rendered_image.png"
     
     # 确保输出目录存在
