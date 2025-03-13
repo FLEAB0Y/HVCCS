@@ -5,26 +5,29 @@ def setup_and_render(blend_file_path, output_path):
     # 清除当前场景
     bpy.ops.wm.read_factory_settings(use_empty=True)
     
+    # 删除所有对象
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.delete(use_global=False)
+
     # 打开指定的blend文件
     bpy.ops.wm.open_mainfile(filepath=blend_file_path)
     
-    # 检查mesh人物的shapekeys
-    print("检查场景中的mesh人物是否有shapekeys...")
-    found_shapekeys = False
+    # 检查特定mesh人物的shapekeys
+    print("检查HG_Body.001对象的shapekeys...")
     
-    for obj in bpy.data.objects:
-        if obj.type == 'MESH':
-            print(f"检查mesh对象: {obj.name}")
-            if obj.data.shape_keys:
-                found_shapekeys = True
-                print(f"发现shapekeys在对象 '{obj.name}':")
-                for kb in obj.data.shape_keys.key_blocks:
-                    print(f"  - {kb.name} (值: {kb.value})")
-            else:
-                print(f"对象 '{obj.name}' 没有shapekeys")
+    # 尝试获取特定对象
+    target_obj = bpy.data.objects.get("HG_Body.001")
     
-    if not found_shapekeys:
-        print("场景中没有找到任何带有shapekeys的mesh对象")
+    if target_obj:
+        print(f"找到目标对象: {target_obj.name}")
+        if target_obj.data.shape_keys:
+            print(f"发现shapekeys在对象 '{target_obj.name}':")
+            for kb in target_obj.data.shape_keys.key_blocks:
+                print(f"  - {kb.name} (值: {kb.value})")
+        else:
+            print(f"对象 '{target_obj.name}' 没有shapekeys")
+    else:
+        print("场景中未找到HG_Body.001对象")
     
     # 设置渲染参数
     scene = bpy.context.scene
@@ -34,47 +37,47 @@ def setup_and_render(blend_file_path, output_path):
     scene.render.resolution_y = 1080
     scene.render.resolution_percentage = 100
     
-    # 确保使用适当的渲染引擎
-    scene.render.engine = 'CYCLES'  # 改为使用Cycles渲染引擎
-    
-    # Cycles渲染引擎的低质量设置
-    scene.cycles.samples = 32       # 降低采样数
-    scene.cycles.max_bounces = 4    # 降低最大光线反弹次数
-    scene.cycles.diffuse_bounces = 2
-    scene.cycles.glossy_bounces = 2
-    scene.cycles.transmission_bounces = 2
-    scene.cycles.volume_bounces = 0
-    scene.cycles.transparent_max_bounces = 2
-    scene.cycles.use_denoising = False  # 关闭降噪
-    scene.cycles.use_adaptive_sampling = True  # 使用自适应采样
-    scene.cycles.adaptive_threshold = 0.1  # 设置自适应采样阈值
-    
-    # 尝试使用GPU加速渲染
-    try:
-        scene.cycles.device = 'GPU'
-    except:
-        print("无法使用GPU渲染，使用CPU")
-        scene.cycles.device = 'CPU'
-    
-    # 降低渲染质量设置
-    scene.render.use_high_quality_normals = False
-    scene.render.use_motion_blur = False    # 关闭运动模糊
     # # 确保使用适当的渲染引擎
-    # scene.render.engine = 'BLENDER_EEVEE'  # 改为使用EEVEE渲染引擎
+    # scene.render.engine = 'CYCLES'  # 改为使用Cycles渲染引擎
     
-    # # EEVEE渲染引擎的设置 - 优化为最快速度
-    # scene.eevee.taa_render_samples = 1      # 最小采样数
-    # scene.eevee.use_soft_shadows = False    # 关闭软阴影
-    # scene.eevee.use_ssr = False             # 关闭屏幕空间反射
-    # scene.eevee.use_ssr_refraction = False  # 关闭屏幕空间折射
-    # scene.eevee.use_gtao = False            # 关闭全局环境光遮蔽
-    # scene.eevee.use_bloom = False           # 关闭泛光效果
-    # scene.eevee.use_volumetric_shadows = False  # 关闭体积阴影
-    # scene.eevee.volumetric_samples = 16     # 降低体积采样
+    # # Cycles渲染引擎的低质量设置
+    # scene.cycles.samples = 32       # 降低采样数
+    # scene.cycles.max_bounces = 4    # 降低最大光线反弹次数
+    # scene.cycles.diffuse_bounces = 2
+    # scene.cycles.glossy_bounces = 2
+    # scene.cycles.transmission_bounces = 2
+    # scene.cycles.volume_bounces = 0
+    # scene.cycles.transparent_max_bounces = 2
+    # scene.cycles.use_denoising = False  # 关闭降噪
+    # scene.cycles.use_adaptive_sampling = True  # 使用自适应采样
+    # scene.cycles.adaptive_threshold = 0.1  # 设置自适应采样阈值
+    
+    # # 尝试使用GPU加速渲染
+    # try:
+    #     scene.cycles.device = 'GPU'
+    # except:
+    #     print("无法使用GPU渲染，使用CPU")
+    #     scene.cycles.device = 'CPU'
     
     # # 降低渲染质量设置
     # scene.render.use_high_quality_normals = False
     # scene.render.use_motion_blur = False    # 关闭运动模糊
+    # 确保使用适当的渲染引擎
+    scene.render.engine = 'BLENDER_EEVEE'  # 改为使用EEVEE渲染引擎
+    
+    # EEVEE渲染引擎的设置 - 优化为最快速度
+    scene.eevee.taa_render_samples = 1      # 最小采样数
+    scene.eevee.use_soft_shadows = False    # 关闭软阴影
+    scene.eevee.use_ssr = False             # 关闭屏幕空间反射
+    scene.eevee.use_ssr_refraction = False  # 关闭屏幕空间折射
+    scene.eevee.use_gtao = False            # 关闭全局环境光遮蔽
+    scene.eevee.use_bloom = False           # 关闭泛光效果
+    scene.eevee.use_volumetric_shadows = False  # 关闭体积阴影
+    scene.eevee.volumetric_samples = 16     # 降低体积采样
+    
+    # 降低渲染质量设置
+    scene.render.use_high_quality_normals = False
+    scene.render.use_motion_blur = False    # 关闭运动模糊
     
     # 找到相机，如果没有相机则创建一个
     camera = None
@@ -134,9 +137,13 @@ def setup_and_render(blend_file_path, output_path):
     print(f"渲染完成，输出路径: {output_path}")
 
 if __name__ == "__main__":
-    blend_file_path = "/home/ztw/Render/female-sports2_shape_key_rename.blend"
-    output_path = "/home/ztw/HVCCS/res/render_res/rendered_image.png"
+    # blend_file_path = "/home/ztw/Render/female-sports2_shape_key_rename.blend"
+    blend_file_path = "../female-sports2_52shape_key_rename.blend"
+    output_path_relative = "res/render_res/rendered_image.png"
     
+    # 获取当前脚本所在目录
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    output_path = os.path.join(script_dir, output_path_relative)
     # 确保输出目录存在
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     

@@ -31,6 +31,7 @@ def setup_render_environment(render_output_path,
 
     # 加载 .blend 文件
     bpy.ops.wm.open_mainfile(filepath=Avatar_path)
+    
     # 获取导入的对象
     render = None
     for obj in bpy.context.selected_objects:
@@ -41,11 +42,26 @@ def setup_render_environment(render_output_path,
     if render is None:
         raise ValueError("没有找到 MESH 类型的对象")
 
-    # 添加一个相机
-    bpy.ops.object.camera_add(location=camera_location)
-    camera = bpy.context.active_object
-    camera.rotation_euler = camera_rotation  # 旋转相机，使其面向模型
+    # 尝试获取特定对象 sports_women2.blend的存有blendshape的对象是HG_Body.001
+    target_obj = bpy.data.objects.get("HG_Body.001")
+    render = target_obj
 
+    # 找到相机，如果没有相机则创建一个
+    camera = None
+    for obj in bpy.data.objects:
+        if obj.type == 'CAMERA':
+            camera = obj
+            break
+    
+    if not camera:
+        # 创建新相机
+        bpy.ops.object.camera_add(location=(10, 5, 0), rotation=(0, 0, 0))
+        camera = bpy.context.object
+    
+    # 修改相机位置到指定坐标
+    camera.location = camera_location
+    camera.rotation_euler = camera_rotation
+    print(f"相机位置: {camera.location}, 旋转: {camera.rotation_euler}")
     # 设置相机为活动相机
     bpy.context.scene.camera = camera
 
@@ -60,6 +76,17 @@ def setup_render_environment(render_output_path,
 
     # 设置渲染采样率
     bpy.context.scene.eevee.taa_render_samples = render_samples  # 设置 Eevee 的采样率为 1
+
+    if render:
+        print(f"找到目标对象: {render.name}")
+        if render.data.shape_keys:
+            print(f"发现shapekeys在对象 '{render.name}':")
+            for kb in render.data.shape_keys.key_blocks:
+                print(f"  - {kb.name} (值: {kb.value})")
+        else:
+            print(f"对象 '{render.name}' 没有shapekeys")
+    else:
+        print("场景中未找到HG_Body.001对象")
 
     return render
 
@@ -114,8 +141,8 @@ def main(render_output_path, Avatar_path):
     # 设置渲染输出文件的路径
     render = setup_render_environment(render_output_path,
                                       Avatar_path,
-                                      camera_location=(0, 2, 1.4),
-                                      camera_rotation=(-1.5708, 3.1415926, 0),
+                                      camera_location=(0, -3, 1.5),# (0, 2, 1.4),
+                                      camera_rotation=(1.57, 0, 0),# (-1.5708, 3.1415926, 0),
                                       light_location=(0, -3, 3),
                                       light_energy=1000,
                                       render_engine='BLENDER_EEVEE',
@@ -185,7 +212,15 @@ def main(render_output_path, Avatar_path):
     process_face_data(servicer, render, render_output_path, index_to_category_name)
 
 if __name__ == "__main__":
-    render_output_path = "/home/ztw/HVCCS/res/render_res"
-    Avatar_path = "data/boy52blendshapes.blend"
+    # blend_file_path = "/home/ztw/Render/female-sports2_shape_key_rename.blend"
+    Avatar_path = "../female-sports2_52shape_key_rename.blend"
+    output_path_relative = "res/render_res"
+    
+    # 获取当前脚本所在目录
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    render_output_path = os.path.join(script_dir, output_path_relative)
+    # 确保输出目录存在
+    os.makedirs(os.path.dirname(render_output_path), exist_ok=True)
+
     main(render_output_path, Avatar_path)
 
