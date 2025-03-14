@@ -93,4 +93,7 @@ def main(server_addr='127.0.0.1', port_num =50051, model_path='face_landmarker_v
         print('资源已释放')
 
 if __name__ == "__main__":
+    # 4090 server ip addr = 183.173.48.193
+    # A100 server ip addr = 101.6.65.237
+    # self ip addr = 127.0.0.1
     main(server_addr='183.173.48.193', port_num=50051, model_path='face_landmarker_v2_with_blendshapes.task')
