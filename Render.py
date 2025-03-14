@@ -103,10 +103,15 @@ def process_face_data(servicer, render, render_output_path, index_to_category_na
             try:
                 face_data_bytes = payload_rec.faceData
                 data_list = json.loads(face_data_bytes.decode('utf-8'))  # 将接收到的 JSON 数据转换为列表
+                # 打印接收到的数据列表
+                print(f"接收到的数据列表 (frame {payload_rec.extDesc}):")
+                print(f"数据列表长度: {len(data_list)}")
+                print(data_list[:10] + ['...'] if len(data_list) > 10 else data_list)
             except AttributeError as e:
                 print(f"AttributeError: {e}")
             
             j = 0 # 计数器，检查 blendshape 数量齐全
+            
             for index, score in data_list:
                 category_name = index_to_category_name.get(index)
                 if category_name and render.data.shape_keys:
@@ -118,16 +123,20 @@ def process_face_data(servicer, render, render_output_path, index_to_category_na
                     print("该对象没有 shape keys")
             # 检查 blendshape 数量是否齐全
             if j != 52:
-                print("blendshape数量缺失")
+                print(f"blendshape数量缺失: 只应用了 {j}/52")
             else:
+                # 打印当前所有shapekey的值作为参考
+                print(f"渲染前的shapekey状态 (frame {payload_rec.extDesc}):")
+                if render.data.shape_keys:
+                    for kb in render.data.shape_keys.key_blocks:
+                        print(f"  - {kb.name}: {kb.value:.4f}")
+                
                 # 计时开始
                 start_time = time.time()
                 
                 # 渲染当前帧
                 bpy.context.scene.render.filepath = os.path.join(render_output_path, f"render_{str(payload_rec.extDesc).zfill(5)}.png")
                 bpy.ops.render.render(write_still=True)
-
-
                 
                 # 计时结束
                 end_time = time.time()
