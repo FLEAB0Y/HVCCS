@@ -222,7 +222,7 @@ def main(render_output_path, Avatar_path):
 
 if __name__ == "__main__":
     # blend_file_path = "/home/ztw/Render/female-sports2_shape_key_rename.blend"
-    Avatar_path = "../female-sports2_52shape_key_rename.blend"
+    Avatar_path = "data/female-sports2_52shape_key_rename.blend"
     output_path_relative = "res/render_res"
     
     # 获取当前脚本所在目录
