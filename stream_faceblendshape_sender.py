@@ -30,6 +30,10 @@ def detect_result_proc(result: mp.tasks.vision.FaceLandmarkerResult, output_imag
             # 将blendshape_data转换为字节
             blendshape_data_json = json.dumps(blendshape_data)
             blendshape_data_bytes = blendshape_data_json.encode('utf-8')
+
+            # test
+            print(f"blendshape_data: {blendshape_data}")
+
             # 往缓冲区放入数据
             payload_send = THStreamDataPayload(
                 rgb_data=b'\x01', 
@@ -96,4 +100,4 @@ if __name__ == "__main__":
     # 4090 server ip addr = 183.173.48.193
     # A100 server ip addr = 101.6.65.237
     # self ip addr = 127.0.0.1
-    main(server_addr='183.173.48.193', port_num=50051, model_path='face_landmarker_v2_with_blendshapes.task')
+    main(server_addr='127.0.0.1', port_num=50051, model_path='face_landmarker_v2_with_blendshapes.task')
