@@ -11,23 +11,29 @@ def setup_and_render(blend_file_path, output_path):
 
     # 打开指定的blend文件
     bpy.ops.wm.open_mainfile(filepath=blend_file_path)
+
+    # 打印场景中的所有对象
+    print("场景中的所有对象:")
+    for obj in bpy.data.objects:
+        if obj:
+            print(f"找到目标对象: {obj.name}")
+            if obj.type == 'MESH' and obj.data.shape_keys:
+                print(f"发现shapekeys在对象 '{obj.name}':")
+                for kb in obj.data.shape_keys.key_blocks:
+                    print(f"  - {kb.name} (值: {kb.value})")
+            else:
+                print(f"对象 '{obj.name}' 没有shapekeys或不是Mesh类型")
+        else:
+            print("场景中未找到目标对象")
+
     
-    # 检查特定mesh人物的shapekeys
-    print("检查HG_Body.001对象的shapekeys...")
+    # # 检查特定mesh人物的shapekeys
+    # print("检查HG_Body.001对象的shapekeys...")
     
     # 尝试获取特定对象
-    target_obj = bpy.data.objects.get("HG_Body.001")
+    # target_obj = bpy.data.objects.get("HG_Body.001")
     
-    if target_obj:
-        print(f"找到目标对象: {target_obj.name}")
-        if target_obj.data.shape_keys:
-            print(f"发现shapekeys在对象 '{target_obj.name}':")
-            for kb in target_obj.data.shape_keys.key_blocks:
-                print(f"  - {kb.name} (值: {kb.value})")
-        else:
-            print(f"对象 '{target_obj.name}' 没有shapekeys")
-    else:
-        print("场景中未找到HG_Body.001对象")
+
     
     # 设置渲染参数
     scene = bpy.context.scene
@@ -137,8 +143,9 @@ def setup_and_render(blend_file_path, output_path):
     print(f"渲染完成，输出路径: {output_path}")
 
 if __name__ == "__main__":
-    # blend_file_path = "/home/ztw/Render/female-sports2_shape_key_rename.blend"
-    blend_file_path = "../female-sports2_52shape_key_rename.blend"
+    blend_file_path = "/home/ztw/Render_Avatar/nezha.blend"
+    # blend_file_path = "../female-sports2_52shape_key_rename.blend"
+    # blend_file_path = "data/boy52blendshapes.blend"
     output_path_relative = "res/render_res/rendered_image.png"
     
     # 获取当前脚本所在目录

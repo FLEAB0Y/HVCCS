@@ -14,37 +14,42 @@ def clear_folder(folder_path):
         shutil.rmtree(folder_path)
     os.makedirs(folder_path)
 
-def setup_render_environment(render_output_path, 
-                             Avatar_path, 
-                             camera_location,
-                             camera_rotation,
-                             light_location,
-                             light_energy,
-                             render_engine,
-                             render_samples):
+class RenderParameters:
+    def __init__(self, camera_location, camera_rotation, light_location, light_energy, render_engine, render_samples):
+        self.camera_location = camera_location
+        self.camera_rotation = camera_rotation
+        self.light_location = light_location
+        self.light_energy = light_energy
+        self.render_engine = render_engine
+        self.render_samples = render_samples
+
+def setup_render_environment(render_output_path, Avatar_path, render_params):
     clear_folder(render_output_path)
 
     # 删除所有对象
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False)
+    # bpy.ops.object.select_all(action='SELECT')
+    # bpy.ops.object.delete(use_global=False)
 
     # 加载 .blend 文件
     bpy.ops.wm.open_mainfile(filepath=Avatar_path)
-    
-    # 获取导入的对象
+
     render = None
-    for obj in bpy.context.selected_objects:
-        if (obj.type == 'MESH'):
-            render = obj
-            break
-
-    if render is None:
-        raise ValueError("没有找到 MESH 类型的对象")
-
-    # 尝试获取特定对象 sports_women2.blend的存有blendshape的对象是HG_Body.001
-    target_obj = bpy.data.objects.get("HG_Body.001")
-    render = target_obj
-
+    # 打印场景中的所有对象
+    print("场景中的所有对象:")
+    for obj in bpy.data.objects:
+        if obj:
+            print(f"找到目标对象: {obj.name}")
+            if obj.type == 'MESH' and obj.data.shape_keys:
+                print(f"发现shapekeys在对象 '{obj.name}':")
+                for kb in obj.data.shape_keys.key_blocks:
+                    print(f"  - {kb.name} (值: {kb.value})")
+                render = obj
+                break
+            else:
+                print(f"对象 '{obj.name}' 没有shapekeys或不是Mesh类型")
+        else:
+            print("场景中未找到目标对象")
+    
     # 找到相机，如果没有相机则创建一个
     camera = None
     for obj in bpy.data.objects:
@@ -58,34 +63,24 @@ def setup_render_environment(render_output_path,
         camera = bpy.context.object
     
     # 修改相机位置到指定坐标
-    camera.location = camera_location
-    camera.rotation_euler = camera_rotation
+    camera.location = render_params.camera_location
+    camera.rotation_euler = render_params.camera_rotation
     print(f"相机位置: {camera.location}, 旋转: {camera.rotation_euler}")
     # 设置相机为活动相机
     bpy.context.scene.camera = camera
 
     # 添加光照
-    bpy.ops.object.light_add(type='POINT', location=light_location)
+    bpy.context.view_layer.objects.active = None  # 确保没有活动对象
+    bpy.ops.object.light_add(type='POINT', location=render_params.light_location)
     light = bpy.context.active_object
-    light.data.energy = light_energy  # 设置光照强度
+    light.data.energy = render_params.light_energy  # 设置光照强度
 
     # 设置渲染引擎为 Eevee
-    bpy.context.scene.render.engine = render_engine
+    bpy.context.scene.render.engine = render_params.render_engine
     # bpy.context.scene.render.image_settings.file_format = 'PNG'  # 设置输出文件格式为 PNG
 
     # 设置渲染采样率
-    bpy.context.scene.eevee.taa_render_samples = render_samples  # 设置 Eevee 的采样率为 1
-
-    if render:
-        print(f"找到目标对象: {render.name}")
-        if render.data.shape_keys:
-            print(f"发现shapekeys在对象 '{render.name}':")
-            for kb in render.data.shape_keys.key_blocks:
-                print(f"  - {kb.name} (值: {kb.value})")
-        else:
-            print(f"对象 '{render.name}' 没有shapekeys")
-    else:
-        print("场景中未找到HG_Body.001对象")
+    bpy.context.scene.eevee.taa_render_samples = render_params.render_samples  # 设置 Eevee 的采样率为 1
 
     return render
 
@@ -123,38 +118,32 @@ def process_face_data(servicer, render, render_output_path, index_to_category_na
             # 检查 blendshape 数量是否齐全
             if j != 52:
                 print(f"blendshape数量缺失: 只应用了 {j}/52")
-            else:
-                # 打印当前所有shapekey的值作为参考
-                print(f"渲染前的shapekey状态 (frame {payload_rec.extDesc}):")
-                if render.data.shape_keys:
-                    for kb in render.data.shape_keys.key_blocks:
-                        print(f"  - {kb.name}: {kb.value:.4f}")
-                
-                # 计时开始
-                start_time = time.time()
-                
-                # 渲染当前帧
-                bpy.context.scene.render.filepath = os.path.join(render_output_path, f"render_{str(payload_rec.extDesc).zfill(5)}.png")
-                bpy.ops.render.render(write_still=True)
-                
-                # 计时结束
-                end_time = time.time()
-                
-                # 计算并打印渲染时间
-                render_time = end_time - start_time
-                print(f"渲染一帧耗时: {render_time:.4f} 秒")
+            
+            # 打印当前所有shapekey的值作为参考
+            print(f"渲染前的shapekey状态 (frame {payload_rec.extDesc}):")
+            if render.data.shape_keys:
+                for kb in render.data.shape_keys.key_blocks:
+                    print(f"  - {kb.name}: {kb.value:.4f}")
+            
+            # 计时开始
+            start_time = time.time()
+            
+            # 渲染当前帧
+            bpy.context.scene.render.filepath = os.path.join(render_output_path, f"render_{str(payload_rec.extDesc).zfill(5)}.png")
+            bpy.ops.render.render(write_still=True)
+            
+            # 计时结束
+            end_time = time.time()
+            
+            # 计算并打印渲染时间
+            render_time = end_time - start_time
+            print(f"渲染一帧耗时: {render_time:.4f} 秒")
         # time.sleep(1./30.)
 
-def main(render_output_path, Avatar_path):
+def main(render_output_path, Avatar_path, render_params):
+
     # 设置渲染输出文件的路径
-    render = setup_render_environment(render_output_path,
-                                      Avatar_path,
-                                      camera_location=(0, -3, 1.5),# (0, 2, 1.4),
-                                      camera_rotation=(1.57, 0, 0),# (-1.5708, 3.1415926, 0),
-                                      light_location=(0, -3, 3),
-                                      light_energy=1000,
-                                      render_engine='BLENDER_EEVEE',
-                                      render_samples=1)
+    render = setup_render_environment(render_output_path, Avatar_path, render_params)
 
     # 开启服务器线程
     servicer = THStreamServiceServicer()
@@ -216,19 +205,41 @@ def main(render_output_path, Avatar_path):
         50: "noseSneerLeft",
         51: "noseSneerRight"
     }
-
+    
     process_face_data(servicer, render, render_output_path, index_to_category_name)
 
 if __name__ == "__main__":
-    # blend_file_path = "/home/ztw/Render/female-sports2_shape_key_rename.blend"
-    Avatar_path = "../female-sports2_52shape_key_rename.blend"
-    output_path_relative = "res/render_res"
     
+    # Avatar_path = "../Render_Avatar/female-sports2_52shape_key_rename.blend"
+    # render_params = RenderParameters(
+    #     camera_location=(0, -3, 1.5),
+    #     camera_rotation=(1.57, 0, 0),
+    #     light_location=(0, -3, 3),
+    #     light_energy=1000,
+    #     render_engine='BLENDER_EEVEE',
+    #     render_samples=1
+    # )
+    
+    # Avatar_path = "/home/ztw/HVCCS/data/boy52blendshapes.blend"
+
+
+    Avatar_path = "../Render_Avatar/nezha.blend"
+    render_params = RenderParameters(
+        camera_location=(0, -4, 1.8),
+        camera_rotation=(1.57, 0, 0),
+        light_location=(1, -3, 3),
+        light_energy=1000,
+        render_engine='BLENDER_EEVEE',
+        render_samples=1
+    )
+
+    output_path_relative = "res/render_res"
+
     # 获取当前脚本所在目录
     script_dir = os.path.dirname(os.path.abspath(__file__))
     render_output_path = os.path.join(script_dir, output_path_relative)
     # 确保输出目录存在
     os.makedirs(os.path.dirname(render_output_path), exist_ok=True)
 
-    main(render_output_path, Avatar_path)
+    main(render_output_path, Avatar_path, render_params)
 

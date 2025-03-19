@@ -171,7 +171,8 @@ if __name__ == "__main__":
                 
                 #     print(f"Category Name: {category.category_name}, Index: {category.index}")
                 blendshape_data = [(category.index, category.score) for category in blendshape] # 获取blendshape的index和score组成列表
-                
+                # test
+                print(f"Blendshape Data: {blendshape_data}")
                 # face blendshape 编码 （TBD）
                 
                 # 将blendshape_data转换为字节
