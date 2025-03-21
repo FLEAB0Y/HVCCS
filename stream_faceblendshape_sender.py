@@ -27,6 +27,8 @@ def detect_result_proc(result: mp.tasks.vision.FaceLandmarkerResult, output_imag
             
             # face blendshape 编码 （TBD）
             
+            # 推一路摄像机视频流做对比
+
             # 将blendshape_data转换为字节
             blendshape_data_json = json.dumps(blendshape_data)
             blendshape_data_bytes = blendshape_data_json.encode('utf-8')

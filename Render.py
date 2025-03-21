@@ -8,11 +8,30 @@ import grpc
 from THStreamData import THStreamDataPayload, THDataWarehouse
 import data_stream_pb2_grpc
 from server import THStreamServiceServicer, serve
+import math
 
 def clear_folder(folder_path):
     if os.path.exists(folder_path):
         shutil.rmtree(folder_path)
     os.makedirs(folder_path)
+
+def calculate_camera_position(initial_angle, angular_velocity, run_time): # run_time = frames / fps
+    # 计算新的角度
+    new_angle = initial_angle + angular_velocity * run_time
+    
+    # 圆环的半径为4
+    radius = 4
+    
+    # 计算新的位置
+    x = radius * math.cos(new_angle)
+    y = radius * math.sin(new_angle)
+    z = 1.9 # 和人物身高对齐
+    rx = math.pi / 2 # 保持画面滚转角
+    ry = 0 # 保持画面俯仰角
+    rz = new_angle + math.pi / 2 # 对准（0，0，z）轴
+    position = (x, y, z)
+    rotation = (rx, ry, rz)
+    return position, rotation
 
 class RenderParameters:
     def __init__(self, camera_location, camera_rotation, light_location, light_energy, render_engine, render_samples):
@@ -59,32 +78,31 @@ def setup_render_environment(render_output_path, Avatar_path, render_params):
     
     if not camera:
         # 创建新相机
-        bpy.ops.object.camera_add(location=(10, 5, 0), rotation=(0, 0, 0))
+        bpy.ops.object.camera_add(location=(0, -4, 2), rotation=(3.14, 0, 0))
         camera = bpy.context.object
     
-    # 修改相机位置到指定坐标
-    camera.location = render_params.camera_location
-    camera.rotation_euler = render_params.camera_rotation
-    print(f"相机位置: {camera.location}, 旋转: {camera.rotation_euler}")
     # 设置相机为活动相机
-    bpy.context.scene.camera = camera
+    # bpy.context.scene.camera = camera  
 
     # 添加光照
     bpy.context.view_layer.objects.active = None  # 确保没有活动对象
     bpy.ops.object.light_add(type='POINT', location=render_params.light_location)
     light = bpy.context.active_object
     light.data.energy = render_params.light_energy  # 设置光照强度
-
+                  
     # 设置渲染引擎为 Eevee
     bpy.context.scene.render.engine = render_params.render_engine
+    bpy.context.scene.cycles.device = 'GPU'  # 使用GPU加速
     # bpy.context.scene.render.image_settings.file_format = 'PNG'  # 设置输出文件格式为 PNG
 
     # 设置渲染采样率
     bpy.context.scene.eevee.taa_render_samples = render_params.render_samples  # 设置 Eevee 的采样率为 1
 
-    return render
+    return render, camera
 
-def process_face_data(servicer, render, render_output_path, index_to_category_name):
+def process_face_data(servicer, render, camera, fps,
+                      render_output_path, index_to_category_name, 
+                      render_params, cam_r0, cam_rv):
     while True:
         # 缓冲区空了就等待
         buffer_size = servicer.receive_data_buffer.get_size()
@@ -97,10 +115,10 @@ def process_face_data(servicer, render, render_output_path, index_to_category_na
             try:
                 face_data_bytes = payload_rec.faceData
                 data_list = json.loads(face_data_bytes.decode('utf-8'))  # 将接收到的 JSON 数据转换为列表
-                # 打印接收到的数据列表
-                print(f"接收到的数据列表 (frame {payload_rec.extDesc}):")
-                print(f"数据列表长度: {len(data_list)}")
-                print(data_list[:10] + ['...'] if len(data_list) > 10 else data_list)
+                #  test 打印接收到的数据列表
+                # print(f"接收到的数据列表 (frame {payload_rec.extDesc}):")
+                # print(f"数据列表长度: {len(data_list)}")
+                # print(data_list[:10] + ['...'] if len(data_list) > 10 else data_list)
             except AttributeError as e:
                 print(f"AttributeError: {e}")
             
@@ -119,11 +137,19 @@ def process_face_data(servicer, render, render_output_path, index_to_category_na
             if j != 52:
                 print(f"blendshape数量缺失: 只应用了 {j}/52")
             
-            # 打印当前所有shapekey的值作为参考
-            print(f"渲染前的shapekey状态 (frame {payload_rec.extDesc}):")
-            if render.data.shape_keys:
-                for kb in render.data.shape_keys.key_blocks:
-                    print(f"  - {kb.name}: {kb.value:.4f}")
+            # test 打印当前所有shapekey的值作为参考
+            # print(f"渲染前的shapekey状态 (frame {payload_rec.extDesc}):")
+            # if render.data.shape_keys:
+            #     for kb in render.data.shape_keys.key_blocks:
+            #         print(f"  - {kb.name}: {kb.value:.4f}")
+            
+            # 修改相机位置到指定坐标
+            run_time = int(payload_rec.extDesc) / float(fps)
+            print(f"run_time: {run_time}")
+            camera.location, camera.rotation_euler = calculate_camera_position(cam_r0, cam_rv, run_time) # 丢包模式下修改runtime逻辑（TBD）
+            print(f"相机位置: {camera.location}, 旋转: {camera.rotation_euler}")
+            # 设置相机为活动相机
+            bpy.context.scene.camera = camera
             
             # 计时开始
             start_time = time.time()
@@ -143,7 +169,7 @@ def process_face_data(servicer, render, render_output_path, index_to_category_na
 def main(render_output_path, Avatar_path, render_params):
 
     # 设置渲染输出文件的路径
-    render = setup_render_environment(render_output_path, Avatar_path, render_params)
+    render, camera = setup_render_environment(render_output_path, Avatar_path, render_params)
 
     # 开启服务器线程
     servicer = THStreamServiceServicer()
@@ -206,7 +232,12 @@ def main(render_output_path, Avatar_path, render_params):
         51: "noseSneerRight"
     }
     
-    process_face_data(servicer, render, render_output_path, index_to_category_name)
+    fps = 30 # 帧率
+    cam_r0 = math.radians(-120)  # 初始位置-90度，转换为弧度
+    cam_rv = math.radians(3)  # 角速度5度每秒，转换为弧度每秒
+    process_face_data(servicer, render, camera, fps,
+                      render_output_path, index_to_category_name, 
+                      render_params, cam_r0, cam_rv)
 
 if __name__ == "__main__":
     
@@ -223,14 +254,14 @@ if __name__ == "__main__":
     # Avatar_path = "/home/ztw/HVCCS/data/boy52blendshapes.blend"
 
 
-    Avatar_path = "../Render_Avatar/nezha.blend"
+    Avatar_path = "../Render_Avatar/nezha_with_backgoud.blend"
     render_params = RenderParameters(
         camera_location=(0, -4, 1.8),
         camera_rotation=(1.57, 0, 0),
         light_location=(1, -3, 3),
-        light_energy=1000,
-        render_engine='BLENDER_EEVEE',
-        render_samples=1
+        light_energy=1300,
+        render_engine='CYCLES',
+        render_samples=32
     )
 
     output_path_relative = "res/render_res"
