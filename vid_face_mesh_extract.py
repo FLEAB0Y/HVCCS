@@ -111,7 +111,7 @@ def run_client(client):
 if __name__ == "__main__":
 
     # 设置文件路径
-    input_video_path = "/home/ztw/HVCCS/data/IMG_2411.MOV"
+    input_video_path = "/home/ztw/HVCCS/data/intro.mov"
     face_landmarks_output_path = "/home/ztw/HVCCS/res/detec_res"
     clear_folder(face_landmarks_output_path)
 

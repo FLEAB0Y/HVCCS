@@ -15,9 +15,16 @@ class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
             for request in request_iterator:
                 print(f"***********Received request seqNo:{request.seqNo}***********")
                 print(f"Received time: {int(time.time() * 1000)}")
+                # 缓冲区满了就等待
+                buffer_size = self.receive_data_buffer.get_size()
+                while buffer_size > 10:
+                    time.sleep(0.1)
+                    print("Buffer is full, waiting...")
+                    buffer_size = self.receive_data_buffer.get_size()
+                
                 self.receive_data_buffer.add_item(request)
-                if request.rgbData:
-                    print(f"Received RGB data of length {len(request.rgbData)}")
+                # if request.rgbData:
+                #     print(f"Received RGB data of length {len(request.rgbData)}")
                 # if request.pointData:
                 #     print(f"Received point data of length {len(request.pointData)}")
                 # if request.faceData:
