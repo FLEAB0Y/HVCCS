@@ -25,13 +25,27 @@ def calculate_camera_position(initial_angle, angular_velocity, run_time): # run_
     # 计算新的位置
     x = radius * math.cos(new_angle)
     y = radius * math.sin(new_angle)
-    z = 1.9 # 和人物身高对齐
-    rx = math.pi / 2 # 保持画面滚转角
+    z = 2.6 # 和人物身高对齐
+    rx = math.radians(83) # 保持画面滚转角
     ry = 0 # 保持画面俯仰角
     rz = new_angle + math.pi / 2 # 对准（0，0，z）轴
     position = (x, y, z)
     rotation = (rx, ry, rz)
     return position, rotation
+
+def skelton_sim_data_gen(t, rv):
+    """
+    计算正弦函数值，值域限制在[-0.1,0.1]之间
+    
+    参数:
+        t: 时间
+        rv: 角速度
+    
+    返回:
+        值域在[-0.1,0.1]之间的正弦值
+    """
+    amplitude = 0.05  # 振幅设为0.05，使值域在[-0.05,0.05]
+    return amplitude * math.sin(rv * t) + math.radians(-25)
 
 class RenderParameters:
     def __init__(self, camera_location, camera_rotation, light_location, light_energy, render_engine, render_samples):
@@ -45,29 +59,34 @@ class RenderParameters:
 def setup_render_environment(render_output_path, Avatar_path, render_params):
     clear_folder(render_output_path)
 
-    # 删除所有对象
-    # bpy.ops.object.select_all(action='SELECT')
-    # bpy.ops.object.delete(use_global=False)
-
     # 加载 .blend 文件
     bpy.ops.wm.open_mainfile(filepath=Avatar_path)
 
-    render = None
+    face_obj = None
     # 打印场景中的所有对象
     print("场景中的所有对象:")
     for obj in bpy.data.objects:
         if obj:
-            print(f"找到目标对象: {obj.name}")
             if obj.type == 'MESH' and obj.data.shape_keys:
                 print(f"发现shapekeys在对象 '{obj.name}':")
                 for kb in obj.data.shape_keys.key_blocks:
                     print(f"  - {kb.name} (值: {kb.value})")
-                render = obj
+                face_obj = obj
                 break
             else:
                 print(f"对象 '{obj.name}' 没有shapekeys或不是Mesh类型")
         else:
-            print("场景中未找到目标对象")
+            print("场景中未找到对象")
+        
+    # 寻找骨架对象
+    skelton_obj = None
+    for obj in bpy.data.objects:
+        if obj.type == 'ARMATURE':
+            skelton_obj = obj
+            print(f"找到骨架: {skelton_obj.name}")
+            break
+        else:
+            print(f"未找到'ARMATURE'对象")
     
     # 找到相机，如果没有相机则创建一个
     camera = None
@@ -92,15 +111,16 @@ def setup_render_environment(render_output_path, Avatar_path, render_params):
                   
     # 设置渲染引擎为 Eevee
     bpy.context.scene.render.engine = render_params.render_engine
-    bpy.context.scene.cycles.device = 'GPU'  # 使用GPU加速
+    if render_params.render_engine == 'CYCLES':
+        bpy.context.scene.cycles.device = 'GPU'  # 使用GPU加速
     # bpy.context.scene.render.image_settings.file_format = 'PNG'  # 设置输出文件格式为 PNG
 
     # 设置渲染采样率
     bpy.context.scene.eevee.taa_render_samples = render_params.render_samples  # 设置 Eevee 的采样率为 1
 
-    return render, camera
+    return face_obj, skelton_obj, camera
 
-def process_face_data(servicer, render, camera, fps,
+def process_face_data(servicer, face_obj, skelton_obj, camera, fps,
                       render_output_path, index_to_category_name, 
                       render_params, cam_r0, cam_rv):
     while True:
@@ -126,8 +146,8 @@ def process_face_data(servicer, render, camera, fps,
             
             for index, score in data_list:
                 category_name = index_to_category_name.get(index)
-                if category_name and render.data.shape_keys:
-                    shape_keys = render.data.shape_keys.key_blocks
+                if category_name and face_obj.data.shape_keys:
+                    shape_keys = face_obj.data.shape_keys.key_blocks
                     if category_name in shape_keys:
                         shape_keys[category_name].value = score
                         j += 1
@@ -143,8 +163,56 @@ def process_face_data(servicer, render, camera, fps,
             #     for kb in render.data.shape_keys.key_blocks:
             #         print(f"  - {kb.name}: {kb.value:.4f}")
             
-            # 修改相机位置到指定坐标
+            # 计算当前帧的运行时间
             run_time = int(payload_rec.extDesc) / float(fps)
+            neck_rotation = (skelton_sim_data_gen(run_time, 1), 0 ,0) # 生成一个正弦函数值
+
+            # 设置骨骼动画
+            if skelton_obj:
+                # 确保骨架在姿态模式下
+                bpy.context.view_layer.objects.active = skelton_obj
+                bpy.ops.object.mode_set(mode='POSE')
+
+                # 访问具体的骨骼并修改它们的参数
+                pose_bones = skelton_obj.pose.bones
+
+                # 定义需要修改的骨骼路径
+                bone_path = ['Ctrl_Master', 'Ctrl_Hips', 'Ctrl_Spine', 'Ctrl_Spine1', 'Ctrl_Spine2', 'Ctrl_Neck']
+
+                for bone_name in bone_path:
+                    if bone_name in pose_bones:
+                        bone = pose_bones[bone_name]
+                        print(f"修改骨骼: {bone_name}")
+
+                        # 根据不同骨骼设置不同的参数
+                        if bone_name == 'Ctrl_Master':
+                            # 整体位置控制
+                            bone.location = (0, 0, 0)
+                        elif bone_name == 'Ctrl_Hips':
+                            # 臀部位置微调
+                            bone.location.y = 0.05
+                            bone.rotation_euler = (0.1, 0, 0)
+                        elif bone_name == 'Ctrl_Spine':
+                            # 脊柱底部旋转
+                            bone.rotation_euler = (0.05, 0, 0)
+                        elif bone_name == 'Ctrl_Spine1':
+                            # 脊柱中部旋转
+                            bone.rotation_euler = (0.08, 0, 0)
+                        elif bone_name == 'Ctrl_Spine2':
+                            # 脊柱上部旋转
+                            bone.rotation_euler = (0.1, 0, 0)
+                        elif bone_name == 'Ctrl_Neck':
+                            # 颈部旋转 - 微微抬头
+                            bone.rotation_euler = neck_rotation
+                    else:
+                        print(f"未找到骨骼: {bone_name}")
+
+                # 返回对象模式
+                bpy.ops.object.mode_set(mode='OBJECT')
+            else:
+                print("场景中未找到骨架对象，无法修改骨骼参数")
+
+            # 修改相机位置到指定坐标
             print(f"run_time: {run_time}")
             camera.location, camera.rotation_euler = calculate_camera_position(cam_r0, cam_rv, run_time) # 丢包模式下修改runtime逻辑（TBD）
             print(f"相机位置: {camera.location}, 旋转: {camera.rotation_euler}")
@@ -169,7 +237,7 @@ def process_face_data(servicer, render, camera, fps,
 def main(render_output_path, Avatar_path, render_params):
 
     # 设置渲染输出文件的路径
-    render, camera = setup_render_environment(render_output_path, Avatar_path, render_params)
+    face_obj, skelton_obj, camera = setup_render_environment(render_output_path, Avatar_path, render_params)
 
     # 开启服务器线程
     servicer = THStreamServiceServicer()
@@ -233,9 +301,9 @@ def main(render_output_path, Avatar_path, render_params):
     }
     
     fps = 30 # 帧率
-    cam_r0 = math.radians(-120)  # 初始位置-90度，转换为弧度
-    cam_rv = math.radians(3)  # 角速度5度每秒，转换为弧度每秒
-    process_face_data(servicer, render, camera, fps,
+    cam_r0 = math.radians(-110)  # 初始位置-90度，转换为弧度
+    cam_rv = math.radians(1)  # 角速度5度每秒，转换为弧度每秒
+    process_face_data(servicer, face_obj, skelton_obj, camera, fps,
                       render_output_path, index_to_category_name, 
                       render_params, cam_r0, cam_rv)
 
@@ -259,8 +327,8 @@ if __name__ == "__main__":
         camera_location=(0, -4, 1.8),
         camera_rotation=(1.57, 0, 0),
         light_location=(1, -3, 3),
-        light_energy=1300,
-        render_engine='CYCLES',
+        light_energy=1500,
+        render_engine='CYCLES', # CYCLES or BLENDER_EEVEE
         render_samples=32
     )
 
