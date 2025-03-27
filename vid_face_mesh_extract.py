@@ -160,9 +160,9 @@ if __name__ == "__main__":
         end_time = time.time()
         elapsed_time = end_time - start_time
         # 将facelandmarks绘制到图像上
-        annotated_image = draw_landmarks_on_image(mp_image.numpy_view(), detection_result)
-        converted_image = cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(face_landmarks_output_path + "/detect_output_" + str(f"{i:05d}") + ".png", converted_image)
+        # annotated_image = draw_landmarks_on_image(mp_image.numpy_view(), detection_result)
+        # converted_image = cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR)
+        # cv2.imwrite(face_landmarks_output_path + "/detect_output_" + str(f"{i:05d}") + ".png", converted_image)
         # 发送blendshapes
         if detection_result.face_blendshapes:
             for blendshape in detection_result.face_blendshapes:
