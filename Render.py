@@ -20,13 +20,31 @@ def calculate_camera_position(initial_angle, angular_velocity, run_time): # run_
     new_angle = initial_angle + angular_velocity * run_time
     
     # 圆环的半径为4
-    radius = 4
+    radius = 5
     
     # 计算新的位置
     x = radius * math.cos(new_angle)
     y = radius * math.sin(new_angle)
     z = 2.6 # 和人物身高对齐
     rx = math.radians(83) # 保持画面滚转角
+    ry = 0 # 保持画面俯仰角
+    rz = new_angle + math.pi / 2 # 对准（0，0，z）轴
+    position = (x, y, z)
+    rotation = (rx, ry, rz)
+    return position, rotation
+
+def calculate_spotlight_position(initial_angle, angular_velocity, run_time): # run_time = frames / fps
+    # 计算新的角度
+    new_angle = initial_angle + angular_velocity * run_time
+    
+    # 圆环的半径为4
+    radius = 3.5
+    
+    # 计算新的位置
+    x = radius * math.cos(new_angle)
+    y = radius * math.sin(new_angle)
+    z = 3 
+    rx = math.radians(80) # 保持画面滚转角
     ry = 0 # 保持画面俯仰角
     rz = new_angle + math.pi / 2 # 对准（0，0，z）轴
     position = (x, y, z)
@@ -100,14 +118,17 @@ def setup_render_environment(render_output_path, Avatar_path, render_params):
         bpy.ops.object.camera_add(location=(0, -4, 2), rotation=(3.14, 0, 0))
         camera = bpy.context.object
     
-    # 设置相机为活动相机
-    # bpy.context.scene.camera = camera  
-
-    # 添加光照
-    bpy.context.view_layer.objects.active = None  # 确保没有活动对象
-    bpy.ops.object.light_add(type='POINT', location=render_params.light_location)
-    light = bpy.context.active_object
-    light.data.energy = render_params.light_energy  # 设置光照强度
+    # 设置聚光灯变化
+    spotlight = None
+    for obj in bpy.data.objects:
+        if obj.type == 'LIGHT' and obj.data.type == 'SPOT':
+            spotlight = obj
+            break
+    # # 添加光照
+    # bpy.context.view_layer.objects.active = None  # 确保没有活动对象
+    # bpy.ops.object.light_add(type='POINT', location=render_params.light_location)
+    # light = bpy.context.active_object
+    # light.data.energy = render_params.light_energy  # 设置光照强度
                   
     # 设置渲染引擎为 Eevee
     bpy.context.scene.render.engine = render_params.render_engine
@@ -118,9 +139,9 @@ def setup_render_environment(render_output_path, Avatar_path, render_params):
     # 设置渲染采样率
     bpy.context.scene.eevee.taa_render_samples = render_params.render_samples  # 设置 Eevee 的采样率为 1
 
-    return face_obj, skelton_obj, camera
+    return face_obj, skelton_obj, camera, spotlight
 
-def process_face_data(servicer, face_obj, skelton_obj, camera, fps,
+def process_face_data(servicer, face_obj, skelton_obj, camera, spotlight, fps,
                       render_output_path, index_to_category_name, 
                       render_params, cam_r0, cam_rv):
     while True:
@@ -212,6 +233,11 @@ def process_face_data(servicer, face_obj, skelton_obj, camera, fps,
             else:
                 print("场景中未找到骨架对象，无法修改骨骼参数")
 
+            # 设置聚光灯变化
+            if spotlight:
+                spotlight.data.energy = render_params.light_energy
+                spotlight.location, spotlight.rotation_euler = calculate_spotlight_position(cam_r0, cam_rv, run_time)
+            
             # 修改相机位置到指定坐标
             print(f"run_time: {run_time}")
             camera.location, camera.rotation_euler = calculate_camera_position(cam_r0, cam_rv, run_time) # 丢包模式下修改runtime逻辑（TBD）
@@ -237,7 +263,7 @@ def process_face_data(servicer, face_obj, skelton_obj, camera, fps,
 def main(render_output_path, Avatar_path, render_params):
 
     # 设置渲染输出文件的路径
-    face_obj, skelton_obj, camera = setup_render_environment(render_output_path, Avatar_path, render_params)
+    face_obj, skelton_obj, camera, spotlight = setup_render_environment(render_output_path, Avatar_path, render_params)
 
     # 开启服务器线程
     servicer = THStreamServiceServicer()
@@ -301,9 +327,9 @@ def main(render_output_path, Avatar_path, render_params):
     }
     
     fps = 30 # 帧率
-    cam_r0 = math.radians(-110)  # 初始位置-90度，转换为弧度
-    cam_rv = math.radians(1)  # 角速度5度每秒，转换为弧度每秒
-    process_face_data(servicer, face_obj, skelton_obj, camera, fps,
+    cam_r0 = math.radians(-165)  # 初始位置-90度，转换为弧度
+    cam_rv = math.radians(3)  # 角速度5度每秒，转换为弧度每秒
+    process_face_data(servicer, face_obj, skelton_obj, camera, spotlight, fps, 
                       render_output_path, index_to_category_name, 
                       render_params, cam_r0, cam_rv)
 
@@ -322,13 +348,13 @@ if __name__ == "__main__":
     # Avatar_path = "/home/ztw/HVCCS/data/boy52blendshapes.blend"
 
 
-    Avatar_path = "../Render_Avatar/nezha_with_backgoud.blend"
+    Avatar_path = "../Render_Avatar/nezha_with_backgoud_spotlight.blend"
     render_params = RenderParameters(
         camera_location=(0, -4, 1.8),
         camera_rotation=(1.57, 0, 0),
         light_location=(1, -3, 3),
         light_energy=1500,
-        render_engine='CYCLES', # CYCLES or BLENDER_EEVEE
+        render_engine='BLENDER_EEVEE', # CYCLES or BLENDER_EEVEE
         render_samples=32
     )
 
