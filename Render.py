@@ -25,8 +25,8 @@ def calculate_camera_position(initial_angle, angular_velocity, run_time): # run_
     # 计算新的位置
     x = radius * math.cos(new_angle)
     y = radius * math.sin(new_angle)
-    z = 2.6 # 和人物身高对齐
-    rx = math.radians(83) # 保持画面滚转角
+    z = 2.4 # 和人物身高对齐
+    rx = math.radians(85) # 保持画面滚转角
     ry = 0 # 保持画面俯仰角
     rz = new_angle + math.pi / 2 # 对准（0，0，z）轴
     position = (x, y, z)
@@ -125,10 +125,10 @@ def setup_render_environment(render_output_path, Avatar_path, render_params):
             spotlight = obj
             break
     # # 添加光照
-    # bpy.context.view_layer.objects.active = None  # 确保没有活动对象
-    # bpy.ops.object.light_add(type='POINT', location=render_params.light_location)
-    # light = bpy.context.active_object
-    # light.data.energy = render_params.light_energy  # 设置光照强度
+    bpy.context.view_layer.objects.active = None  # 确保没有活动对象
+    bpy.ops.object.light_add(type='POINT', location=render_params.light_location)
+    light = bpy.context.active_object
+    light.data.energy = render_params.light_energy  # 设置光照强度
                   
     # 设置渲染引擎为 Eevee
     bpy.context.scene.render.engine = render_params.render_engine
@@ -234,9 +234,9 @@ def process_face_data(servicer, face_obj, skelton_obj, camera, spotlight, fps,
                 print("场景中未找到骨架对象，无法修改骨骼参数")
 
             # 设置聚光灯变化
-            if spotlight:
-                spotlight.data.energy = render_params.light_energy
-                spotlight.location, spotlight.rotation_euler = calculate_spotlight_position(cam_r0, cam_rv, run_time)
+            # if spotlight:
+            #     spotlight.data.energy = render_params.light_energy
+            #     spotlight.location, spotlight.rotation_euler = calculate_spotlight_position(cam_r0, cam_rv, run_time)
             
             # 修改相机位置到指定坐标
             print(f"run_time: {run_time}")
@@ -327,7 +327,7 @@ def main(render_output_path, Avatar_path, render_params):
     }
     
     fps = 30 # 帧率
-    cam_r0 = math.radians(-165)  # 初始位置-90度，转换为弧度
+    cam_r0 = math.radians(-135)  # 初始位置-90度，转换为弧度
     cam_rv = math.radians(3)  # 角速度5度每秒，转换为弧度每秒
     process_face_data(servicer, face_obj, skelton_obj, camera, spotlight, fps, 
                       render_output_path, index_to_category_name, 
@@ -354,7 +354,7 @@ if __name__ == "__main__":
         camera_rotation=(1.57, 0, 0),
         light_location=(1, -3, 3),
         light_energy=1500,
-        render_engine='BLENDER_EEVEE', # CYCLES or BLENDER_EEVEE
+        render_engine='CYCLES', # CYCLES or BLENDER_EEVEE
         render_samples=32
     )
 
