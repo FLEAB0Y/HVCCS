@@ -1,22 +1,20 @@
-import math
+import socket
+import time
 
-def skelton_sim_data_gen(t, rv):
-    """
-    计算正弦函数值，值域限制在[-0.1,0.1]之间
+def send_blendshape_data(data_list):
+    # 格式化数据为需要的字符串格式
+    data_str = "blendshape_data: [" + ", ".join([f"({idx}, {val})" for idx, val in data_list]) + "]"
     
-    参数:
-        t: 时间
-        rv: 角速度
+    # 建立TCP连接
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client.connect(("127.0.0.1", 5556))
     
-    返回:
-        值域在[-0.1,0.1]之间的正弦值
-    """
-    amplitude = 0.1  # 振幅设为0.1，使值域在[-0.1,0.1]
-    return amplitude * math.sin(rv * t)
+    # 发送数据
+    client.send(data_str.encode('utf-8'))
+    
+    # 关闭连接
+    client.close()
 
-# 示例用法
-if __name__ == "__main__":
-    time = 1.0
-    angular_velocity = 0.2 * math.pi  # 例如2π弧度/秒
-    result = sine_function(time, angular_velocity)
-    print(f"t={time}, rv={angular_velocity}, sine value={result}")
+# 示例数据
+blendshape_data = [(0, 0.0), (1, 0.009668582119047642), (2, 0.007418482098728418), (3, 0.03089664876461029)]
+send_blendshape_data(blendshape_data)
