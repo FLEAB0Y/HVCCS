@@ -358,7 +358,7 @@ if __name__ == "__main__":
         render_samples=32
     )
 
-    output_path_relative = "res/render_res"
+    output_path_relative = "../res/render_res"
 
     # 获取当前脚本所在目录
     script_dir = os.path.dirname(os.path.abspath(__file__))
