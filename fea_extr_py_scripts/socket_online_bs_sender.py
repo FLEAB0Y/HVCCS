@@ -7,19 +7,17 @@ from mediapipe.framework.formats import landmark_pb2
 import numpy as np
 import cv2
 import time
-import json
-import threading
 import socket  # 只使用socket模块
 
 def send_blendshape_data(data_list):
     """使用socket直接发送blendshape数据"""
     # 只格式化索引和值，不添加其他文字
     data_str = ";".join([f"{idx},{val}" for idx, val in data_list])
-    print(f"发送数据: {data_str}")
+    # print(f"发送数据: {data_str}")
     
     # 建立TCP连接
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client.connect(("127.0.0.1", 5556))
+    client.connect(("127.0.0.1", 8888))
     
     # 发送数据
     client.send(data_str.encode('utf-8'))
@@ -45,9 +43,9 @@ def detect_result_proc(result: mp.tasks.vision.FaceLandmarkerResult, output_imag
                 print(f"发送数据失败: {e}")
             
             # test
-            print(f"blendshape_data: {blendshape_data}")
+            # print(f"blendshape_data: {blendshape_data}")
 
-def main(model_path='/home/ztw/HVCCS/data/face_landmarker_v2_with_blendshapes.task'):
+def main(model_path='HVCCS/data/face_landmarker_v2_with_blendshapes.task'):
     # 创建人脸检测器
     VisionRunningMode = mp.tasks.vision.RunningMode
     base_options = python.BaseOptions(model_asset_path=model_path)

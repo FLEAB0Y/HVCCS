@@ -111,12 +111,12 @@ def run_client(client):
 if __name__ == "__main__":
 
     # 设置文件路径
-    input_video_path = "/home/ztw/HVCCS/data/intro.MOV"
-    face_landmarks_output_path = "/home/ztw/HVCCS/res/detec_res"
+    input_video_path = "../data/intro.MOV"
+    face_landmarks_output_path = "../res/detec_res"
     clear_folder(face_landmarks_output_path)
 
     # 创建FaceLandmarker对象.
-    base_options = python.BaseOptions(model_asset_path='/home/ztw/HVCCS/data/face_landmarker_v2_with_blendshapes.task')
+    base_options = python.BaseOptions(model_asset_path='../data/face_landmarker_v2_with_blendshapes.task')
     options = vision.FaceLandmarkerOptions(running_mode=vision.RunningMode.VIDEO,
                                            base_options=base_options,
                                            output_face_blendshapes=True,

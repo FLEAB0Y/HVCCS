@@ -48,7 +48,7 @@ def detect_result_proc(result: mp.tasks.vision.FaceLandmarkerResult, output_imag
             
             client.send_data_buffer.add_item(payload_send)
 
-def main(server_addr='127.0.0.1', port_num =50051, model_path='/home/ztw/HVCCS/data/face_landmarker_v2_with_blendshapes.task'):
+def main(server_addr='127.0.0.1', port_num =50051, model_path='/HVCCS/data/face_landmarker_v2_with_blendshapes.task'):
     # 创建人脸检测器
     VisionRunningMode = mp.tasks.vision.RunningMode
     base_options = python.BaseOptions(model_asset_path=model_path)
@@ -102,4 +102,4 @@ if __name__ == "__main__":
     # 4090 server ip addr = 183.173.48.193
     # A100 server ip addr = 101.6.65.237
     # self ip addr = 127.0.0.1
-    main(server_addr='127.0.0.1', port_num=50051, model_path='D:/HVCCS/data/face_landmarker_v2_with_blendshapes.task')
+    main(server_addr='127.0.0.1', port_num=50051, model_path='../data/face_landmarker_v2_with_blendshapes.task')
