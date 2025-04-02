@@ -36,11 +36,11 @@ def clear_folder(folder_path):
 
 
 if __name__ == "__main__":
-    output_video_path = '../res/video_res'
+    output_video_path = '/home/ztw/HVCCS/res/video_res'
     clear_folder(output_video_path)
-    face_landmarks_path = "../res/detec_res"
-    render_res_path = "../res/render_res"
+    face_landmarks_path = "/home/ztw/HVCCS/res/detec_res"
+    render_res_path = "/home/ztw/HVCCS/res/render_res"
     # 将facelandmarks图像拼接为视频
     images_to_video(face_landmarks_path, output_video_path + "/detect_output.mp4")
     # 将render res拼接为视频
-    images_to_video(render_res_path, output_video_path + "/render_output.mp4")
+    # images_to_video(render_res_path, output_video_path + "/render_output.mp4")
