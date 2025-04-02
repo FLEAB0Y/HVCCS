@@ -111,12 +111,12 @@ def run_client(client):
 if __name__ == "__main__":
 
     # 设置文件路径
-    input_video_path = "../data/intro.MOV"
-    face_landmarks_output_path = "../res/detec_res"
+    input_video_path = "/home/ztw/HVCCS/data/intro.MOV"
+    face_landmarks_output_path = "/home/ztw/HVCCS/res/detec_res"
     clear_folder(face_landmarks_output_path)
 
     # 创建FaceLandmarker对象.
-    base_options = python.BaseOptions(model_asset_path='../data/face_landmarker_v2_with_blendshapes.task')
+    base_options = python.BaseOptions(model_asset_path='/home/ztw/HVCCS/data/face_landmarker_v2_with_blendshapes.task')
     options = vision.FaceLandmarkerOptions(running_mode=vision.RunningMode.VIDEO,
                                            base_options=base_options,
                                            output_face_blendshapes=True,
@@ -160,9 +160,9 @@ if __name__ == "__main__":
         end_time = time.time()
         elapsed_time = end_time - start_time
         # 将facelandmarks绘制到图像上
-        # annotated_image = draw_landmarks_on_image(mp_image.numpy_view(), detection_result)
-        # converted_image = cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR)
-        # cv2.imwrite(face_landmarks_output_path + "/detect_output_" + str(f"{i:05d}") + ".png", converted_image)
+        annotated_image = draw_landmarks_on_image(mp_image.numpy_view(), detection_result)
+        converted_image = cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(face_landmarks_output_path + "/detect_output_" + str(f"{i:05d}") + ".png", converted_image)
         # 发送blendshapes
         if detection_result.face_blendshapes:
             for blendshape in detection_result.face_blendshapes:
