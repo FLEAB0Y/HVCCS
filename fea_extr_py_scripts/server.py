@@ -66,10 +66,18 @@ if __name__ == '__main__':
             time.sleep(1./30.)
             cnt = servicer.receive_data_buffer.get_size()
         data = servicer.receive_data_buffer.get_items()
-        cnt = servicer.receive_data_buffer.get_size()
-        print(cnt)
-        print(str(data.extDesc).zfill(5))
-        time.sleep(1./30.)
+
+        # 获取当前时间戳（毫秒）
+        current_timestamp_ms = int(time.time() * 1000)
+
+        # 计算传输耗时
+        try:
+            sent_timestamp_ms = int(data.extDesc)  # 将 extDesc 转换为整数
+            transmission_time_ms = current_timestamp_ms - sent_timestamp_ms
+            print(f"传输耗时：{transmission_time_ms} ms")
+        except ValueError:
+            print(f"无法解析 extDesc: {data.extDesc}")
+
 
 
 
