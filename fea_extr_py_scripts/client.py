@@ -64,18 +64,27 @@ if __name__ == '__main__':
     client = THStreamClient(host='127.0.0.1', port=50051)
     client_thread = threading.Thread(target=run_client, args=(client,))
     client_thread.start()
-    i = 0
+
     while True:
-        payload1 = THStreamDataPayload(rgb_data=b'\x01', point_data=b'\x02', face_data=b'\x03', limb_data=b'\x04',
-                                   ext_data=b'\x05', ext_desc=f"{str(i)}")
-        client.send_data_buffer.add_item(payload1)
         # 缓冲区满了就等待
         buffer_size = client.send_data_buffer.get_size()
         while buffer_size >= 10:
             time.sleep(0.1)
             buffer_size = client.send_data_buffer.get_size()
-        time.sleep(1./30.)
-        i += 1
+        # 生成250,000字节的数据
+        large_data = b'\x00' * 250000
+        # 获取当前时间戳（毫秒）
+        timestamp_ms = str(int(time.time() * 1000))
+        # 创建数据负载
+        payload = THStreamDataPayload(rgb_data=b'\x01', 
+                                       point_data=large_data, 
+                                       face_data=b'\x03', 
+                                       limb_data=b'\x04',
+                                       ext_data=b'\x05', 
+                                       ext_desc=timestamp_ms)
+        client.send_data_buffer.add_item(payload)
+        
+
 
 
 
