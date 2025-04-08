@@ -66,6 +66,8 @@ if __name__ == '__main__':
     diff = init_time()
     print(f"时间差: {diff} ms")
     
+    # Labserver: 101.6.65.237
+    # local: 127.0.0.1
     client = THStreamClient(host='127.0.0.1', port=50051)
     client_thread = threading.Thread(target=run_client, args=(client,))
     client_thread.start()
