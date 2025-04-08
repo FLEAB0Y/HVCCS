@@ -37,9 +37,17 @@ def init_time():
     return diff
     
 if __name__ == '__main__':
+    total_diff = 0
+    for i in range(10):
+        diff = init_time()
+        print(f"时间差: {diff} ms")
+        total_diff =+ diff
+    # 计算平均时间差
+    avg_diff = total_diff / 10
+    
     local_time = int(time.time() * 1000)
-    diff = init_time()
+
     # 计算本地时间与网络时间的差值
     print(f"本地时间戳: {local_time}")
-    print(f"网络时间戳: {local_time + diff}")
-    print(f"时间差: {diff}")
+    print(f"网络时间戳: {local_time + avg_diff}")
+    print(f"时间差: {avg_diff}")
