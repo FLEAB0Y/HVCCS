@@ -5,7 +5,7 @@ import data_stream_pb2_grpc
 from THStreamData import THStreamDataPayload, THDataWarehouse
 import threading
 import time
-from linux_calculate_latency import init_time
+# from linux_calculate_latency import init_time
 
 class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
     def __init__(self):
@@ -42,8 +42,8 @@ def serve(servicer):
 
 if __name__ == '__main__':
     # 初始化时间差
-    diff = init_time()
-    print(f"时间差: {diff} ms")
+    # diff = init_time()
+    # print(f"时间差: {diff} ms")
 
     servicer = THStreamServiceServicer()
     server_process = threading.Thread(target=serve, args=(servicer,))

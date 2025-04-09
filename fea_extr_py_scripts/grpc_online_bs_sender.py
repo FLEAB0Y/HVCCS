@@ -102,4 +102,4 @@ if __name__ == "__main__":
     # A100 server ip addr = 101.6.65.237
     # laptop ip addr = 183.173.115.89
     # self ip addr = 127.0.0.1
-    main(server_addr='127.0.0.1', port_num=50051, model_path='data/face_landmarker_v2_with_blendshapes.task')
+    main(server_addr='183.173.115.89', port_num=50051, model_path='data/face_landmarker_v2_with_blendshapes.task')
