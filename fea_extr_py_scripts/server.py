@@ -5,7 +5,7 @@ import data_stream_pb2_grpc
 from THStreamData import THStreamDataPayload, THDataWarehouse
 import threading
 import time
-from calculate_latency import init_time
+from linux_calculate_latency import init_time
 
 class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
     def __init__(self):

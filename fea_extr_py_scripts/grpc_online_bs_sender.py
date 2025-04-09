@@ -4,7 +4,6 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
-import numpy as np
 import cv2
 import time
 import json
@@ -21,8 +20,8 @@ def detect_result_proc(result: mp.tasks.vision.FaceLandmarkerResult, output_imag
     if result.face_blendshapes:
         for blendshape in result.face_blendshapes:
             # test 输出category_name和index的一一对应关系
-            for category in blendshape:
-                print(f"Category Name: {category.category_name}, Index: {category.index}")
+            # for category in blendshape:
+            #     print(f"Category Name: {category.category_name}, Index: {category.index}")
             blendshape_data = [(category.index, category.score) for category in blendshape] # 获取blendshape的index和score组成列表
             
             # face blendshape 编码 （TBD）
@@ -34,7 +33,7 @@ def detect_result_proc(result: mp.tasks.vision.FaceLandmarkerResult, output_imag
             blendshape_data_bytes = blendshape_data_json.encode('utf-8')
 
             # test
-            print(f"blendshape_data: {blendshape_data}")
+            # print(f"blendshape_data: {blendshape_data}")
 
             # 往缓冲区放入数据
             payload_send = THStreamDataPayload(
@@ -102,4 +101,4 @@ if __name__ == "__main__":
     # 4090 server ip addr = 183.173.48.193
     # A100 server ip addr = 101.6.65.237
     # self ip addr = 127.0.0.1
-    main(server_addr='127.0.0.1', port_num=50051, model_path='../data/face_landmarker_v2_with_blendshapes.task')
+    main(server_addr='127.0.0.1', port_num=50051, model_path='D:/HVCCS/data/face_landmarker_v2_with_blendshapes.task')
