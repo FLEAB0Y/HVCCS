@@ -17,7 +17,7 @@ def send_blendshape_data(data_list):
     
     # 建立TCP连接
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client.connect(("127.0.0.1", 8889))
+    client.connect(("127.0.0.1", 8888))
     
     # 发送数据
     client.send(data_str.encode('utf-8'))
