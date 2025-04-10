@@ -4,7 +4,7 @@ import data_stream_pb2_grpc
 import time
 import threading
 from THStreamData import THStreamDataPayload, THDataWarehouse
-from linux_calculate_latency import init_time
+# from linux_calculate_latency import init_time
 
 class THStreamClient:
     def __init__(self, host='127.0.0.1', port=50051):
@@ -63,8 +63,8 @@ def run_client(client):
 
 if __name__ == '__main__':
     # 初始化时间差
-    diff = init_time()
-    print(f"时间差: {diff} ms")
+    # diff = init_time()
+    # print(f"时间差: {diff} ms")
     
     # Labserver: 101.6.65.237
     # local: 127.0.0.1
