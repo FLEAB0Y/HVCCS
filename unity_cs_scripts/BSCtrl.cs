@@ -22,10 +22,27 @@ public class BSCtrl : MonoBehaviour
     
     // 滚动视图位置
     private Vector2 scrollPosition;
+
+    // 用于存储时间戳和延时信息
+    private long receivedTimestamp = 0;
+    private float latency = 0f;
+    private bool hasLatencyData = false;
+
+    // GUI 位置偏移量 - 用于多实例显示
+    public Vector2 guiOffset = Vector2.zero;
+    
+    // 显示名称 - 用于标识不同实例
+    public string displayName = "";
     
     // Start is called before the first frame update
     void Start()
     {
+        // 如果未设置显示名称，则使用游戏对象名称
+        if (string.IsNullOrEmpty(displayName))
+        {
+            displayName = gameObject.name;
+        }
+        
         // 初始化标准BlendShape映射
         InitBlendShapeMap();
         
@@ -159,6 +176,7 @@ public class BSCtrl : MonoBehaviour
             // 解析数据字符串
             string[] entries = data.Split(';');
             int successCount = 0;
+            bool foundTimestamp = false;
             
             foreach (string entry in entries)
             {
@@ -166,25 +184,53 @@ public class BSCtrl : MonoBehaviour
                     continue;
                 
                 string[] parts = entry.Split(',');
-                if (parts.Length != 2)
+                
+                // 检查是否是时间戳数据
+                if (parts.Length == 2 && parts[0] == "timestamp")
                 {
-                    Debug.LogWarning($"无效数据格式: {entry}");
+                    if (long.TryParse(parts[1], out long timestamp))
+                    {
+                        receivedTimestamp = timestamp;
+                        foundTimestamp = true;
+                        
+                        // 计算延迟（当前时间 - 发送时间）
+                        long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                        latency = (currentTimestamp - receivedTimestamp) / 1000f; // 转换为秒
+                        hasLatencyData = true;
+                        
+                        Debug.Log($"接收到时间戳: {receivedTimestamp}, 延迟: {latency.ToString("F3")}秒");
+                    }
                     continue;
                 }
                 
-                if (int.TryParse(parts[0], out int id) && float.TryParse(parts[1], out float value))
+                // 处理BlendShape数据
+                if (parts.Length == 2)
                 {
-                    // 将接收到的值(0-1)乘以100转换为BlendShape权重值(0-100)
-                    SetBlendShapeWeight(id, value * 100f);
-                    successCount++;
+                    if (int.TryParse(parts[0], out int id) && float.TryParse(parts[1], out float value))
+                    {
+                        // 将接收到的值(0-1)乘以100转换为BlendShape权重值(0-100)
+                        SetBlendShapeWeight(id, value * 100f);
+                        successCount++;
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"无法解析数值: {entry}");
+                    }
                 }
                 else
                 {
-                    Debug.LogWarning($"无法解析数值: {entry}");
+                    Debug.LogWarning($"无效数据格式: {entry}");
                 }
             }
             
-            Debug.Log($"成功处理 {successCount}/{entries.Length} 个BlendShape数据项");
+            if (foundTimestamp)
+            {
+                Debug.Log($"成功处理 {successCount}/{entries.Length - 1} 个BlendShape数据项，延迟: {latency.ToString("F3")}秒");
+            }
+            else
+            {
+                Debug.Log($"成功处理 {successCount}/{entries.Length} 个BlendShape数据项");
+            }
         }
         catch (Exception e)
         {
@@ -260,46 +306,26 @@ public class BSCtrl : MonoBehaviour
         if (!showDebugGUI || skinnedMeshRenderer == null)
             return;
             
-        // 创建一个滚动视图来显示所有的BlendShape
-        GUILayout.BeginArea(new Rect(10, 10, 350, 600));
-        GUILayout.Label("BlendShape控制器", GUI.skin.box);
+        // 创建一个简单区域显示延迟信息，使用偏移量区分不同实例
+        GUILayout.BeginArea(new Rect(10 + guiOffset.x, 10 + guiOffset.y, 350, 60));
+        GUILayout.Label($"{displayName}表情控制状态", GUI.skin.box);
         
-        // 添加控制按钮
+        // 添加控制按钮和延迟显示
         GUILayout.BeginHorizontal();
         if (GUILayout.Button("重置所有"))
         {
             ResetAllBlendShapes();
         }
+        
+        // 显示延迟信息
+        if (hasLatencyData)
+        {
+            GUI.color = latency > 0.1f ? Color.yellow : Color.green;
+            GUILayout.Label($"延迟: {latency.ToString("F3")}秒", GUILayout.Width(150));
+            GUI.color = Color.white;
+        }
         GUILayout.EndHorizontal();
         
-        scrollPosition = GUILayout.BeginScrollView(scrollPosition, GUILayout.Width(350), GUILayout.Height(550));
-        
-        // 按顺序显示所有找到的标准BlendShape
-        for (int i = 0; i < 52; i++)
-        {
-            if (!blendShapeMap.ContainsKey(i))
-                continue;
-                
-            string name = blendShapeMap[i];
-            
-            // 如果这个BlendShape在模型中不存在，跳过
-            if (!blendShapeIndices.ContainsKey(name))
-                continue;
-                
-            GUILayout.BeginHorizontal();
-            GUILayout.Label($"ID_{i}: {name}", GUILayout.Width(180));
-            float newWeight = GUILayout.HorizontalSlider(blendShapeWeights[name], 0f, 100f, GUILayout.Width(120));
-            
-            if (newWeight != blendShapeWeights[name])
-            {
-                SetBlendShapeWeight(name, newWeight);
-            }
-            
-            GUILayout.Label(blendShapeWeights[name].ToString("F1"), GUILayout.Width(30));
-            GUILayout.EndHorizontal();
-        }
-        
-        GUILayout.EndScrollView();
         GUILayout.EndArea();
     }
 }

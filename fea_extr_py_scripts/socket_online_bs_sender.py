@@ -9,15 +9,16 @@ import cv2
 import time
 import socket  # 只使用socket模块
 
-def send_blendshape_data(data_list):
+def send_blendshape_data(data_list, timestamp):
     """使用socket直接发送blendshape数据"""
-    # 只格式化索引和值，不添加其他文字
+    # 格式化索引和值，并添加时间戳
     data_str = ";".join([f"{idx},{val}" for idx, val in data_list])
+    data_str += f";timestamp,{timestamp}"  # 添加时间戳
     # print(f"发送数据: {data_str}")
     
     # 建立TCP连接
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client.connect(("127.0.0.1", 8888))
+    client.connect(("127.0.0.1", 8889))
     
     # 发送数据
     client.send(data_str.encode('utf-8'))
@@ -38,7 +39,7 @@ def detect_result_proc(result: mp.tasks.vision.FaceLandmarkerResult, output_imag
             
             # 使用socket发送方法
             try:
-                send_blendshape_data(blendshape_data)
+                send_blendshape_data(blendshape_data,timestamp_ms)
             except Exception as e:
                 print(f"发送数据失败: {e}")
             
