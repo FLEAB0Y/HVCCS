@@ -8,6 +8,7 @@ import numpy as np
 import cv2
 import time
 import socket  # 只使用socket模块
+import os
 
 def send_blendshape_data(data_list, timestamp):
     """使用socket直接发送blendshape数据"""
@@ -86,4 +87,8 @@ def main(model_path='HVCCS/data/face_landmarker_v2_with_blendshapes.task'):
         print('资源已释放')
 
 if __name__ == "__main__":
-    main(model_path='D:/HVCCS/data/face_landmarker_v2_with_blendshapes.task')
+    # 获取当前脚本所在目录
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    # 构建相对路径 - 上一级目录的data文件夹
+    model_path = os.path.join(script_dir, "..", "data", "face_landmarker_v2_with_blendshapes.task")
+    main(model_path=model_path)

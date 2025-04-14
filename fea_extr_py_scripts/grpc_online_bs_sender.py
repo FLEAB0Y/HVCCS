@@ -10,6 +10,7 @@ import json
 import threading
 from client import THStreamClient
 from THStreamData import THStreamDataPayload, THDataWarehouse
+import os
 
 def run_client(client):
     client.run()
@@ -102,4 +103,8 @@ if __name__ == "__main__":
     # A100 server ip addr = 101.6.65.237
     # laptop ip addr = 183.173.115.89
     # self ip addr = 127.0.0.1
-    main(server_addr='183.173.115.89', port_num=50051, model_path='data/face_landmarker_v2_with_blendshapes.task')
+    # 获取当前脚本所在目录
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    # 构建相对路径 - 上一级目录的data文件夹
+    model_path = os.path.join(script_dir, "..", "data", "face_landmarker_v2_with_blendshapes.task")
+    main(server_addr='183.173.115.89', port_num=50051, model_path = model_path)

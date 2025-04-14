@@ -25,7 +25,7 @@ com.unity.renderstreaming
 ```bash
 npm install
 ```
-
+- 可以通过修改源码来修改传输端口和模式，源码在`/WebApp/src/index.ts`中
 
 ### 3 配置unity场景
 - 在unity中打开`Assets/Samples/Unity Render Streaming/3.1.0-exp.6/Example/`，将里面子文件夹中的场景拖入`Hierarchy`中。
