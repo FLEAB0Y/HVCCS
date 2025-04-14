@@ -1,5 +1,8 @@
 # HVCCS
 Hologram Virtual Conference Communication System
+## 配置虚拟环境
+- 从官网安装anaconda3
+- 运行`conda env create -f face_detec.yaml`来创建虚拟环境
 
 ## 配置unity渲染和推流
 ### 1 Setup Unity
