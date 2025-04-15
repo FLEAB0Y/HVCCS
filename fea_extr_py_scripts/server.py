@@ -32,12 +32,12 @@ class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
             context.set_details(f"Server error: {str(e)}")
             yield data_stream_pb2.THStreamResponse(retCode=1, retMsg="Internal server error")
 
-def serve(servicer):
+def serve(servicer, port):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     data_stream_pb2_grpc.add_THStreamServiceServicer_to_server(servicer, server)
-    server.add_insecure_port('[::]:50051')
+    server.add_insecure_port(f'[::]:{port}')
     server.start()
-    print("Server started, listening on port 50051")
+    print(f"Server started, listening on port {port}")
     server.wait_for_termination()
 
 if __name__ == '__main__':
@@ -46,7 +46,8 @@ if __name__ == '__main__':
     # print(f"时间差: {diff} ms")
 
     servicer = THStreamServiceServicer()
-    server_process = threading.Thread(target=serve, args=(servicer,))
+    custom_port = 50051  # 替换为您需要的端口号
+    server_process = threading.Thread(target=serve, args=(servicer, custom_port))
     server_process.start()
 
     while True:    
