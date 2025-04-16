@@ -24,11 +24,12 @@ com.unity.renderstreaming
 - 在`Render Streaming Wizard`窗口点击`Download latest version web app`，下载最新的web app。如果无法下载请访问[github](https://github.com/Unity-Technologies/UnityRenderStreaming)下载`WebApp`文件夹。
 - 在unity中打开`Window/Package Manager`，找到`Unity Render Streaming`点击进入详情，找到`samples`，点击`Import`，等待完成。
 - 在[nodejs](https://nodejs.org/en/)下载对应版本node.js并安装。
+- 可以通过修改源码来修改传输端口和模式，源码在`/WebApp/src/index.ts`中。选中场景`HDRP/RenderStreaming`中`signaling manager`选择`open project settings`，在面板选择`create new setting assets`，在一个地方保存即可。然后再次选择`open project settings`，即可修改URL。
 - node.js完成安装后进入`WebApp`文件夹，打开命令行窗口，输入以下命令安装依赖：
 ```bash
 npm install
 ```
-- 可以通过修改源码来修改传输端口和模式，源码在`/WebApp/src/index.ts`中
+- Windows直接双击运行`run.bat`，linux在命令行运行`./run.sh`
 
 ### 3 配置unity场景
 - 在unity中打开`Assets/Samples/Unity Render Streaming/3.1.0-exp.6/Example/`，将里面子文件夹中的场景拖入`Hierarchy`中。
