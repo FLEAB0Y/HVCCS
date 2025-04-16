@@ -107,4 +107,4 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
     # 构建相对路径 - 上一级目录的data文件夹
     model_path = os.path.join(script_dir, "..", "data", "face_landmarker_v2_with_blendshapes.task")
-    main(server_addr='183.173.115.89', port_num=50051, model_path = model_path)
+    main(server_addr='127.0.0.1', port_num=50054, model_path = model_path)
