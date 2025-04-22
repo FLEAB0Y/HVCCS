@@ -31,6 +31,32 @@ class THStreamClient:
         except grpc.RpcError as e:
             print(f"gRPC error: {e}")
 
+    # 这是计算数据处理延迟的发送函数，在数据发送后获取一个时间戳，与数据包中的时间戳做差实现
+    # def send_data(self):
+    #     try:
+    #         send_data = self.request_generator()
+    #         if not send_data:
+    #             return
+            
+    #         for request in send_data:
+    #             # 从请求的ext_desc字段获取发送时的时间戳
+    #             send_timestamp = int(request.extDesc)
+                
+    #             # 发送请求并获取响应
+    #             response_iterator = self.stub.BidirectionalStream(iter([request]))
+                
+    #             # 计算发送完成后的时间戳
+    #             current_timestamp = int(time.time() * 1000)
+    #             delay = current_timestamp - send_timestamp
+                
+    #             print(f"数据包延迟: {delay} ms")
+                
+    #             # 处理响应
+    #             for response in response_iterator:
+    #                 print(f"Received response: retCode={response.retCode}, retMsg={response.retMsg}")
+    #     except grpc.RpcError as e:
+    #         print(f"gRPC error: {e}")
+
     def request_generator(self):
         if self.send_data_buffer.get_size() == 0:
             return None
