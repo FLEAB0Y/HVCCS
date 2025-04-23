@@ -43,11 +43,10 @@ if __name__ == "__main__":
     output_video_path = os.path.join(base_dir, 'res', 'video_res')
     clear_folder(output_video_path)
     
-    face_landmarks_path = os.path.join(base_dir, 'res', 'detec_res')
+    landmarks_path = os.path.join(base_dir, 'res', 'detec_res')
     render_res_path = os.path.join(base_dir, 'res', 'render_res')
-    imgs_path = os.path.join(base_dir, 'res', 'imgs')  # 添加访问 ../res/imgs 的路径
     
     # 将facelandmarks图像拼接为视频
-    images_to_video(imgs_path, os.path.join(output_video_path, "pose_landmarks.mp4"))
+    images_to_video(landmarks_path, os.path.join(output_video_path, "pose_landmarks.mp4"))
     # 将render res拼接为视频
     # images_to_video(render_res_path, os.path.join(output_video_path, "render_output.mp4"))

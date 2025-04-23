@@ -131,12 +131,12 @@ def detect_result_proc(result: mp.tasks.vision.PoseLandmarkerResult, output_imag
 
             # print_pose_result_info(result)
             # 绘制姿势关键点
-            # annotated_image = draw_landmarks_on_image(output_image.numpy_view(), result)
+            annotated_image = draw_landmarks_on_image(output_image.numpy_view(), result)
         
-            # # 保存图像到指定目录
-            # image_path = os.path.join(res_path, f"pose_{timestamp_ms}.jpg")
-            # cv2.imwrite(image_path, cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
-            # print(f"已保存姿势检测图像: {image_path}")
+            # 保存图像到指定目录
+            image_path = os.path.join(res_path, f"pose_{timestamp_ms}.jpg")
+            cv2.imwrite(image_path, cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
+            print(f"已保存姿势检测图像: {image_path}")
 
 def main(server_addr='127.0.0.1', port_num=50051, 
          model_path='/HVCCS/data/pose_landmarker_heavy.task', 
@@ -201,8 +201,8 @@ if __name__ == "__main__":
     # 获取当前脚本所在目录
     script_dir = os.path.dirname(os.path.abspath(__file__))
     # 构建相对路径 - 上一级目录的data文件夹
-    model_path = os.path.join(script_dir, "..", "data", "pose_landmarker_heavy.task")
-    res_path = os.path.join(script_dir, "..", "res", "imgs")
+    model_path = os.path.join(script_dir, "..", "data", "pose_landmarker_full.task")
+    res_path = os.path.join(script_dir, "..", "res", "detec_res")
     # 确保输出目录存在
     os.makedirs(res_path, exist_ok=True)
     clear_folder(res_path)
