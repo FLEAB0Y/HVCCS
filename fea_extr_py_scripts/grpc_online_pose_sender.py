@@ -95,12 +95,24 @@ def print_pose_result_info(result: mp.tasks.vision.PoseLandmarkerResult):
 
 def detect_result_proc(result: mp.tasks.vision.PoseLandmarkerResult, output_image: mp.Image, timestamp_ms: int, client: THStreamClient, debug=False):
     """处理姿势检测结果并发送数据"""
-    # 如果启用调试模式，打印详细信息
-    if debug:
-        print_pose_result_info(result)
+    # 确保输出目录存在
+    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "res", "imgs")
+    os.makedirs(output_dir, exist_ok=True)
     
-    # 处理并发送数据
+    # 绘制关键点
     if result.pose_landmarks:
+        
+        if debug:
+            # print_pose_result_info(result)
+            # 绘制姿势关键点
+            annotated_image = draw_landmarks_on_image(output_image.numpy_view(), result)
+        
+            # 保存图像到指定目录
+            image_path = os.path.join(output_dir, f"pose_{timestamp_ms}.jpg")
+            cv2.imwrite(image_path, cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
+            print(f"已保存姿势检测图像: {image_path}")
+        
+        # 处理并发送数据
         for pose_landmark in result.pose_landmarks:
             landmarks_data = [(landmark.x, landmark.y, landmark.z, landmark.visibility) 
                              for landmark in pose_landmark]
@@ -110,9 +122,9 @@ def detect_result_proc(result: mp.tasks.vision.PoseLandmarkerResult, output_imag
             
             payload_send = THStreamDataPayload(
                 rgb_data=b'\x01', 
-                point_data=landmarks_data_bytes,
+                point_data=b'\x02',
                 face_data=b'\x03',
-                limb_data=b'\x04',    
+                limb_data=landmarks_data_bytes,    
                 ext_data=b'\x05', 
                 ext_desc=f"{str(timestamp_ms)}"
             )
@@ -180,4 +192,4 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
     # 构建相对路径 - 上一级目录的data文件夹
     model_path = os.path.join(script_dir, "..", "data", "pose_landmarker_heavy.task")
-    main(server_addr='127.0.0.1', port_num=50051, model_path = model_path, debug=False)
+    main(server_addr='127.0.0.1', port_num=50051, model_path = model_path, debug=True)
