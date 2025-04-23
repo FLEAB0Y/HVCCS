@@ -47,6 +47,7 @@ def detect_result_proc(result: mp.tasks.vision.FaceLandmarkerResult, output_imag
             )
             
             client.send_data_buffer.add_item(payload_send)
+            # print(f"size of blendshape_data: {len(blendshape_data_bytes)}")
 
 def main(server_addr='127.0.0.1', port_num =50051, model_path='/HVCCS/data/face_landmarker_v2_with_blendshapes.task'):
     # 创建人脸检测器
@@ -107,4 +108,4 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
     # 构建相对路径 - 上一级目录的data文件夹
     model_path = os.path.join(script_dir, "..", "data", "face_landmarker_v2_with_blendshapes.task")
-    main(server_addr='127.0.0.1', port_num=50054, model_path = model_path)
+    main(server_addr='127.0.0.1', port_num=50051, model_path = model_path)

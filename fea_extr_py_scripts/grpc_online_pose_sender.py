@@ -102,18 +102,8 @@ def print_pose_result_info(result: mp.tasks.vision.PoseLandmarkerResult):
 def detect_result_proc(result: mp.tasks.vision.PoseLandmarkerResult, output_image: mp.Image, timestamp_ms: int, client: THStreamClient, debug=False, res_path=None):
     """处理姿势检测结果并发送数据"""
     
-    # 绘制关键点
+    
     if result.pose_landmarks:
-        
-        if debug:
-            # print_pose_result_info(result)
-            # 绘制姿势关键点
-            annotated_image = draw_landmarks_on_image(output_image.numpy_view(), result)
-        
-            # 保存图像到指定目录
-            image_path = os.path.join(res_path, f"pose_{timestamp_ms}.jpg")
-            cv2.imwrite(image_path, cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
-            print(f"已保存姿势检测图像: {image_path}")
         
         # 处理并发送数据
         for pose_landmark in result.pose_landmarks:
@@ -133,6 +123,20 @@ def detect_result_proc(result: mp.tasks.vision.PoseLandmarkerResult, output_imag
             )
             
             client.send_data_buffer.add_item(payload_send)
+        
+        if debug:
+            print(f"size of landmarks_data: {len(landmarks_data_bytes)}")
+            current_timestamp_ms = int(time.time() * 1000)
+            print(f"proc_delay: {current_timestamp_ms - timestamp_ms} ms")
+
+            # print_pose_result_info(result)
+            # 绘制姿势关键点
+            # annotated_image = draw_landmarks_on_image(output_image.numpy_view(), result)
+        
+            # # 保存图像到指定目录
+            # image_path = os.path.join(res_path, f"pose_{timestamp_ms}.jpg")
+            # cv2.imwrite(image_path, cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
+            # print(f"已保存姿势检测图像: {image_path}")
 
 def main(server_addr='127.0.0.1', port_num=50051, 
          model_path='/HVCCS/data/pose_landmarker_heavy.task', 
@@ -206,5 +210,5 @@ if __name__ == "__main__":
     main(server_addr='127.0.0.1', 
          port_num=50051, 
          model_path = model_path, 
-         debug=False,
+         debug=True,
          res_path=res_path)

@@ -36,11 +36,18 @@ def clear_folder(folder_path):
 
 
 if __name__ == "__main__":
-    output_video_path = '/home/ztw/HVCCS/res/video_res'
+    # 使用相对路径
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    base_dir = os.path.dirname(script_dir)  # 上一级目录 (HVCCS)
+    
+    output_video_path = os.path.join(base_dir, 'res', 'video_res')
     clear_folder(output_video_path)
-    face_landmarks_path = "/home/ztw/HVCCS/res/detec_res"
-    render_res_path = "/home/ztw/HVCCS/res/render_res"
+    
+    face_landmarks_path = os.path.join(base_dir, 'res', 'detec_res')
+    render_res_path = os.path.join(base_dir, 'res', 'render_res')
+    imgs_path = os.path.join(base_dir, 'res', 'imgs')  # 添加访问 ../res/imgs 的路径
+    
     # 将facelandmarks图像拼接为视频
-    images_to_video(face_landmarks_path, output_video_path + "/detect_output.mp4")
+    images_to_video(imgs_path, os.path.join(output_video_path, "pose_landmarks.mp4"))
     # 将render res拼接为视频
-    # images_to_video(render_res_path, output_video_path + "/render_output.mp4")
+    # images_to_video(render_res_path, os.path.join(output_video_path, "render_output.mp4"))
