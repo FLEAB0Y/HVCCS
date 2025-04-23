@@ -9,12 +9,18 @@ import numpy as np
 import time
 import json
 import threading
+import shutil
 from client import THStreamClient
 from THStreamData import THStreamDataPayload, THDataWarehouse
 import os
 
 def run_client(client):
     client.run()
+
+def clear_folder(folder_path):
+    if os.path.exists(folder_path):
+        shutil.rmtree(folder_path)
+    os.makedirs(folder_path)
 
 def draw_landmarks_on_image(rgb_image, detection_result):
   pose_landmarks_list = detection_result.pose_landmarks
@@ -93,11 +99,8 @@ def print_pose_result_info(result: mp.tasks.vision.PoseLandmarkerResult):
     else:
         print("未生成分割蒙版")
 
-def detect_result_proc(result: mp.tasks.vision.PoseLandmarkerResult, output_image: mp.Image, timestamp_ms: int, client: THStreamClient, debug=False):
+def detect_result_proc(result: mp.tasks.vision.PoseLandmarkerResult, output_image: mp.Image, timestamp_ms: int, client: THStreamClient, debug=False, res_path=None):
     """处理姿势检测结果并发送数据"""
-    # 确保输出目录存在
-    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "res", "imgs")
-    os.makedirs(output_dir, exist_ok=True)
     
     # 绘制关键点
     if result.pose_landmarks:
@@ -108,7 +111,7 @@ def detect_result_proc(result: mp.tasks.vision.PoseLandmarkerResult, output_imag
             annotated_image = draw_landmarks_on_image(output_image.numpy_view(), result)
         
             # 保存图像到指定目录
-            image_path = os.path.join(output_dir, f"pose_{timestamp_ms}.jpg")
+            image_path = os.path.join(res_path, f"pose_{timestamp_ms}.jpg")
             cv2.imwrite(image_path, cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
             print(f"已保存姿势检测图像: {image_path}")
         
@@ -131,7 +134,10 @@ def detect_result_proc(result: mp.tasks.vision.PoseLandmarkerResult, output_imag
             
             client.send_data_buffer.add_item(payload_send)
 
-def main(server_addr='127.0.0.1', port_num=50051, model_path='/HVCCS/data/pose_landmarker_heavy.task', debug=False):
+def main(server_addr='127.0.0.1', port_num=50051, 
+         model_path='/HVCCS/data/pose_landmarker_heavy.task', 
+         debug=False,
+         res_path='../res/imgs'):
     # 创建姿势检测器
     VisionRunningMode = mp.tasks.vision.RunningMode
     base_options = python.BaseOptions(model_asset_path=model_path)
@@ -140,7 +146,7 @@ def main(server_addr='127.0.0.1', port_num=50051, model_path='/HVCCS/data/pose_l
         running_mode=VisionRunningMode.LIVE_STREAM, 
         output_segmentation_masks=False,
         result_callback=lambda result, output_image, timestamp_ms: detect_result_proc(
-            result, output_image, timestamp_ms, client, debug=debug
+            result, output_image, timestamp_ms, client, debug=debug, res_path=res_path
         )
     )
     detector = vision.PoseLandmarker.create_from_options(options)
@@ -192,4 +198,13 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
     # 构建相对路径 - 上一级目录的data文件夹
     model_path = os.path.join(script_dir, "..", "data", "pose_landmarker_heavy.task")
-    main(server_addr='127.0.0.1', port_num=50051, model_path = model_path, debug=True)
+    res_path = os.path.join(script_dir, "..", "res", "imgs")
+    # 确保输出目录存在
+    os.makedirs(res_path, exist_ok=True)
+    clear_folder(res_path)
+    
+    main(server_addr='127.0.0.1', 
+         port_num=50051, 
+         model_path = model_path, 
+         debug=False,
+         res_path=res_path)
