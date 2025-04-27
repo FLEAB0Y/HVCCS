@@ -42,63 +42,6 @@ def draw_landmarks_on_image(rgb_image, detection_result):
       solutions.drawing_styles.get_default_pose_landmarks_style())
   return annotated_image
 
-def print_pose_result_info(result: mp.tasks.vision.PoseLandmarkerResult):
-    """调试函数：打印姿势检测结果的详细信息"""
-    # 1. 输出 pose_landmarks 信息（2D 姿势关键点）
-    print("\n===== pose_landmarks (2D 姿势关键点) =====")
-    if result.pose_landmarks:
-        print(f"类型: {type(result.pose_landmarks)}")
-        print(f"列表长度: {len(result.pose_landmarks)} (检测到的人数)")
-        
-        # 第一个检测到的人
-        if len(result.pose_landmarks) > 0:
-            print(f"每人关键点数量: {len(result.pose_landmarks[0])}")
-            print("关键点格式: 包含 x, y, z (相对深度), visibility, presence 属性")
-            print("示例关键点(第一个人的第一个点):")
-            landmark = result.pose_landmarks[0][0]
-            print(f"  x: {landmark.x} (归一化坐标: 0~1)")
-            print(f"  y: {landmark.y} (归一化坐标: 0~1)")
-            print(f"  z: {landmark.z} (相对深度)")
-            print(f"  visibility: {landmark.visibility} (可见度: 0~1)")
-            print(f"  presence: {landmark.presence} (存在概率: 0~1)")
-    else:
-        print("未检测到姿势关键点")
-    
-    # 2. 输出 pose_world_landmarks 信息（3D 世界坐标系中的姿势关键点）
-    print("\n===== pose_world_landmarks (3D 世界坐标系姿势关键点) =====")
-    if result.pose_world_landmarks:
-        print(f"类型: {type(result.pose_world_landmarks)}")
-        print(f"列表长度: {len(result.pose_world_landmarks)} (检测到的人数)")
-        
-        # 第一个检测到的人
-        if len(result.pose_world_landmarks) > 0:
-            print(f"每人关键点数量: {len(result.pose_world_landmarks[0])}")
-            print("关键点格式: 包含 x, y, z (米为单位), visibility, presence 属性")
-            print("示例关键点(第一个人的第一个点):")
-            landmark = result.pose_world_landmarks[0][0]
-            print(f"  x: {landmark.x} (米)")
-            print(f"  y: {landmark.y} (米)")
-            print(f"  z: {landmark.z} (米)")
-            print(f"  visibility: {landmark.visibility} (可见度: 0~1)")
-            print(f"  presence: {landmark.presence} (存在概率: 0~1)")
-    else:
-        print("未检测到3D世界坐标系姿势关键点")
-    
-    # 3. 输出 segmentation_masks 信息（分割蒙版）
-    print("\n===== segmentation_masks (分割蒙版) =====")
-    if result.segmentation_masks:
-        print(f"类型: {type(result.segmentation_masks)}")
-        print(f"蒙版数量: {len(result.segmentation_masks)}")
-        
-        # 第一个蒙版
-        if len(result.segmentation_masks) > 0:
-            mask = result.segmentation_masks[0].numpy_view()
-            print(f"蒙版形状: {mask.shape} (高度 x 宽度)")
-            print(f"数据类型: {mask.dtype}")
-            print(f"值范围: {mask.min()} ~ {mask.max()} (通常0~1，表示像素属于人体的概率)")
-    else:
-        print("未生成分割蒙版")
-
 def detect_result_proc(result: mp.tasks.vision.PoseLandmarkerResult, output_image: mp.Image, timestamp_ms: int, client: THStreamClient, debug=False, res_path=None):
     """处理姿势检测结果并发送数据"""
     
@@ -129,14 +72,17 @@ def detect_result_proc(result: mp.tasks.vision.PoseLandmarkerResult, output_imag
             current_timestamp_ms = int(time.time() * 1000)
             print(f"proc_delay: {current_timestamp_ms - timestamp_ms} ms")
 
-            # print_pose_result_info(result)
-            # 绘制姿势关键点
-            annotated_image = draw_landmarks_on_image(output_image.numpy_view(), result)
+            print("===== 检测到的姿势关键点 =====")
+            for i, landmark in enumerate(landmarks_data):
+                print(f"关键点 {i}: x={landmark[0]}, y={landmark[1]}, z={landmark[2]}, 可见性={landmark[3]}")
+            print("=============================")
+            # # 绘制姿势关键点
+            # annotated_image = draw_landmarks_on_image(output_image.numpy_view(), result)
         
-            # 保存图像到指定目录
-            image_path = os.path.join(res_path, f"pose_{timestamp_ms}.jpg")
-            cv2.imwrite(image_path, cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
-            print(f"已保存姿势检测图像: {image_path}")
+            # # 保存图像到指定目录
+            # image_path = os.path.join(res_path, f"pose_{timestamp_ms}.jpg")
+            # cv2.imwrite(image_path, cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
+            # print(f"已保存姿势检测图像: {image_path}")
 
 def main(server_addr='127.0.0.1', port_num=50051, 
          model_path='/HVCCS/data/pose_landmarker_heavy.task', 
