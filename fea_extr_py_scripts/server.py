@@ -15,7 +15,6 @@ class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
         try:
             for request in request_iterator:
                 print(f"***********Received request seqNo:{request.seqNo}***********")
-                print(f"Received time: {int(time.time() * 1000)}")
                 # 缓冲区满了就等待
                 buffer_size = self.receive_data_buffer.get_size()
                 while buffer_size > 10:
