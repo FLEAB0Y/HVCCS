@@ -14,6 +14,56 @@ from client import THStreamClient
 from THStreamData import THStreamDataPayload, THDataWarehouse
 import os
 
+class FrameDataManager:
+    """管理帧数据，整合同一帧的姿势和面部特征"""
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.frame_data = {}  # 使用时间戳作为键
+        self.max_frames = 10  # 最大缓存帧数
+    
+    def update_pose_data(self, timestamp_ms, pose_data):
+        with self.lock:
+            if timestamp_ms not in self.frame_data:
+                self.frame_data[timestamp_ms] = {"pose": None, "face": None}
+            self.frame_data[timestamp_ms]["pose"] = pose_data
+            self._try_send_complete_frame(timestamp_ms)
+            self._cleanup_old_frames()
+    
+    def update_face_data(self, timestamp_ms, face_data):
+        with self.lock:
+            if timestamp_ms not in self.frame_data:
+                self.frame_data[timestamp_ms] = {"pose": None, "face": None}
+            self.frame_data[timestamp_ms]["face"] = face_data
+            self._try_send_complete_frame(timestamp_ms)
+            self._cleanup_old_frames()
+    
+    def _try_send_complete_frame(self, timestamp_ms):
+        # 当一帧的姿势和面部数据都收集完成时调用此方法发送
+        frame = self.frame_data.get(timestamp_ms)
+        if frame and frame["pose"] is not None and frame["face"] is not None:
+            # 这里需要访问client，通过全局变量或作为参数传入
+            if hasattr(self, 'client'):
+                payload_send = THStreamDataPayload(
+                    rgb_data=b'\x01', 
+                    point_data=b'\x02',
+                    face_data=frame["face"],
+                    limb_data=frame["pose"],    
+                    ext_data=b'\x05', 
+                    ext_desc=f"{str(timestamp_ms)}"
+                )
+                self.client.send_data_buffer.add_item(payload_send)
+                # 发送后可以删除此帧数据
+                del self.frame_data[timestamp_ms]
+    
+    def _cleanup_old_frames(self):
+        # 清理旧帧防止内存溢出
+        if len(self.frame_data) > self.max_frames:
+            oldest_timestamp = min(self.frame_data.keys())
+            del self.frame_data[oldest_timestamp]
+    
+    def set_client(self, client):
+        self.client = client
+
 def run_client(client):
     """运行客户端线程"""
     client.run()
@@ -45,10 +95,10 @@ def draw_landmarks_on_image(rgb_image, detection_result):
             solutions.drawing_styles.get_default_pose_landmarks_style())
     return annotated_image
 
-def process_pose_result(result, output_image, timestamp_ms, client, debug=False, res_path=None):
-    """处理姿势检测结果并发送数据"""
+def process_pose_result(result, output_image, timestamp_ms, frame_data_manager, debug=False, res_path=None):
+    """处理姿势检测结果并更新帧数据管理器"""
     if result.pose_landmarks:
-        # 处理并发送姿势数据
+        # 处理姿势数据
         for pose_landmark in result.pose_landmarks:
             landmarks_data = [(landmark.x, landmark.y, landmark.z, landmark.visibility) 
                              for landmark in pose_landmark]
@@ -56,16 +106,8 @@ def process_pose_result(result, output_image, timestamp_ms, client, debug=False,
             landmarks_data_json = json.dumps(landmarks_data)
             landmarks_data_bytes = landmarks_data_json.encode('utf-8')
             
-            payload_send = THStreamDataPayload(
-                rgb_data=b'\x01', 
-                point_data=b'\x02',
-                face_data=b'\x03',
-                limb_data=landmarks_data_bytes,    
-                ext_data=b'\x05', 
-                ext_desc=f"{str(timestamp_ms)}"
-            )
-            
-            client.send_data_buffer.add_item(payload_send)
+            # 更新帧数据管理器而非直接发送
+            frame_data_manager.update_pose_data(timestamp_ms, landmarks_data_bytes)
         
         if debug:
             print(f"姿势数据大小: {len(landmarks_data_bytes)}")
@@ -84,8 +126,8 @@ def process_pose_result(result, output_image, timestamp_ms, client, debug=False,
                 cv2.imwrite(image_path, cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
                 print(f"已保存姿势检测图像: {image_path}")
 
-def process_face_result(result, output_image, timestamp_ms, client, debug=False):
-    """处理面部表情检测结果并发送数据"""
+def process_face_result(result, output_image, timestamp_ms, frame_data_manager, debug=False, res_path=None):
+    """处理面部表情检测结果并更新帧数据管理器"""
     if result.face_blendshapes:
         for blendshape in result.face_blendshapes:
             blendshape_data = [(category.index, category.score) for category in blendshape]
@@ -93,21 +135,25 @@ def process_face_result(result, output_image, timestamp_ms, client, debug=False)
             blendshape_data_json = json.dumps(blendshape_data)
             blendshape_data_bytes = blendshape_data_json.encode('utf-8')
 
-            payload_send = THStreamDataPayload(
-                rgb_data=b'\x01', 
-                point_data=b'\x02', 
-                face_data=blendshape_data_bytes, 
-                limb_data=b'\x04',    
-                ext_data=b'\x05', 
-                ext_desc=f"{str(timestamp_ms)}"
-            )
-            
-            client.send_data_buffer.add_item(payload_send)
+            # 更新帧数据管理器而非直接发送
+            frame_data_manager.update_face_data(timestamp_ms, blendshape_data_bytes)
             
             if debug:
                 print(f"面部表情数据大小: {len(blendshape_data_bytes)}")
                 current_timestamp_ms = int(time.time() * 1000)
                 print(f"面部处理延迟: {current_timestamp_ms - timestamp_ms} ms")
+                
+                print("===== 检测到的面部表情数据 =====")
+                for i, category in enumerate(blendshape_data):
+                    print(f"表情类别 {category[0]}: 强度={category[1]:.4f}")
+                print("===============================")
+                
+                # 如果需要生成可视化图像 (需要自定义面部表情可视化)
+                if res_path:
+                    annotated_image = draw_landmarks_on_image(output_image.numpy_view(), result)
+                    image_path = os.path.join(res_path, f"face_{timestamp_ms}.jpg")
+                    cv2.imwrite(image_path, cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
+                    print(f"已保存面部检测图像: {image_path}")
 
 def main(server_addr='127.0.0.1', port_num=50051, 
          pose_model_path=None, face_model_path=None, 
@@ -120,6 +166,10 @@ def main(server_addr='127.0.0.1', port_num=50051,
     client_thread = threading.Thread(target=run_client, args=(client,))
     client_thread.start()
     
+    # 创建帧数据管理器
+    frame_data_manager = FrameDataManager()
+    frame_data_manager.set_client(client)
+    
     # 创建姿势检测器
     pose_base_options = python.BaseOptions(model_asset_path=pose_model_path)
     pose_options = vision.PoseLandmarkerOptions(
@@ -127,7 +177,7 @@ def main(server_addr='127.0.0.1', port_num=50051,
         running_mode=VisionRunningMode.LIVE_STREAM, 
         output_segmentation_masks=False,
         result_callback=lambda result, output_image, timestamp_ms: process_pose_result(
-            result, output_image, timestamp_ms, client, debug=debug, res_path=res_path
+            result, output_image, timestamp_ms, frame_data_manager, debug=debug, res_path=res_path
         )
     )
     pose_detector = vision.PoseLandmarker.create_from_options(pose_options)
@@ -140,7 +190,7 @@ def main(server_addr='127.0.0.1', port_num=50051,
         output_face_blendshapes=True,
         output_facial_transformation_matrixes=True,
         result_callback=lambda result, output_image, timestamp_ms: process_face_result(
-            result, output_image, timestamp_ms, client, debug=debug
+            result, output_image, timestamp_ms, frame_data_manager, debug=debug, res_path=res_path
         )
     )
     face_detector = vision.FaceLandmarker.create_from_options(face_options)
@@ -159,7 +209,7 @@ def main(server_addr='127.0.0.1', port_num=50051,
             # 缓冲区满了就等待
             buffer_size = client.send_data_buffer.get_size()
             while buffer_size >= 10:
-                time.sleep(0.1)
+                time.sleep(0.01)
                 buffer_size = client.send_data_buffer.get_size()
     
             # 将图像从BGR颜色空间转换为RGB颜色空间
@@ -201,6 +251,6 @@ if __name__ == "__main__":
         port_num=50051, 
         pose_model_path=pose_model_path,
         face_model_path=face_model_path,
-        debug=True,
+        debug=False,
         res_path=res_path
     )

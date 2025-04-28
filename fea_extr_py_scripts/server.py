@@ -23,6 +23,18 @@ class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
                     buffer_size = self.receive_data_buffer.get_size()
                 
                 self.receive_data_buffer.add_item(request)
+                # if request.rgbData:
+                #     print(f"Received RGB data of length {len(request.rgbData)}")
+                # if request.pointData:
+                #     print(f"Received point data of length {len(request.pointData)}")
+                # if request.faceData:
+                #     print(f"Received face data of length {len(request.faceData)}")
+                # if request.limbData:
+                #     print(f"Received limb data of length {len(request.limbData)}")
+                # if request.extData:
+                #     print(f"Received ext data of length {len(request.extData)}")
+                # if request.extDesc:
+                #     print(f"Received ext desc: {request.extDesc}")
                 # 发送响应给客户端
                 yield data_stream_pb2.THStreamResponse(retCode=0, retMsg=f"{request.seqNo} Data received..")
 
@@ -52,11 +64,11 @@ if __name__ == '__main__':
     while True:    
         cnt = servicer.receive_data_buffer.get_size()
         while cnt < 1:
-            time.sleep(1./30.)
+            time.sleep(1./100.)
             cnt = servicer.receive_data_buffer.get_size()
         data = servicer.receive_data_buffer.get_items()
 
-        # 获取当前时间戳（毫秒）优先使用 NTP 时间
+        # 获取当前时间戳（毫秒）
         current_timestamp_ms = int(time.time() * 1000) 
 
         # 计算传输耗时
