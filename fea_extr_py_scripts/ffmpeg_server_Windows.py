@@ -38,24 +38,24 @@ class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
             '-use_wallclock_as_timestamps', '1',  # 使用系统时钟作为时间戳
             '-avioflags', 'direct',  # 减少I/O缓冲
             
-            # 摄像头输入 - 使用用户的Integrated Camera
+            # 摄像头输入 - 修改分辨率为1280x720
             '-f', 'dshow',
             '-rtbufsize', '1k ',  # 增加缓冲区
             '-thread_queue_size', '2',  # 增大队列大小
-            '-video_size', '1920x1080',
+            '-video_size', '1280x720',  # 修改为720p分辨率
             '-framerate', '30',
             '-i',
             'video=@device_pnp_\\\\?\\usb#vid_5986&pid_2169&mi_00#6&17e2b06b&1&0000#{65e8773d-8f56-11d0-a3b9-00a0c9223196}\\global',
             
-            # 视频处理 - 保持1080p分辨率，移除裁剪操作
-            '-vf', 'setpts=N/(30*TB)',  # 只保留时间戳处理，移除裁剪
+            # 视频处理 - 保持720p分辨率
+            '-vf', 'setpts=N/(30*TB)',  # 只保留时间戳处理
             
             # 视频编码参数（软件编码器 libx265）
             '-c:v', 'libx265',
             '-preset', 'ultrafast',  # 使用最快的预设以减少CPU负载
             '-tune', 'zerolatency',
             '-x265-params', 'lossless=0:bframes=0',
-            '-b:v', '4M',  # 增加码率以支持更高分辨率
+            '-b:v', '2M',  # 降低码率以匹配720p分辨率
             '-pix_fmt', 'yuv420p',
             '-g', '30',
             '-keyint_min', '30',

@@ -239,7 +239,7 @@ class THStreamClient:
             '-f', 'rawvideo',
             '-pix_fmt', 'bgr24',
             '-flush_packets', '1',
-            '-s', '1920x1080',
+            '-s', '1280x720',  # 修改为1280x720
 
             '-threads', '1',
             '-'
