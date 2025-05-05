@@ -11,6 +11,7 @@ import torch
 import sys
 import traceback
 import collections
+import os
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout, QHBoxLayout, 
                             QPushButton, QWidget, QStatusBar, QGroupBox, QGridLayout)
 from PyQt5.QtCore import Qt, QTimer
@@ -214,10 +215,9 @@ class THStreamClient:
 
     def start_ffmpeg_receiver(self):
         """Start FFmpeg to receive and decode the RTP stream"""
-        sdp_file_path = "D:\\HVCCS\\fea_extr_py_scripts\\stream.sdp"
+        sdp_file_path = os.path.join(os.path.dirname(__file__), "stream.sdp")
         
         # 检查SDP文件是否存在
-        import os
         if not os.path.exists(sdp_file_path):
             print(f"错误: SDP文件不存在: {sdp_file_path}")
             return
