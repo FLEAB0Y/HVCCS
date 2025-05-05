@@ -65,7 +65,7 @@ class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
             # 输出流（RTP over UDP）
             '-f', 'rtp',
             '-sdp_file', 'D:\\HVCCS\\fea_extr_py_scripts\\stream.sdp',  # 自动生成SDP文件
-            'rtp://127.0.0.1:5005',
+            'rtp://0.0.0.0:5005',  # 向所有网络接口推流
         ]
         
         try:
