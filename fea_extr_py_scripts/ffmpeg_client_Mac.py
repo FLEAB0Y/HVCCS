@@ -22,7 +22,7 @@ import pyqtgraph as pg
 class VideoWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("1080p视频流显示与分析")
+        self.setWindowTitle("720p视频流显示与分析")
         self.setGeometry(100, 100, 1280, 800)  # 加高窗口以容纳图表
         
         # 创建中央部件
@@ -232,7 +232,7 @@ class THStreamClient:
             '-avioflags', 'direct',
             '-loglevel', 'debug',
 
-            '-c:v', 'hevc',
+            '-c:v', 'hevc',  # 确保使用HEVC解码器
 
             '-protocol_whitelist', 'file,udp,rtp,sdp',
             '-i', sdp_file_path,
@@ -240,7 +240,7 @@ class THStreamClient:
             '-f', 'rawvideo',
             '-pix_fmt', 'bgr24',
             '-flush_packets', '1',
-            '-s', '1280x720',  # 修改为与服务器匹配的分辨率
+            '-s', '1280x720',  # 确保分辨率匹配
 
             '-threads', '1',
             '-'

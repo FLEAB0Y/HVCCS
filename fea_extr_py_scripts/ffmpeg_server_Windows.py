@@ -40,7 +40,7 @@ class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
             
             # 摄像头输入 - 修改分辨率为1280x720
             '-f', 'dshow',
-            '-rtbufsize', '1k ',  # 增加缓冲区
+            '-rtbufsize', '1k',  # 修正：去掉空格
             '-thread_queue_size', '2',  # 增大队列大小
             '-video_size', '1280x720',  # 修改为720p分辨率
             '-framerate', '30',
@@ -51,11 +51,11 @@ class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
             '-vf', 'setpts=N/(30*TB)',  # 只保留时间戳处理
             
             # 视频编码参数（软件编码器 libx265）
-            '-c:v', 'libx265',
+            '-c:v', 'libx265',  # 使用H.265编码
             '-preset', 'ultrafast',  # 使用最快的预设以减少CPU负载
             '-tune', 'zerolatency',
-            '-x265-params', 'lossless=0:bframes=0',
-            '-b:v', '2M',  # 降低码率以匹配720p分辨率
+            '-x265-params', 'bframes=0:no-scenecut=1',  # 低延迟参数
+            '-b:v', '2M',  # 码率2Mbps
             '-pix_fmt', 'yuv420p',
             '-g', '30',
             '-keyint_min', '30',
@@ -65,7 +65,7 @@ class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
             # 输出流（RTP over UDP）
             '-f', 'rtp',
             '-sdp_file', 'D:\\HVCCS\\fea_extr_py_scripts\\stream.sdp',  # 自动生成SDP文件
-            'rtp://0.0.0.0:5005',  # 向所有网络接口推流
+            'rtp://183.173.139.132:5005',  # 修改为Mac电脑IP地址
         ]
         
         try:
