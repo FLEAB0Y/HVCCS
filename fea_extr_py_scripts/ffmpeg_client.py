@@ -18,7 +18,7 @@ import datetime
 class FFmpegClient:
     """视频流解码客户端，负责接收视频流并转发到UI"""
     
-    def __init__(self, frame_callback=None, stats_callback=None, server_address="127.0.0.1:50051", 
+    def __init__(self, frame_callback=None, stats_callback=None, server_address="183.173.117.138:50051", 
                  sdp_file="stream.sdp", video_resolution=(1280, 720), history_length=300, debug=True):
         """
         初始化FFmpeg客户端

@@ -306,7 +306,7 @@ if __name__ == '__main__':
     CONFIG = {
         "window_size": (1280, 800),          # 窗口大小
         "video_display_size": (640, 360),    # 视频显示区域大小
-        "grpc_server": "127.0.0.1",    # gRPC服务器地址
+        "grpc_server": "183.173.117.138",    # gRPC服务器地址
         "grpc_port": 50051,                  # gRPC端口
         "sdp_file": "stream.sdp",            # SDP文件名
         "video_resolution": (1280, 720),     # 视频分辨率
