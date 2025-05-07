@@ -263,7 +263,7 @@ if __name__ == '__main__':
     # 配置参数
     CONFIG = {
         "port": 50051,                       # 服务器端口
-        "rtp_target": "rtp://183.173.143.255:5005", # RTP目标地址
+        "rtp_target": "rtp://183.173.139.132:5005", # RTP目标地址
         "sdp_file": "stream.sdp",            # SDP文件名
         "video_resolution": (1280, 720),     # 视频分辨率
         "framerate": 30,                     # 帧率

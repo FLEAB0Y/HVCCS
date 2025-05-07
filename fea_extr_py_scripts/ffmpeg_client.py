@@ -166,13 +166,17 @@ class FFmpegClient:
             '-fflags', 'nobuffer',
             '-flags', 'low_delay',
             '-avioflags', 'direct',
-            '-loglevel', 'debug' if self.debug else 'error',  # 根据调试标志调整日志级别
-            '-c:v', 'hevc',  # 确保使用HEVC解码器
+            '-loglevel', 'debug' if self.debug else 'error',
+            '-analyzeduration', '10000000',  # 增加分析时长
+            '-probesize', '10000000',        # 增加探测大小
+            '-c:v', 'hevc',                  # 确保使用HEVC解码器
             '-protocol_whitelist', 'file,udp,rtp,sdp',
+            '-timeout', '5000000',           # 增加超时时间
             '-i', sdp_file_path,
             '-f', 'rawvideo',
             '-pix_fmt', 'bgr24',
             '-flush_packets', '1',
+            '-vsync', '0',                   # 处理帧同步问题
             '-s', f'{self.video_width}x{self.video_height}',
             '-threads', '1',
             '-'
