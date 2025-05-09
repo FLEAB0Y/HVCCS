@@ -5,7 +5,6 @@ import data_stream_pb2_grpc
 from THStreamData import THStreamDataPayload, THDataWarehouse
 import threading
 import time
-# from linux_calculate_latency import init_time
 
 class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
     def __init__(self):
@@ -53,8 +52,8 @@ def serve(servicer, port):
 
 if __name__ == '__main__':
     # 初始化时间差
-    # diff = init_time()
-    # print(f"时间差: {diff} ms")
+    diff = -71039
+    print(f"时间差: {diff} ms")
 
     servicer = THStreamServiceServicer()
     custom_port = 50051  # 替换为您需要的端口号
@@ -74,7 +73,7 @@ if __name__ == '__main__':
         # 计算传输耗时
         try:
             sent_timestamp_ms = int(data.extDesc)  # 将 extDesc 转换为整数
-            transmission_time_ms = current_timestamp_ms - sent_timestamp_ms
+            transmission_time_ms = current_timestamp_ms - sent_timestamp_ms - diff
 
             # 检查传输时间是否为负数
             if transmission_time_ms < 0:

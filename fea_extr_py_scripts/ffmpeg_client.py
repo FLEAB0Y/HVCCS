@@ -171,7 +171,6 @@ class FFmpegClient:
             '-probesize', '10000000',        # 增加探测大小
             '-c:v', 'hevc',                  # 确保使用HEVC解码器
             '-protocol_whitelist', 'file,udp,rtp,sdp',
-            '-timeout', '5000000',           # 增加超时时间
             '-i', sdp_file_path,
             '-f', 'rawvideo',
             '-pix_fmt', 'bgr24',
