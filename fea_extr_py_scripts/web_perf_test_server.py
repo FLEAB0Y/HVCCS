@@ -48,9 +48,9 @@ def plot_latency_curve(data_sizes, latencies):
     plt.plot(data_sizes, latencies, 'bo-', linewidth=2)
     plt.xscale('log')  # 使用对数刻度显示数据大小
     plt.grid(True)
-    plt.xlabel('数据大小 (字节)', fontsize=14)
-    plt.ylabel('传输时延 (ms)', fontsize=14)
-    plt.title('数据大小-传输时延曲线', fontsize=16)
+    plt.xlabel('Data Size (Bytes)', fontsize=14)
+    plt.ylabel('Transmission Latency (ms)', fontsize=14)
+    plt.title('Data Size vs Transmission Latency', fontsize=16)
     
     # 创建保存目录
     os.makedirs('results', exist_ok=True)
@@ -64,7 +64,7 @@ def plot_latency_curve(data_sizes, latencies):
     # 保存原始数据为CSV
     with open('results/latency_data.csv', 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(['数据大小(字节)', '时延(ms)'])
+        writer.writerow(['Data_Size(Bytes)', 'Latency(ms)'])
         for size, latency in zip(data_sizes, latencies):
             writer.writerow([size, latency])
     
@@ -72,7 +72,7 @@ def plot_latency_curve(data_sizes, latencies):
 
 if __name__ == '__main__':
     # 初始化时间差（如果需要的话）
-    diff = 0
+    diff = -71039
     print(f"时间差: {diff} ms")
 
     # 存储测试结果

@@ -69,7 +69,7 @@ def generate_test_sizes():
 
 if __name__ == '__main__':
     # 创建客户端实例
-    client = THStreamClient(host='127.0.0.1', port=50051)
+    client = THStreamClient(host='192.168.1.11', port=50051)
     client_thread = threading.Thread(target=run_client, args=(client,))
     client_thread.daemon = True  # 确保主线程退出时，此线程也退出
     client_thread.start()
