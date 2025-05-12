@@ -53,33 +53,32 @@ def plot_latency_curve(data_sizes, latencies):
     plt.title('Data Size vs Transmission Latency', fontsize=16)
     
     # 创建保存目录
-    os.makedirs('results', exist_ok=True)
+    os.makedirs('../res/web_test_res', exist_ok=True)
     
     # 保存图表
-    plt.savefig('results/size_vs_latency.png', dpi=300)
-    plt.savefig('results/size_vs_latency.svg', format='svg')
+    plt.savefig('../res/web_test_res/size_vs_latency.png', dpi=300)
+    plt.savefig('../res/web_test_res/size_vs_latency.svg', format='svg')
     
-    print(f"图表已保存到 results/size_vs_latency.png 和 results/size_vs_latency.svg")
+    print(f"Charts saved to ../res/web_test_res/size_vs_latency.png and ../res/web_test_res/size_vs_latency.svg")
     
     # 保存原始数据为CSV
-    with open('results/latency_data.csv', 'w', newline='') as csvfile:
+    with open('../res/web_test_res/latency_data.csv', 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['Data_Size(Bytes)', 'Latency(ms)'])
         for size, latency in zip(data_sizes, latencies):
             writer.writerow([size, latency])
     
-    print(f"原始数据已保存到 results/latency_data.csv")
+    print(f"Raw data saved to ../res/web_test_res/latency_data.csv")
 
 if __name__ == '__main__':
-    # 初始化时间差（如果需要的话）
+    # 初始化时间差
     diff = -71039
     print(f"时间差: {diff} ms")
 
-    # 存储测试结果
-    data_sizes = []
-    latencies = []
-    expected_tests = 100
-    received_tests = 0
+    # 存储测试结果 - 使用字典按大小分组
+    latency_by_size = {}  # {数据大小: [延迟1, 延迟2, ...]}
+    expected_sizes = set(np.logspace(2, np.log10(3600000), 100).astype(int))
+    repeat_times = 10  # 每个大小期望接收10次
 
     servicer = THStreamServiceServicer()
     custom_port = 50051
@@ -90,7 +89,11 @@ if __name__ == '__main__':
     print("开始等待测试数据...")
 
     try:
-        while received_tests < expected_tests:
+        # 持续接收数据，直到所有大小的数据都收到了足够的样本
+        total_expected_packets = len(expected_sizes) * repeat_times
+        total_received = 0
+        
+        while total_received < total_expected_packets:
             cnt = servicer.receive_data_buffer.get_size()
             if cnt < 1:
                 time.sleep(1./100.)
@@ -109,28 +112,61 @@ if __name__ == '__main__':
                 transmission_time_ms = current_timestamp_ms - sent_timestamp_ms - diff
                 
                 if transmission_time_ms < 0:
-                    print(f"警告：系统时间不同步，传输耗时计算为负数！调整为正值")
+                    print(f"Warning: Time synchronization issue, adjusting to positive value")
                     transmission_time_ms = abs(transmission_time_ms)
                 
-                print(f"[{received_tests+1}/{expected_tests}] 数据大小: {data_size} 字节, 传输耗时: {transmission_time_ms} ms")
+                # 记录到对应大小分组中
+                if data_size not in latency_by_size:
+                    latency_by_size[data_size] = []
                 
-                # 记录结果
-                data_sizes.append(data_size)
-                latencies.append(transmission_time_ms)
-                received_tests += 1
+                latency_by_size[data_size].append(transmission_time_ms)
+                
+                # 计算已收到的数据包中，每个大小完成的数量
+                completed = 0
+                for size, latencies in latency_by_size.items():
+                    if len(latencies) >= repeat_times:
+                        completed += 1
+                
+                total_received += 1
+                print(f"[{total_received}/{total_expected_packets}] Size: {data_size} bytes, Latency: {transmission_time_ms} ms, Completed sizes: {completed}/{len(expected_sizes)}")
                 
             except (ValueError, KeyError, json.JSONDecodeError) as e:
-                print(f"无法解析数据: {data.extDesc}, 错误: {e}")
+                print(f"Failed to parse data: {data.extDesc}, Error: {e}")
     
-        # 所有测试完成后，绘制图表并保存结果
-        print("\n所有测试完成! 正在生成图表...")
-        plot_latency_curve(data_sizes, latencies)
+        # 所有测试完成后，计算每组的平均延迟
+        print("\nAll tests completed! Calculating average latencies...")
+        avg_data_sizes = []
+        avg_latencies = []
+        
+        for size in sorted(latency_by_size.keys()):
+            latencies = latency_by_size[size]
+            # 确保每个大小都有足够的样本
+            if len(latencies) >= repeat_times:
+                # 取前repeat_times个样本计算平均值
+                avg_latency = sum(latencies[:repeat_times]) / repeat_times
+                avg_data_sizes.append(size)
+                avg_latencies.append(avg_latency)
+                print(f"Size: {size} bytes, Average Latency: {avg_latency:.2f} ms")
+        
+        # 绘制图表并保存结果
+        plot_latency_curve(avg_data_sizes, avg_latencies)
         
     except KeyboardInterrupt:
-        print("\n测试被中断")
-        if data_sizes and latencies:
-            print("正在保存已收集的数据...")
-            plot_latency_curve(data_sizes, latencies)
+        print("\nTest interrupted")
+        if latency_by_size:
+            print("Saving collected data...")
+            # 计算已收集数据的平均值
+            avg_data_sizes = []
+            avg_latencies = []
+            
+            for size in sorted(latency_by_size.keys()):
+                latencies = latency_by_size[size]
+                if len(latencies) > 0:  # 只要有数据就计算平均值
+                    avg_latency = sum(latencies) / len(latencies)
+                    avg_data_sizes.append(size)
+                    avg_latencies.append(avg_latency)
+            
+            plot_latency_curve(avg_data_sizes, avg_latencies)
 
 
 

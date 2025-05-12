@@ -48,9 +48,9 @@ class THStreamClient:
                                                       extData=one_data.ext_data,
                                                       extDesc=one_data.ext_desc)
 
-    def run(self, interval=1./30.):
+    def run(self, interval=1./120.):
         """
-        :param interval: 1秒30帧数据
+        :param interval: 1秒120帧数据
         :return:
         """
         try:
@@ -61,7 +61,7 @@ class THStreamClient:
             print("Client stopped")
 
 def run_client(client):
-    client.run()
+    client.run(interval=1./120.)  # 设置为每秒发送120个数据包
 
 def generate_test_sizes():
     """生成从100到3600000字节的100个指数间隔点"""
@@ -76,46 +76,49 @@ if __name__ == '__main__':
     
     # 生成测试数据大小
     test_sizes = generate_test_sizes()
-    print(f"即将发送100个不同大小的数据包，大小范围：{test_sizes[0]}字节 - {test_sizes[-1]}字节")
+    repeat_times = 10  # 每个大小重复发送10次
+    print(f"即将发送{len(test_sizes)}个不同大小的数据包，每个大小重复{repeat_times}次")
+    print(f"数据包大小范围：{test_sizes[0]}字节 - {test_sizes[-1]}字节")
     
     # 等待确认开始测试
     input("按回车键开始测试...")
     
     # 发送不同大小的数据包
     for i, size in enumerate(test_sizes):
-        # 等待缓冲区有空间
-        while client.send_data_buffer.get_size() >= 10:
-            time.sleep(0.1)
-        
-        # 生成指定大小的数据
-        test_data = b'\x00' * size
-        
-        # 获取当前时间戳（毫秒）
-        timestamp_ms = int(time.time() * 1000)
-        
-        # 将大小和时间戳编码为JSON字符串
-        metadata = json.dumps({
-            "size": int(size),
-            "timestamp": timestamp_ms
-        })
-        
-        # 创建数据负载
-        payload = THStreamDataPayload(
-            rgb_data=b'\x01',
-            point_data=test_data,  # 这里放大数据块
-            face_data=b'\x03',
-            limb_data=b'\x04',
-            ext_data=b'\x05',
-            ext_desc=metadata
-        )
-        
-        # 添加到发送缓冲区
-        client.send_data_buffer.add_item(payload)
-        
-        print(f"[{i+1}/100] 已发送数据：{size} 字节")
-        
-        # 每发送一个数据包后等待一段时间，确保数据被完全处理
-        time.sleep(0.5)
+        for repeat in range(repeat_times):
+            # 等待缓冲区有空间
+            while client.send_data_buffer.get_size() >= 10:
+                time.sleep(0.1)
+            
+            # 生成指定大小的数据
+            test_data = b'\x00' * size
+            
+            # 获取当前时间戳（毫秒）
+            timestamp_ms = int(time.time() * 1000)
+            
+            # 将大小和时间戳编码为JSON字符串
+            metadata = json.dumps({
+                "size": int(size),
+                "timestamp": timestamp_ms
+            })
+            
+            # 创建数据负载
+            payload = THStreamDataPayload(
+                rgb_data=b'\x01',
+                point_data=test_data,  # 这里放大数据块
+                face_data=b'\x03',
+                limb_data=b'\x04',
+                ext_data=b'\x05',
+                ext_desc=metadata
+            )
+            
+            # 添加到发送缓冲区
+            client.send_data_buffer.add_item(payload)
+            
+            print(f"[{i+1}/{len(test_sizes)}] 大小: {size} 字节, 重复: {repeat+1}/{repeat_times}")
+            
+            # 每发送一个数据包后等待一段时间，确保数据被完全处理
+            time.sleep(0.5)
     
     # 等待所有数据被发送和处理
     time.sleep(5)
