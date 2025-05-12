@@ -56,7 +56,7 @@ class THStreamClient:
         try:
             while not self.test_completed:
                 self.send_data()
-                time.sleep(interval)
+                # time.sleep(interval)
         except KeyboardInterrupt:
             print("Client stopped")
 
@@ -88,7 +88,7 @@ if __name__ == '__main__':
         for repeat in range(repeat_times):
             # 等待缓冲区有空间
             while client.send_data_buffer.get_size() >= 10:
-                time.sleep(0.1)
+                time.sleep(0.01)
             
             # 生成指定大小的数据
             test_data = b'\x00' * size
@@ -118,7 +118,7 @@ if __name__ == '__main__':
             print(f"[{i+1}/{len(test_sizes)}] 大小: {size} 字节, 重复: {repeat+1}/{repeat_times}")
             
             # 每发送一个数据包后等待一段时间，确保数据被完全处理
-            time.sleep(0.5)
+            # time.sleep(0.5)
     
     # 等待所有数据被发送和处理
     time.sleep(5)
