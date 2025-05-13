@@ -1,8 +1,5 @@
 import grpc
 from concurrent import futures
-import data_stream_pb2
-import data_stream_pb2_grpc
-from THStreamData import THStreamDataPayload, THDataWarehouse
 import threading
 import time
 import json
@@ -10,6 +7,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import csv
+import data_stream_pb2
+import data_stream_pb2_grpc
+from THStreamData import THStreamDataPayload, THDataWarehouse
+
+# 添加全局变量来控制服务器
+server_running = True
+server_instance = None
 
 class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
     def __init__(self):
@@ -35,22 +39,38 @@ class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
             yield data_stream_pb2.THStreamResponse(retCode=1, retMsg="Internal server error")
 
 def serve(servicer, port):
+    global server_instance
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     data_stream_pb2_grpc.add_THStreamServiceServicer_to_server(servicer, server)
     server.add_insecure_port(f'[::]:{port}')
     server.start()
+    server_instance = server
     print(f"Server started, listening on port {port}")
-    server.wait_for_termination()
+    
+    # 使用事件循环检查是否应该关闭
+    global server_running
+    while server_running:
+        time.sleep(0.5)  # 每0.5秒检查一次
+        
+    print("Server stopping...")
+    server.stop(grace=5)  # 优雅地关闭，给5秒处理中的请求
+    print("Server stopped.")
 
-def plot_latency_curve(data_sizes, latencies):
-    """绘制数据大小-时延曲线并保存"""
+def plot_latency_curve(data_sizes, latencies, frame_rate):
+    """绘制数据大小-时延曲线并保存，包含帧率信息"""
     plt.figure(figsize=(12, 8))
     plt.plot(data_sizes, latencies, 'bo-', linewidth=2)
     plt.xscale('log')  # 使用对数刻度显示数据大小
     plt.grid(True)
     plt.xlabel('Data Size (Bytes)', fontsize=14)
     plt.ylabel('Transmission Latency (ms)', fontsize=14)
-    plt.title('Data Size vs Transmission Latency', fontsize=16)
+    title = f'Data Size vs Transmission Latency (Avg. Frame Rate: {frame_rate:.2f} fps)'
+    plt.title(title, fontsize=16)
+    
+    # 在图上添加帧率文本
+    plt.annotate(f'Average Frame Rate: {frame_rate:.2f} fps', 
+                 xy=(0.02, 0.95), xycoords='axes fraction',
+                 fontsize=12, bbox=dict(boxstyle="round,pad=0.3", fc="yellow", alpha=0.3))
     
     # 获取当前脚本所在目录
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -66,13 +86,13 @@ def plot_latency_curve(data_sizes, latencies):
     
     print(f"Charts saved to {os.path.join(res_path, 'size_vs_latency.png')} and {os.path.join(res_path, 'size_vs_latency.svg')}")
     
-    # 保存原始数据为CSV
+    # 保存原始数据为CSV，包含帧率信息
     csv_path = os.path.join(res_path, 'latency_data.csv')
     with open(csv_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(['Data_Size(Bytes)', 'Latency(ms)'])
+        writer.writerow(['Data_Size(Bytes)', 'Latency(ms)', 'Frame_Rate(fps)'])
         for size, latency in zip(data_sizes, latencies):
-            writer.writerow([size, latency])
+            writer.writerow([size, latency, frame_rate])
     
     print(f"Raw data saved to {csv_path}")
 
@@ -88,16 +108,21 @@ if __name__ == '__main__':
 
     servicer = THStreamServiceServicer()
     custom_port = 50051
+    
+    # 启动服务器线程
     server_process = threading.Thread(target=serve, args=(servicer, custom_port))
-    server_process.daemon = True
+    server_process.daemon = False  # 设为非守护线程
     server_process.start()
 
     print("开始等待测试数据...")
 
     try:
+        # 用于计算帧率
+        start_time = time.time()
+        total_received = 0
+        
         # 持续接收数据，直到所有大小的数据都收到了足够的样本
         total_expected_packets = len(expected_sizes) * repeat_times
-        total_received = 0
         
         while total_received < total_expected_packets:
             cnt = servicer.receive_data_buffer.get_size()
@@ -126,53 +151,46 @@ if __name__ == '__main__':
                     latency_by_size[data_size] = []
                 
                 latency_by_size[data_size].append(transmission_time_ms)
-                
-                # 计算已收到的数据包中，每个大小完成的数量
-                completed = 0
-                for size, latencies in latency_by_size.items():
-                    if len(latencies) >= repeat_times:
-                        completed += 1
-                
                 total_received += 1
-                print(f"[{total_received}/{total_expected_packets}] Size: {data_size} bytes, Latency: {transmission_time_ms} ms, Completed sizes: {completed}/{len(expected_sizes)}")
+                
+                # 显示进度
+                print(f"Received: {total_received}/{total_expected_packets} packets")
                 
             except (ValueError, KeyError, json.JSONDecodeError) as e:
-                print(f"Failed to parse data: {data.extDesc}, Error: {e}")
-    
+                print(f"Error processing data: {e}")
+        
+        # 计算总帧率
+        end_time = time.time()
+        total_time = end_time - start_time
+        average_frame_rate = total_received / total_time
+        print(f"\nTotal time: {total_time:.2f} seconds")
+        print(f"Average frame rate: {average_frame_rate:.2f} fps")
+                
         # 所有测试完成后，计算每组的平均延迟
         print("\nAll tests completed! Calculating average latencies...")
-        avg_data_sizes = []
+
+        # 计算各大小的平均延迟
+        sizes = []
         avg_latencies = []
         
         for size in sorted(latency_by_size.keys()):
             latencies = latency_by_size[size]
-            # 确保每个大小都有足够的样本
-            if len(latencies) >= repeat_times:
-                # 取前repeat_times个样本计算平均值
-                avg_latency = sum(latencies[:repeat_times]) / repeat_times
-                avg_data_sizes.append(size)
-                avg_latencies.append(avg_latency)
-                print(f"Size: {size} bytes, Average Latency: {avg_latency:.2f} ms")
+            avg_latency = sum(latencies) / len(latencies)
+            sizes.append(size)
+            avg_latencies.append(avg_latency)
+            print(f"Size: {size} bytes, Avg Latency: {avg_latency:.2f} ms")
         
-        # 绘制图表并保存结果
-        plot_latency_curve(avg_data_sizes, avg_latencies)
+        # 绘制延迟曲线，包含帧率信息
+        plot_latency_curve(sizes, avg_latencies, average_frame_rate)
         
     except KeyboardInterrupt:
-        print("\nTest interrupted")
-        if latency_by_size:
-            print("Saving collected data...")
-            # 计算已收集数据的平均值
-            avg_data_sizes = []
-            avg_latencies = []
-            
-            for size in sorted(latency_by_size.keys()):
-                latencies = latency_by_size[size]
-                if len(latencies) > 0:  # 只要有数据就计算平均值
-                    avg_latency = sum(latencies) / len(latencies)
-                    avg_data_sizes.append(size)
-                    avg_latencies.append(avg_latency)
-            
-            plot_latency_curve(avg_data_sizes, avg_latencies)
+        print("Test interrupted by user.")
+    finally:
+        # 停止服务器
+        print("Shutting down server...")
+        server_running = False
+        server_process.join(timeout=10)  # 等待服务器线程完成
+        print("Server shutdown complete.")
 
 
 

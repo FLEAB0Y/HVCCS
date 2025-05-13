@@ -78,7 +78,7 @@ if __name__ == '__main__':
     # 测试数据配置
     MIN_DATA_SIZE = 100          # 最小数据大小(字节)
     MAX_DATA_SIZE = 3600000      # 最大数据大小(字节)
-    NUM_TEST_SIZES = 500         # 测试大小点的数量
+    NUM_TEST_SIZES = 100         # 测试大小点的数量
     REPEAT_TIMES = 10            # 每个大小重复发送次数
     
     # 性能参数
