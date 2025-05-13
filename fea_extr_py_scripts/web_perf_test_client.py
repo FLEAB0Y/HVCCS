@@ -6,6 +6,7 @@ import threading
 import numpy as np
 from THStreamData import THStreamDataPayload, THDataWarehouse
 import json
+import os
 
 class THStreamClient:
     def __init__(self, host='127.0.0.1', port=50051):
@@ -48,47 +49,68 @@ class THStreamClient:
                                                       extData=one_data.ext_data,
                                                       extDesc=one_data.ext_desc)
 
-    def run(self, interval=1./120.):
+    def run(self, interval=1./30.):
         """
-        :param interval: 1秒120帧数据
+        :param interval: 发送间隔时间
         :return:
         """
         try:
             while not self.test_completed:
                 self.send_data()
-                # time.sleep(interval)
+                time.sleep(interval)
         except KeyboardInterrupt:
             print("Client stopped")
 
-def run_client(client):
-    client.run(interval=1./120.)  # 设置为每秒发送120个数据包
+def run_client(client, frame_rate):
+    interval = 1.0 / frame_rate
+    client.run(interval=interval)
 
-def generate_test_sizes():
-    """生成从100到3600000字节的100个指数间隔点"""
-    return np.logspace(2, np.log10(3600000), 100).astype(int)
+def generate_test_sizes(min_size, max_size, num_sizes):
+    """生成从min_size到max_size字节的num_sizes个指数间隔点"""
+    return np.logspace(np.log10(min_size), np.log10(max_size), num_sizes).astype(int)
 
 if __name__ == '__main__':
-    # 创建客户端实例
-    client = THStreamClient(host='192.168.1.11', port=50051)
-    client_thread = threading.Thread(target=run_client, args=(client,))
+    # ===== 配置参数 =====
+    # 服务器连接配置
+    SERVER_HOST = '192.168.1.11'
+    SERVER_PORT = 50051
+    
+    # 测试数据配置
+    MIN_DATA_SIZE = 100          # 最小数据大小(字节)
+    MAX_DATA_SIZE = 3600000      # 最大数据大小(字节)
+    NUM_TEST_SIZES = 500         # 测试大小点的数量
+    REPEAT_TIMES = 10            # 每个大小重复发送次数
+    
+    # 性能参数
+    FRAME_RATE = 30             # 每秒发送帧数
+    BUFFER_LIMIT = 10            # 缓冲区大小限制
+    BUFFER_WAIT_TIME = 0.01      # 缓冲区满时等待时间(秒)
+    
+    # 保存结果
+    SAVE_RESULTS = True
+    RESULTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "res", "web_test_res")
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+
+    # ===== 创建客户端 =====
+    client = THStreamClient(host=SERVER_HOST, port=SERVER_PORT)
+    client_thread = threading.Thread(target=run_client, args=(client, FRAME_RATE))
     client_thread.daemon = True  # 确保主线程退出时，此线程也退出
     client_thread.start()
     
-    # 生成测试数据大小
-    test_sizes = generate_test_sizes()
-    repeat_times = 10  # 每个大小重复发送10次
-    print(f"即将发送{len(test_sizes)}个不同大小的数据包，每个大小重复{repeat_times}次")
+    # ===== 生成测试数据大小 =====
+    test_sizes = generate_test_sizes(MIN_DATA_SIZE, MAX_DATA_SIZE, NUM_TEST_SIZES)
+    print(f"即将发送{len(test_sizes)}个不同大小的数据包，每个大小重复{REPEAT_TIMES}次")
     print(f"数据包大小范围：{test_sizes[0]}字节 - {test_sizes[-1]}字节")
     
-    # 等待确认开始测试
+    # ===== 等待确认开始测试 =====
     input("按回车键开始测试...")
     
-    # 发送不同大小的数据包
+    # ===== 发送测试数据 =====
     for i, size in enumerate(test_sizes):
-        for repeat in range(repeat_times):
+        for repeat in range(REPEAT_TIMES):
             # 等待缓冲区有空间
-            while client.send_data_buffer.get_size() >= 10:
-                time.sleep(0.01)
+            while client.send_data_buffer.get_size() >= BUFFER_LIMIT:
+                time.sleep(BUFFER_WAIT_TIME)
             
             # 生成指定大小的数据
             test_data = b'\x00' * size
@@ -115,12 +137,10 @@ if __name__ == '__main__':
             # 添加到发送缓冲区
             client.send_data_buffer.add_item(payload)
             
-            print(f"[{i+1}/{len(test_sizes)}] 大小: {size} 字节, 重复: {repeat+1}/{repeat_times}")
-            
-            # 每发送一个数据包后等待一段时间，确保数据被完全处理
-            # time.sleep(0.5)
+            print(f"[{i+1}/{len(test_sizes)}] 大小: {size} 字节, 重复: {repeat+1}/{REPEAT_TIMES}")
     
-    # 等待所有数据被发送和处理
+    # ===== 等待所有数据被发送和处理 =====
+    print("等待所有数据发送完成...")
     time.sleep(5)
     print("测试完成!")
     client.test_completed = True

@@ -22,7 +22,7 @@ class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
                 # 缓冲区满了就等待
                 buffer_size = self.receive_data_buffer.get_size()
                 while buffer_size > 10:
-                    time.sleep(0.01)
+                    time.sleep(1./100.)
                     print("Buffer is full, waiting...")
                     buffer_size = self.receive_data_buffer.get_size()
                 
@@ -52,27 +52,33 @@ def plot_latency_curve(data_sizes, latencies):
     plt.ylabel('Transmission Latency (ms)', fontsize=14)
     plt.title('Data Size vs Transmission Latency', fontsize=16)
     
+    # 获取当前脚本所在目录
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    # 构建保存目录路径
+    res_path = os.path.join(script_dir, "..", "res", "web_test_res")
+    
     # 创建保存目录
-    os.makedirs('../res/web_test_res', exist_ok=True)
+    os.makedirs(res_path, exist_ok=True)
     
     # 保存图表
-    plt.savefig('../res/web_test_res/size_vs_latency.png', dpi=300)
-    plt.savefig('../res/web_test_res/size_vs_latency.svg', format='svg')
+    plt.savefig(os.path.join(res_path, 'size_vs_latency.png'), dpi=300)
+    plt.savefig(os.path.join(res_path, 'size_vs_latency.svg'), format='svg')
     
-    print(f"Charts saved to ../res/web_test_res/size_vs_latency.png and ../res/web_test_res/size_vs_latency.svg")
+    print(f"Charts saved to {os.path.join(res_path, 'size_vs_latency.png')} and {os.path.join(res_path, 'size_vs_latency.svg')}")
     
     # 保存原始数据为CSV
-    with open('../res/web_test_res/latency_data.csv', 'w', newline='') as csvfile:
+    csv_path = os.path.join(res_path, 'latency_data.csv')
+    with open(csv_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['Data_Size(Bytes)', 'Latency(ms)'])
         for size, latency in zip(data_sizes, latencies):
             writer.writerow([size, latency])
     
-    print(f"Raw data saved to ../res/web_test_res/latency_data.csv")
+    print(f"Raw data saved to {csv_path}")
 
 if __name__ == '__main__':
     # 初始化时间差
-    diff = -71039
+    diff = 54
     print(f"时间差: {diff} ms")
 
     # 存储测试结果 - 使用字典按大小分组
