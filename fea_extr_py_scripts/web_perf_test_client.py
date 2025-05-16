@@ -72,7 +72,7 @@ def generate_test_sizes(min_size, max_size, num_sizes):
 if __name__ == '__main__':
     # ===== 配置参数 =====
     # 服务器连接配置
-    SERVER_HOST = '192.168.1.11'
+    SERVER_HOST = '127.0.0.1'
     SERVER_PORT = 50051
     
     # 测试数据配置
@@ -82,8 +82,8 @@ if __name__ == '__main__':
     REPEAT_TIMES = 10            # 每个大小重复发送次数
     
     # 性能参数
-    FRAME_RATE = 30             # 每秒发送帧数
-    BUFFER_LIMIT = 10            # 缓冲区大小限制
+    FRAME_RATE = 240             # 每秒发送帧数
+    BUFFER_LIMIT = 5            # 缓冲区大小限制
     BUFFER_WAIT_TIME = 0.01      # 缓冲区满时等待时间(秒)
     
     # 保存结果

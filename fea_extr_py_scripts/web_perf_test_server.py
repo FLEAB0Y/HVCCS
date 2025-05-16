@@ -25,7 +25,7 @@ class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
                 print(f"***********Received request seqNo:{request.seqNo}***********")
                 # 缓冲区满了就等待
                 buffer_size = self.receive_data_buffer.get_size()
-                while buffer_size > 10:
+                while buffer_size > 30:
                     time.sleep(1./100.)
                     print("Buffer is full, waiting...")
                     buffer_size = self.receive_data_buffer.get_size()
@@ -98,7 +98,7 @@ def plot_latency_curve(data_sizes, latencies, frame_rate):
 
 if __name__ == '__main__':
     # 初始化时间差
-    diff = 54
+    diff = 0
     print(f"时间差: {diff} ms")
 
     # 存储测试结果 - 使用字典按大小分组
