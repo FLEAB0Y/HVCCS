@@ -2,15 +2,32 @@
 Hologram Virtual Conference Communication System
 ## 配置虚拟环境
 - 从官网安装anaconda3
-- 运行`conda env create -f face_detec.yaml`来创建虚拟环境
+- 运行以下命令创建虚拟环境
+```
+conda env create -f face_detec.yaml
+pip install -r requirements.txt
+```
 
-## 配置unity渲染和推流
-### 1 Setup Unity
-- 安装unity hub 3.3.3-c2
-- 安装unity 2022.3.55f1
-- 新建项目，并进入
 
-### 2 安装依赖
+## Unity & Quest 3 Setup
+
+- 安装unity h3.3.3-c2
+- 安装unity 2022.3.55f1，安装时选择`Android Build Support`和`Android SDK & NDK Tools`
+- 新建HDRP项目（如果需要编译为app部署到Quest上，应该新建URP项目，因为Quest部署Anroid应用目前不支持HDRP），并进入。
+
+### 1 Setup Meta Quest 3
+#### 1.1 Install Link & MQDH
+- 安装Meta Quest Link，登陆账号，连接Quest 3
+- 安装Meta Quets Developer Hub，登录账号。在'setting'中选择ADB和NDK，选择安装Android SDK和NDK，找到unity安装目录下的`Android SDK`和`Android NDK`，选择对应的文件夹。
+
+#### 1.2 Unity Quest 3 Setup
+
+- 详情参考[Meta官方文档](https://developers.meta.com/horizon/documentation/unity/unity-tutorial-hello-vr)
+- Asset Store无法下载时，通过`Window/Package Manager`，点击`+`按钮，选择`Add package from name`，在[Meta官方文档](https://npm.developer.oculus.com/)中查看`com.unity.xr.sdk.interaction`和`com.unity.xr.sdk.core`，点击`Add`，等待安装完成。
+```
+
+### 2 Unity Render Streaming & WebRTC
+#### 2.1 prepare
 - 在unity中打开`Window/Package Manager`，点击`+`按钮，选择`Add package from git URL...`，输入以下地址：
 ```
 com.unity.webrtc@3.0.0-pre.5
@@ -31,7 +48,7 @@ npm install
 ```
 - Windows直接双击运行`run.bat`，linux在命令行运行`./run.sh`
 
-### 3 配置unity场景
+#### 2.2 setup unity scene
 - 在unity中打开`Assets/Samples/Unity Render Streaming/3.1.0-exp.6/Example/`，将里面子文件夹中的场景拖入`Hierarchy`中。
 - 在`Assets`中新建`models`文件夹，将需要渲染的模型，如`nezha.fbx`放入该文件夹中。然后将模型拖入`Hierarchy/WebBrowserInput/`中。
 - 在`Assets`中新建`scripts`文件夹，将`unity_cs_scripts`文件夹中的`BSCtrl.cs`和`FaceDataReceiver.cs`拖入该文件夹中。
