@@ -72,7 +72,7 @@ class THStreamClient:
                                                       extData=one_data.ext_data,
                                                       extDesc=one_data.ext_desc)
 
-    def run(self, interval=1./30.): # interval = 1./30.
+    def run(self, interval=1./120.): # interval = 1./30.
         """
         :param interval: 1秒30帧数据
         :return:
@@ -103,7 +103,7 @@ if __name__ == '__main__':
         # 缓冲区满了就等待
         buffer_size = client.send_data_buffer.get_size()
         while buffer_size >= 10:
-            time.sleep(0.1)
+            time.sleep(0.01)
             buffer_size = client.send_data_buffer.get_size()
         # 生成250,0000字节的数据
         large_data = b'\x00' * 2500000

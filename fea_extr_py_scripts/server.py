@@ -17,7 +17,7 @@ class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
                 # 缓冲区满了就等待
                 buffer_size = self.receive_data_buffer.get_size()
                 while buffer_size > 10:
-                    time.sleep(0.1)
+                    time.sleep(0.01)
                     print("Buffer is full, waiting...")
                     buffer_size = self.receive_data_buffer.get_size()
                 
@@ -52,7 +52,7 @@ def serve(servicer, port):
 
 if __name__ == '__main__':
     # 初始化时间差
-    diff = -71039
+    diff = 0
     print(f"时间差: {diff} ms")
 
     servicer = THStreamServiceServicer()
