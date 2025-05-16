@@ -79,8 +79,8 @@ def main(server_addr='127.0.0.1', port_num =50051, model_path='/HVCCS/data/face_
             
             # 缓冲区满了就等待
             buffer_size = client.send_data_buffer.get_size()
-            while buffer_size >= 10:
-                time.sleep(0.1)
+            while buffer_size >= 5:
+                time.sleep(0.01)
                 buffer_size = client.send_data_buffer.get_size()
     
             # 将图像从BGR颜色空间转换为RGB颜色空间
@@ -108,4 +108,4 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
     # 构建相对路径 - 上一级目录的data文件夹
     model_path = os.path.join(script_dir, "..", "data", "face_landmarker_v2_with_blendshapes.task")
-    main(server_addr='127.0.0.1', port_num=50052, model_path = model_path)
+    main(server_addr='127.0.0.1', port_num=50051, model_path = model_path)

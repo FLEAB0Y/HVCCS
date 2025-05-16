@@ -57,7 +57,7 @@ class THStreamClient:
         try:
             while not self.test_completed:
                 self.send_data()
-                time.sleep(interval)
+                # time.sleep(interval)
         except KeyboardInterrupt:
             print("Client stopped")
 

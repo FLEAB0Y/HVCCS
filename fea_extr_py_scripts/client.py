@@ -31,32 +31,6 @@ class THStreamClient:
         except grpc.RpcError as e:
             print(f"gRPC error: {e}")
 
-    # 这是计算数据处理延迟的发送函数，在数据发送后获取一个时间戳，与数据包中的时间戳做差实现
-    # def send_data(self):
-    #     try:
-    #         send_data = self.request_generator()
-    #         if not send_data:
-    #             return
-            
-    #         for request in send_data:
-    #             # 从请求的ext_desc字段获取发送时的时间戳
-    #             send_timestamp = int(request.extDesc)
-                
-    #             # 发送请求并获取响应
-    #             response_iterator = self.stub.BidirectionalStream(iter([request]))
-                
-    #             # 计算发送完成后的时间戳
-    #             current_timestamp = int(time.time() * 1000)
-    #             delay = current_timestamp - send_timestamp
-                
-    #             print(f"数据包延迟: {delay} ms")
-                
-    #             # 处理响应
-    #             for response in response_iterator:
-    #                 print(f"Received response: retCode={response.retCode}, retMsg={response.retMsg}")
-    #     except grpc.RpcError as e:
-    #         print(f"gRPC error: {e}")
-
     def request_generator(self):
         if self.send_data_buffer.get_size() == 0:
             return None
@@ -72,7 +46,7 @@ class THStreamClient:
                                                       extData=one_data.ext_data,
                                                       extDesc=one_data.ext_desc)
 
-    def run(self, interval=1./120.): # interval = 1./30.
+    def run(self, interval=1./120.): # interval = 1./120.
         """
         :param interval: 1秒30帧数据
         :return:
@@ -80,7 +54,7 @@ class THStreamClient:
         try:
             while True:
                 self.send_data()
-                time.sleep(interval)
+                # time.sleep(interval)
         except KeyboardInterrupt:
             print("Client stopped")
 
@@ -94,7 +68,7 @@ if __name__ == '__main__':
     
     # Labserver: 101.6.65.237
     # local: 127.0.0.1
-    client = THStreamClient(host='183.172.152.218', port=50051)
+    client = THStreamClient(host='127.0.0.1', port=50051)
     client_thread = threading.Thread(target=run_client, args=(client,))
     client_thread.start()
 
@@ -102,7 +76,7 @@ if __name__ == '__main__':
         
         # 缓冲区满了就等待
         buffer_size = client.send_data_buffer.get_size()
-        while buffer_size >= 10:
+        while buffer_size >= 5:
             time.sleep(0.01)
             buffer_size = client.send_data_buffer.get_size()
         # 生成250,0000字节的数据

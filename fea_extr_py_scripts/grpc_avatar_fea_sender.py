@@ -208,7 +208,7 @@ def main(server_addr='127.0.0.1', port_num=50051,
             
             # 缓冲区满了就等待
             buffer_size = client.send_data_buffer.get_size()
-            while buffer_size >= 10:
+            while buffer_size >= 5:
                 time.sleep(0.01)
                 buffer_size = client.send_data_buffer.get_size()
     
