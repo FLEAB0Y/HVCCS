@@ -24,7 +24,8 @@ pip install -r requirements.txt
 
 - 详情参考[Meta官方文档](https://developers.meta.com/horizon/documentation/unity/unity-tutorial-hello-vr)
 - Asset Store无法下载时，通过`Window/Package Manager`，点击`+`按钮，选择`Add package from name`，在[Meta官方文档](https://npm.developer.oculus.com/)中查看`com.unity.xr.sdk.interaction`和`com.unity.xr.sdk.core`，点击`Add`，等待安装完成。
-```
+- 在Meta XR Tools中，选择`Project Setup Tool`，点击`Fix All`和`Apply All`，等待完成。
+
 
 ### 2 Unity Render Streaming & WebRTC
 #### 2.1 prepare

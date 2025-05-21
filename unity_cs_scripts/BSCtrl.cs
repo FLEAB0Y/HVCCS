@@ -21,6 +21,8 @@ public class BSCtrl : MonoBehaviour
     private long receivedTimestamp = 0;
     private float latency = 0f;
     private bool hasLatencyData = false;
+    private bool needToCalculateLatency = false;  // 新增：标记是否需要计算延迟
+    private Camera mainCamera;  // 新增：引用主相机
 
     // 公开属性供UI访问
     public float Latency { get { return latency; } }
@@ -51,6 +53,13 @@ public class BSCtrl : MonoBehaviour
                     return;
                 }
             }
+        }
+        
+        // 获取主相机引用
+        mainCamera = Camera.main;
+        if (mainCamera == null)
+        {
+            Debug.LogWarning("未找到主相机，将使用LateUpdate计算延迟");
         }
         
         // 查找并初始化标准BlendShape值
@@ -179,13 +188,10 @@ public class BSCtrl : MonoBehaviour
                     {
                         receivedTimestamp = timestamp;
                         foundTimestamp = true;
+                        needToCalculateLatency = true;
                         
-                        // 计算延迟（当前时间 - 发送时间）
-                        long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                        latency = (currentTimestamp - receivedTimestamp) / 1000f; // 转换为秒
-                        hasLatencyData = true;
-                        
-                        Debug.Log($"接收到时间戳: {receivedTimestamp}, 延迟: {latency.ToString("F3")}秒");
+                        // 添加调试信息，确认时间戳被正确接收
+                        Debug.Log($"接收到时间戳: {timestamp}ms，将在下一帧计算延迟");
                     }
                     continue;
                 }
@@ -210,9 +216,10 @@ public class BSCtrl : MonoBehaviour
                 }
             }
             
+            // 不在这里计算延迟，而是等待渲染完成后
             if (foundTimestamp)
             {
-                Debug.Log($"成功处理 {successCount}/{entries.Length - 1} 个BlendShape数据项，延迟: {latency.ToString("F3")}秒");
+                Debug.Log($"成功处理 {successCount}/{entries.Length - 1} 个BlendShape数据项，等待渲染完成后计算延迟");
             }
             else
             {
@@ -222,6 +229,35 @@ public class BSCtrl : MonoBehaviour
         catch (Exception e)
         {
             Debug.LogError($"解析BlendShape数据错误: {e.Message}");
+        }
+    }
+    
+    // 使用Update而非LateUpdate，确保每帧都检查一次
+    void Update()
+    {
+        // 立即计算延迟，不依赖于相机回调
+        if (needToCalculateLatency && receivedTimestamp > 0)
+        {
+            CalculateLatencyNow();
+        }
+    }
+    
+    // 在渲染完成后计算延迟
+    private void CalculateLatencyNow()
+    {
+        if (needToCalculateLatency && receivedTimestamp > 0)
+        {
+            // 计算当前延迟
+            long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            long delayMs = currentTimestamp - receivedTimestamp; // 保留毫秒级别
+            latency = delayMs / 1000f; // 转换为秒，但保存为秒方便其他代码使用
+            hasLatencyData = true;
+            
+            // 输出延迟信息到控制台，同时显示毫秒和秒
+            Debug.Log($"[延迟计算] 数据时间戳: {receivedTimestamp}ms, 当前时间戳: {currentTimestamp}ms, 延迟: {delayMs}ms ({latency.ToString("F3")}秒)");
+            
+            // 重置标记
+            needToCalculateLatency = false;
         }
     }
     
