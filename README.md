@@ -4,8 +4,9 @@ Hologram Virtual Conference Communication System
 - 从官网安装anaconda3
 - 运行以下命令创建虚拟环境
 ```
-conda env create -f face_detec.yaml
+conda env create -f HVCCS.yaml
 pip install -r requirements.txt
+pip install mediapipe==0.10.20 --no-deps
 ```
 
 
@@ -23,7 +24,8 @@ pip install -r requirements.txt
 #### 1.2 Unity Quest 3 Setup
 
 - 详情参考[Meta官方文档](https://developers.meta.com/horizon/documentation/unity/unity-tutorial-hello-vr)
-- Asset Store无法下载时，通过`Window/Package Manager`，点击`+`按钮，选择`Add package from name`，在[Meta官方文档](https://npm.developer.oculus.com/)中查看`com.unity.xr.sdk.interaction`和`com.unity.xr.sdk.core`，点击`Add`，等待安装完成。
+- 点击`Edit`下拉中的`Project Setting`选项，找到左侧下拉列表最下方`XR Plugin Mnagement`，选择`install`
+- Asset Store无法下载时，通过`Window/Package Manager`，点击`+`按钮，选择`Add package from name`，在[Meta官方文档](https://npm.developer.oculus.com/)中查看`com.meta.xr.sdk.core`和`com.meta.xr.sdk.interaction`，点击`Add`，等待安装完成。
 - 在Meta XR Tools中，选择`Project Setup Tool`，点击`Fix All`和`Apply All`，等待完成。
 
 
