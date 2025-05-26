@@ -118,13 +118,6 @@ def process_pose_result(result, output_image, timestamp_ms, frame_data_manager, 
             for i, landmark in enumerate(landmarks_data):
                 print(f"关键点 {i}: x={landmark[0]}, y={landmark[1]}, z={landmark[2]}, 可见性={landmark[3]}")
             print("=============================")
-            
-            # 如果需要生成可视化图像
-            if res_path:
-                annotated_image = draw_landmarks_on_image(output_image.numpy_view(), result)
-                image_path = os.path.join(res_path, f"pose_{timestamp_ms}.jpg")
-                cv2.imwrite(image_path, cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
-                print(f"已保存姿势检测图像: {image_path}")
 
 def process_face_result(result, output_image, timestamp_ms, frame_data_manager, debug=False, res_path=None):
     """处理面部表情检测结果并更新帧数据管理器"""
@@ -147,13 +140,6 @@ def process_face_result(result, output_image, timestamp_ms, frame_data_manager, 
                 for i, category in enumerate(blendshape_data):
                     print(f"表情类别 {category[0]}: 强度={category[1]:.4f}")
                 print("===============================")
-                
-                # 如果需要生成可视化图像 (需要自定义面部表情可视化)
-                if res_path:
-                    annotated_image = draw_landmarks_on_image(output_image.numpy_view(), result)
-                    image_path = os.path.join(res_path, f"face_{timestamp_ms}.jpg")
-                    cv2.imwrite(image_path, cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
-                    print(f"已保存面部检测图像: {image_path}")
 
 def main(server_addr='127.0.0.1', port_num=50051, 
          pose_model_path=None, face_model_path=None, 
@@ -177,7 +163,7 @@ def main(server_addr='127.0.0.1', port_num=50051,
         running_mode=VisionRunningMode.LIVE_STREAM, 
         output_segmentation_masks=False,
         result_callback=lambda result, output_image, timestamp_ms: process_pose_result(
-            result, output_image, timestamp_ms, frame_data_manager, debug=debug, res_path=res_path
+            result, output_image, timestamp_ms, frame_data_manager, debug=debug
         )
     )
     pose_detector = vision.PoseLandmarker.create_from_options(pose_options)
@@ -190,7 +176,7 @@ def main(server_addr='127.0.0.1', port_num=50051,
         output_face_blendshapes=True,
         output_facial_transformation_matrixes=True,
         result_callback=lambda result, output_image, timestamp_ms: process_face_result(
-            result, output_image, timestamp_ms, frame_data_manager, debug=debug, res_path=res_path
+            result, output_image, timestamp_ms, frame_data_manager, debug=debug
         )
     )
     face_detector = vision.FaceLandmarker.create_from_options(face_options)
@@ -239,18 +225,10 @@ if __name__ == "__main__":
     pose_model_path = os.path.join(script_dir, "..", "data", "pose_landmarker_full.task")
     face_model_path = os.path.join(script_dir, "..", "data", "face_landmarker_v2_with_blendshapes.task")
     
-    # 构建结果输出路径
-    res_path = os.path.join(script_dir, "..", "res", "avatar_detec_res")
-    
-    # 确保输出目录存在
-    os.makedirs(res_path, exist_ok=True)
-    clear_folder(res_path)
-    
     main(
         server_addr='127.0.0.1',
         port_num=50051, 
         pose_model_path=pose_model_path,
         face_model_path=face_model_path,
-        debug=False,
-        res_path=res_path
+        debug=True
     )
