@@ -164,7 +164,7 @@ public class BSCtrl : MonoBehaviour
         }
     }
 
-    // 处理BlendShape数据的公共接口
+    // 处理BlendShape数据的公共接口(老方法，保留兼容性)
     public void ProcessBlendShapeData(string data)
     {
         try
@@ -229,6 +229,34 @@ public class BSCtrl : MonoBehaviour
         catch (Exception e)
         {
             Debug.LogError($"解析BlendShape数据错误: {e.Message}");
+        }
+    }
+    
+    // 处理数组形式的BlendShape数据(新方法)
+    public void ProcessBlendShapeDataArray(float[] faceData, long timestamp)
+    {
+        try
+        {
+            int successCount = 0;
+            
+            // 设置时间戳
+            receivedTimestamp = timestamp;
+            needToCalculateLatency = true;
+            
+            // 处理最多52个BlendShape值
+            int maxValues = Mathf.Min(faceData.Length, 52);
+            for (int i = 0; i < maxValues; i++)
+            {
+                // 将接收到的值(0-1)乘以100转换为BlendShape权重值(0-100)
+                SetBlendShapeWeight(i, faceData[i] * 100f);
+                successCount++;
+            }
+            
+            Debug.Log($"成功处理 {successCount}/52 个BlendShape数据项，等待渲染完成后计算延迟");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"处理BlendShape数组数据错误: {e.Message}");
         }
     }
     

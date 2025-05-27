@@ -100,7 +100,8 @@ def process_pose_result(result, output_image, timestamp_ms, frame_data_manager, 
     if result.pose_landmarks:
         # 处理姿势数据
         for pose_landmark in result.pose_landmarks:
-            landmarks_data = [(landmark.x, landmark.y, landmark.z, landmark.visibility) 
+            # 将x, y, z坐标值乘以1000转换为毫米，visibility保持不变
+            landmarks_data = [(landmark.x * 1000, landmark.y * 1000, landmark.z * 1000, landmark.visibility) 
                              for landmark in pose_landmark]
             
             landmarks_data_json = json.dumps(landmarks_data)
@@ -114,16 +115,17 @@ def process_pose_result(result, output_image, timestamp_ms, frame_data_manager, 
             current_timestamp_ms = int(time.time() * 1000)
             print(f"姿势处理延迟: {current_timestamp_ms - timestamp_ms} ms")
 
-            print("===== 检测到的姿势关键点 =====")
+            print("===== 检测到的姿势关键点 (毫米) =====")
             for i, landmark in enumerate(landmarks_data):
-                print(f"关键点 {i}: x={landmark[0]}, y={landmark[1]}, z={landmark[2]}, 可见性={landmark[3]}")
-            print("=============================")
+                print(f"关键点 {i}: x={landmark[0]:.2f}, y={landmark[1]:.2f}, z={landmark[2]:.2f}, 可见性={landmark[3]:.2f}")
+            print("=======================================")
 
 def process_face_result(result, output_image, timestamp_ms, frame_data_manager, debug=False, res_path=None):
     """处理面部表情检测结果并更新帧数据管理器"""
     if result.face_blendshapes:
         for blendshape in result.face_blendshapes:
-            blendshape_data = [(category.index, category.score) for category in blendshape]
+            # 修改为直接提取所有分数值，不再包含索引
+            blendshape_data = [category.score for category in blendshape]
             
             blendshape_data_json = json.dumps(blendshape_data)
             blendshape_data_bytes = blendshape_data_json.encode('utf-8')
@@ -137,8 +139,8 @@ def process_face_result(result, output_image, timestamp_ms, frame_data_manager, 
                 print(f"面部处理延迟: {current_timestamp_ms - timestamp_ms} ms")
                 
                 print("===== 检测到的面部表情数据 =====")
-                for i, category in enumerate(blendshape_data):
-                    print(f"表情类别 {category[0]}: 强度={category[1]:.4f}")
+                for i, score in enumerate(blendshape_data):
+                    print(f"表情 {i}: 强度={score:.4f}")
                 print("===============================")
 
 def main(server_addr='127.0.0.1', port_num=50051, 

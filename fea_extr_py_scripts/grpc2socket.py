@@ -4,14 +4,36 @@ import time
 import json
 import socket
 
-def send_blendshape_data(data_list, timestamp, socket_port, debug=False):
-    """使用socket直接发送blendshape数据"""
-    # 格式化索引和值，并添加时间戳
-    data_str = ";".join([f"{idx},{val}" for idx, val in data_list])
+def send_combined_data(face_data_list, limb_data_list, timestamp, socket_port, debug=False):
+    """将facedata和limbdata合并为一个数据帧发送"""
+    # 合并数据，前52个是facedata，后33个是limbdata
+    combined_data = []
+    
+    # 添加facedata（已经是纯数值列表）
+    for val in face_data_list:
+        combined_data.append((len(combined_data), val))
+    
+    # 添加limbdata
+    for val in limb_data_list:
+        combined_data.append((len(combined_data), val))
+    
+    # 格式化数据，并添加时间戳
+    data_str = ";".join([f"{idx},{val}" for idx, val in combined_data])
     data_str += f";timestamp,{timestamp}"  # 添加时间戳
     
     if debug:
-        print(f"[DEBUG] 发送数据: {data_str}")
+        print(f"[DEBUG] 发送合并数据: 总长度={len(combined_data)}")
+        print(f"[DEBUG] faceData(前5个): {face_data_list[:5]} ... 共{len(face_data_list)}个")
+        print(f"[DEBUG] limbData(前5个): {limb_data_list[:5]} ... 共{len(limb_data_list)}个")
+        
+        # 打印合并后的部分数据
+        print(f"[DEBUG] 合并数据(前5个): {combined_data[:5]} ...")
+        print(f"[DEBUG] 合并数据(后5个): ... {combined_data[-5:]}")
+        
+        # 打印格式化后的部分数据
+        data_parts = data_str.split(';')
+        print(f"[DEBUG] 格式化数据(前5项): {';'.join(data_parts[:5])} ...")
+        print(f"[DEBUG] 格式化数据(后2项): ... {';'.join(data_parts[-2:])}")
     
     # 建立TCP连接
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -33,29 +55,28 @@ def grpc_thread(grpc_port, socket_port, debug=False):
         # 缓冲区空了就等待
         buffer_size = servicer.receive_data_buffer.get_size()
         while buffer_size < 1:
-            time.sleep(0.1)
+            time.sleep(0.01)
             buffer_size = servicer.receive_data_buffer.get_size()
         # 从缓冲区获取数据
         payload_rec = servicer.receive_data_buffer.get_items()
         if payload_rec:
             try:
                 face_data_bytes = payload_rec.faceData
-                limb_data_bytes = payload_rec.limbData  # 新增 limbData 的处理
+                limb_data_bytes = payload_rec.limbData
                 timestamp = payload_rec.extDesc  # 获取时间戳
                 latency = int(time.time() * 1000) - int(timestamp)  # 计算延迟
                 print(f"[gRPC Port {grpc_port}] 延迟: {latency}ms")   
                 
                 # 解析 faceData 和 limbData
-                face_data_list = json.loads(face_data_bytes.decode('utf-8'))  # 将接收到的 JSON 数据转换为列表
-                limb_data_list = json.loads(limb_data_bytes.decode('utf-8'))  # 新增 limbData 的解析
+                face_data_list = json.loads(face_data_bytes.decode('utf-8'))  # 现在是纯数值列表
+                limb_data_list = json.loads(limb_data_bytes.decode('utf-8'))
                 
                 if debug:
-                    print(f"[DEBUG] 接收到的 faceData: {face_data_list}")
-                    print(f"[DEBUG] 接收到的 limbData: {limb_data_list}")
+                    print(f"[DEBUG] 接收到的 faceData 长度: {len(face_data_list)}")
+                    print(f"[DEBUG] 接收到的 limbData 长度: {len(limb_data_list)}")
                 
-                # 分别发送 faceData 和 limbData
-                send_blendshape_data(face_data_list, timestamp, socket_port, debug)  # 发送 faceData 和时间戳到对应的 socket 端口
-                send_blendshape_data(limb_data_list, timestamp, socket_port + 1, debug)  # 假设 limbData 使用 socket_port + 1
+                # 发送合并后的数据
+                send_combined_data(face_data_list, limb_data_list, timestamp, socket_port, debug)
 
             except AttributeError as e:
                 print(f"[gRPC Port {grpc_port}] AttributeError: {e}")

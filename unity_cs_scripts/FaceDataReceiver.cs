@@ -15,6 +15,10 @@ public class FaceDataReceiver : MonoBehaviour
     
     // 引用BlendShape控制器
     [SerializeField] private BSCtrl blendShapeController;
+    
+    // 动作数据事件，其他组件可以订阅此事件接收肢体数据
+    public delegate void LimbDataHandler(float[] limbData, long timestamp);
+    public event LimbDataHandler OnLimbDataReceived;
 
     // Socket对象
     private TcpListener tcpListener;
@@ -71,12 +75,80 @@ public class FaceDataReceiver : MonoBehaviour
                 while (messageQueue.Count > 0)
                 {
                     string message = messageQueue.Dequeue();
-                    Debug.Log("接收到数据: " + message);
-                    
-                    // 将数据传递给BlendShape控制器处理
-                    blendShapeController.ProcessBlendShapeData(message);
+                    ProcessReceivedData(message);
                 }
             }
+        }
+    }
+    
+    // 处理接收到的数据
+    private void ProcessReceivedData(string data)
+    {
+        try
+        {
+            // 解析数据字符串
+            string[] entries = data.Split(';');
+            List<float> allValues = new List<float>();
+            long timestamp = 0;
+            
+            // 首先提取所有数值和时间戳
+            foreach (string entry in entries)
+            {
+                if (string.IsNullOrEmpty(entry)) 
+                    continue;
+                
+                string[] parts = entry.Split(',');
+                
+                // 检查是否是时间戳数据
+                if (parts.Length == 2 && parts[0] == "timestamp")
+                {
+                    if (long.TryParse(parts[1], out timestamp))
+                    {
+                        Debug.Log($"接收到时间戳: {timestamp}ms");
+                    }
+                    continue;
+                }
+                
+                // 处理普通数据
+                if (parts.Length == 2)
+                {
+                    if (float.TryParse(parts[1], out float value))
+                    {
+                        allValues.Add(value);
+                    }
+                }
+            }
+            
+            // 分离面部数据和肢体数据
+            if (allValues.Count >= 52)
+            {
+                // 提取前52个值作为面部数据
+                float[] faceData = allValues.GetRange(0, 52).ToArray();
+                
+                // 将面部数据传递给BlendShape控制器
+                blendShapeController.ProcessBlendShapeDataArray(faceData, timestamp);
+                
+                // 如果有剩余数据，作为肢体数据处理
+                if (allValues.Count > 52)
+                {
+                    float[] limbData = allValues.GetRange(52, allValues.Count - 52).ToArray();
+                    // 触发肢体数据事件
+                    OnLimbDataReceived?.Invoke(limbData, timestamp);
+                    Debug.Log($"处理了52个面部数据和{limbData.Length}个肢体数据");
+                }
+                else
+                {
+                    Debug.Log($"仅处理了52个面部数据，无肢体数据");
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"接收到的数据不足52个: {allValues.Count}");
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"解析数据错误: {e.Message}\n{e.StackTrace}");
         }
     }
     
