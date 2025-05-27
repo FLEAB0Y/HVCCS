@@ -86,8 +86,16 @@ public class FaceDataReceiver : MonoBehaviour
     {
         try
         {
+            Debug.Log($"【数据接收】收到原始数据，长度: {data?.Length}");
+            if (!string.IsNullOrEmpty(data) && data.Length > 100)
+            {
+                Debug.Log($"【数据样本】数据前100字符: {data.Substring(0, 100)}...");
+            }
+            
             // 解析数据字符串
             string[] entries = data.Split(';');
+            Debug.Log($"【数据分段】共分割出 {entries.Length} 个数据项");
+            
             List<float> allValues = new List<float>();
             long timestamp = 0;
             
@@ -104,7 +112,7 @@ public class FaceDataReceiver : MonoBehaviour
                 {
                     if (long.TryParse(parts[1], out timestamp))
                     {
-                        Debug.Log($"接收到时间戳: {timestamp}ms");
+                        Debug.Log($"【时间戳】接收到时间戳: {timestamp}ms");
                     }
                     continue;
                 }
@@ -119,6 +127,8 @@ public class FaceDataReceiver : MonoBehaviour
                 }
             }
             
+            Debug.Log($"【数据解析】共解析出 {allValues.Count} 个浮点值数据");
+            
             // 分离面部数据和肢体数据
             if (allValues.Count >= 52)
             {
@@ -132,23 +142,42 @@ public class FaceDataReceiver : MonoBehaviour
                 if (allValues.Count > 52)
                 {
                     float[] limbData = allValues.GetRange(52, allValues.Count - 52).ToArray();
+                    
+                    // 打印肢体数据样本
+                    string limbSample = "【肢体数据】样本(前3个): ";
+                    for (int i = 0; i < Math.Min(3, limbData.Length); i++)
+                    {
+                        limbSample += $"[{i}]={limbData[i]} ";
+                    }
+                    Debug.Log(limbSample);
+                    
                     // 触发肢体数据事件
-                    OnLimbDataReceived?.Invoke(limbData, timestamp);
-                    Debug.Log($"处理了52个面部数据和{limbData.Length}个肢体数据");
+                    if (OnLimbDataReceived != null)
+                    {
+                        Debug.Log($"【事件触发】准备触发OnLimbDataReceived事件，数据长度: {limbData.Length}");
+                        OnLimbDataReceived(limbData, timestamp);
+                        Debug.Log($"【事件完成】OnLimbDataReceived事件已处理");
+                    }
+                    else
+                    {
+                        Debug.LogWarning("【事件未注册】没有组件订阅OnLimbDataReceived事件");
+                    }
+                    
+                    Debug.Log($"【处理完成】处理了52个面部数据和{limbData.Length}个肢体数据");
                 }
                 else
                 {
-                    Debug.Log($"仅处理了52个面部数据，无肢体数据");
+                    Debug.Log($"【仅面部】仅处理了52个面部数据，无肢体数据");
                 }
             }
             else
             {
-                Debug.LogWarning($"接收到的数据不足52个: {allValues.Count}");
+                Debug.LogWarning($"【数据不足】接收到的数据不足52个: {allValues.Count}");
             }
         }
         catch (Exception e)
         {
-            Debug.LogError($"解析数据错误: {e.Message}\n{e.StackTrace}");
+            Debug.LogError($"【解析错误】解析数据错误: {e.Message}\n{e.StackTrace}");
         }
     }
     

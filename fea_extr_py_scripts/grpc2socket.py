@@ -23,17 +23,8 @@ def send_combined_data(face_data_list, limb_data_list, timestamp, socket_port, d
     
     if debug:
         print(f"[DEBUG] 发送合并数据: 总长度={len(combined_data)}")
-        print(f"[DEBUG] faceData(前5个): {face_data_list[:5]} ... 共{len(face_data_list)}个")
-        print(f"[DEBUG] limbData(前5个): {limb_data_list[:5]} ... 共{len(limb_data_list)}个")
+        print(f"[DEBUG] 数据内容: {data_str[:]}...") 
         
-        # 打印合并后的部分数据
-        print(f"[DEBUG] 合并数据(前5个): {combined_data[:5]} ...")
-        print(f"[DEBUG] 合并数据(后5个): ... {combined_data[-5:]}")
-        
-        # 打印格式化后的部分数据
-        data_parts = data_str.split(';')
-        print(f"[DEBUG] 格式化数据(前5项): {';'.join(data_parts[:5])} ...")
-        print(f"[DEBUG] 格式化数据(后2项): ... {';'.join(data_parts[-2:])}")
     
     # 建立TCP连接
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

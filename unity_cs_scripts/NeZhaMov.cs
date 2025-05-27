@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -127,28 +128,49 @@ public class NeZhaMov : MonoBehaviour
     private bool hasNewData = false;
     private object dataLock = new object();
     
+    // GUI相关变量
+    [SerializeField] private bool showDebugGUI = true; // 是否显示调试GUI
+    [SerializeField] private int guiMaxPoints = 5; // 显示的最大关键点数量
+    private Rect guiWindowRect = new Rect(10, 10, 300, 400); // GUI窗口的位置和大小
+    private Vector2 scrollPosition; // 滚动视图的位置
+    private int selectedPoint = 0; // 选择显示的特定关键点
+    private float dataRate = 0; // 数据接收频率
+    private long lastTimestamp = 0; // 上次数据时间戳
+    
     // Start is called before the first frame update
     void Start()
     {
+        Debug.Log("【初始化】NeZhaMov开始初始化");
+        
         // 如果没有指定FaceDataReceiver，尝试查找
         if (dataReceiver == null)
         {
+            Debug.Log("【查找组件】未指定FaceDataReceiver，尝试查找");
             dataReceiver = FindObjectOfType<FaceDataReceiver>();
             if (dataReceiver == null)
             {
-                Debug.LogWarning("未找到FaceDataReceiver组件，将使用文件数据");
+                Debug.LogWarning("【组件缺失】未找到FaceDataReceiver组件，将使用文件数据");
                 useRealTimeData = false;
             }
+            else
+            {
+                Debug.Log($"【组件找到】已找到FaceDataReceiver: {dataReceiver.gameObject.name}");
+            }
+        }
+        else
+        {
+            Debug.Log($"【组件就绪】已通过Inspector指定FaceDataReceiver: {dataReceiver.gameObject.name}");
         }
         
         // 订阅肢体数据事件
         if (useRealTimeData && dataReceiver != null)
         {
             dataReceiver.OnLimbDataReceived += OnLimbDataReceived;
-            Debug.Log("已订阅肢体数据事件");
+            Debug.Log("【事件注册】已订阅OnLimbDataReceived事件");
             
             // 初始化一个空的当前帧数据
             currentFrameData = new float[99]; // 33点 * 3坐标 = 99
+            Debug.Log("【数据准备】已初始化currentFrameData数组，大小: 99");
         }
         
         if (!useRealTimeData)
@@ -185,6 +207,8 @@ public class NeZhaMov : MonoBehaviour
         // 先求初始化的中间/对齐矩阵
         forward = TriangleNormal(BodyPart[0].position, BodyPart[18].position, BodyPart[21].position);
         InitializeAlignmentMatrices();
+        
+        Debug.Log("【初始化完成】NeZhaMov初始化完成");
     }
     
     private void InitializeBodyParts()
@@ -277,39 +301,221 @@ public class NeZhaMov : MonoBehaviour
     // 处理接收到的肢体数据
     private void OnLimbDataReceived(float[] limbData, long timestamp)
     {
-        if (limbData.Length < 33 * 4) // 检查数据是否完整 (33点 * 4值)
+        // 添加详细调试信息
+        Debug.Log($"【接收数据】收到肢体数据，长度: {limbData?.Length}, 时间戳: {timestamp}");
+        
+        // 输出前3个数据项样本(如果存在)
+        if (limbData != null && limbData.Length > 0)
         {
-            Debug.LogWarning($"接收到的肢体数据不完整: {limbData.Length} 个值 (应为 {33*4})");
+            string sampleData = "数据样本: ";
+            for (int i = 0; i < Math.Min(3, limbData.Length); i++)
+            {
+                sampleData += $"[{i}]={limbData[i]} ";
+            }
+            Debug.Log(sampleData);
+        }
+
+        // 每个关节点数据实际上是一个字符串形式的数组"[x,y,z,visibility]"
+        if (limbData == null || limbData.Length < 33) // 应有33个关节点
+        {
+            Debug.LogWarning($"【数据不完整】接收到的肢体数据不完整: {limbData?.Length} 个关节点 (应为 33)");
             return;
         }
+        
+        // 计算数据频率
+        if (lastTimestamp != 0)
+        {
+            long timeDiff = timestamp - lastTimestamp;
+            if (timeDiff > 0)
+            {
+                dataRate = 1000.0f / timeDiff; // 转换为Hz
+            }
+        }
+        lastTimestamp = timestamp;
 
         lock (dataLock)
         {
-            // 将肢体数据转换为需要的格式 (x,y,z)
-            // 每4个值(x,y,z,visibility)提取前3个值(x,y,z)
-            for (int j = 0; j < 33; j++)
+            try
             {
-                int srcIdx = j * 4; // 源数据索引
-                int destIdx = j * 3; // 目标数据索引
+                int successfullyParsedPoints = 0;
                 
-                // 复制x,y,z数据并应用缩放，忽略visibility
-                // 接收到的数据单位是米，需要转换为毫米（乘以1000）
-                currentFrameData[destIdx] = limbData[srcIdx] * 1000 / 100.0f;     // x
-                currentFrameData[destIdx+1] = limbData[srcIdx+1] * 1000 / 100.0f; // y
-                currentFrameData[destIdx+2] = limbData[srcIdx+2] * 1000 / 300.0f; // z
+                // 解析每个关节点的数据
+                for (int j = 0; j < 33 && j < limbData.Length; j++)
+                {
+                    // 获取原始数据字符串
+                    string arrayStr = limbData[j].ToString();
+                    
+                    // 检查是否是数组字符串格式"[x,y,z,visibility]"
+                    if (arrayStr.StartsWith("[") && arrayStr.EndsWith("]"))
+                    {
+                        // 移除方括号并分割字符串
+                        string content = arrayStr.Substring(1, arrayStr.Length - 2);
+                        string[] components = content.Split(',');
+                        
+                        if (components.Length >= 4)
+                        {
+                            int destIdx = j * 3; // 目标索引
+                            bool parseSuccess = true;
+                            
+                            // 解析x,y,z值并应用缩放
+                            if (float.TryParse(components[0], out float x))
+                                currentFrameData[destIdx] = x / 100.0f;
+                            else
+                                parseSuccess = false;
+                                
+                            if (float.TryParse(components[1], out float y))
+                                currentFrameData[destIdx + 1] = y / 100.0f;
+                            else
+                                parseSuccess = false;
+                                
+                            if (float.TryParse(components[2], out float z))
+                                currentFrameData[destIdx + 2] = z / 300.0f;
+                            else
+                                parseSuccess = false;
+                            
+                            if (parseSuccess)
+                                successfullyParsedPoints++;
+                        }
+                        else
+                        {
+                            Debug.LogWarning($"【格式错误】关节点 {j} 数据格式错误: {arrayStr}，组件数: {components.Length}");
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"【格式错误】关节点 {j} 不是有效的数组格式: {arrayStr}");
+                    }
+                }
+                
+                // 更新当前帧数据
+                for (int j = 0; j < 99; j++)
+                {
+                    raw_position[0, j] = currentFrameData[j];
+                }
+                
+                hasNewData = true;
+                Debug.Log($"【数据解析】成功解析 {successfullyParsedPoints}/33 个关节点");
+                
+                // 检查一些关键点的数据是否合理
+                if (successfullyParsedPoints > 0)
+                {
+                    Debug.Log($"【数据检查】Hips位置: ({raw_position[0, 69]}, {raw_position[0, 70]}, {raw_position[0, 71]})");
+                    Debug.Log($"【数据检查】左手位置: ({raw_position[0, 45]}, {raw_position[0, 46]}, {raw_position[0, 47]})");
+                    Debug.Log($"【数据检查】右手位置: ({raw_position[0, 48]}, {raw_position[0, 49]}, {raw_position[0, 50]})");
+                }
             }
-            
-            // 更新当前帧数据
-            for (int j = 0; j < 99; j++)
+            catch (Exception e)
             {
-                raw_position[0, j] = currentFrameData[j];
+                Debug.LogError($"【解析错误】解析肢体数据时出错: {e.Message}\n{e.StackTrace}");
             }
-            
-            hasNewData = true;
-            // Debug.Log($"已更新肢体数据，应用米到毫米转换（×1000）");
         }
     }
 
+    // OnGUI方法，用于绘制GUI
+    private void OnGUI()
+    {
+        if (!showDebugGUI) return;
+        
+        guiWindowRect = GUI.Window(0, guiWindowRect, DrawDebugWindow, "肢体数据监视器");
+    }
+
+    // 绘制调试窗口的内容
+    private void DrawDebugWindow(int windowID)
+    {
+        // 开始滚动视图
+        scrollPosition = GUILayout.BeginScrollView(scrollPosition);
+        
+        // 显示基本信息
+        GUILayout.Label($"数据源: {(useRealTimeData ? "实时数据" : "文件数据")}");
+        GUILayout.Label($"新数据状态: {(hasNewData ? "有新数据" : "无新数据")}");
+        
+        if (useRealTimeData)
+        {
+            GUILayout.Label($"数据接收频率: {dataRate:F1} Hz");
+        }
+        else
+        {
+            GUILayout.Label($"当前帧索引: {i}/{count-1}");
+        }
+        
+        GUILayout.Space(10);
+        
+        // 显示关键点数据
+        if (raw_position != null && i < raw_position.GetLength(0))
+        {
+            // 关键点名称(简化版)
+            string[] pointNames = {"鼻子", "左眼", "右眼", "左耳", "右耳", "左肩", "右肩", "左肘", "右肘", "左手腕", "右手腕"};
+            
+            // 选择器
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("选择关键点:");
+            selectedPoint = Mathf.Clamp(GUILayout.SelectionGrid(selectedPoint, pointNames, 3), 0, 10);
+            GUILayout.EndHorizontal();
+            
+            // 显示选定关键点详细数据
+            int baseIdx = selectedPoint * 3;
+            if (baseIdx + 2 < raw_position.GetLength(1))
+            {
+                GUILayout.Label($"点 {selectedPoint} ({(selectedPoint < pointNames.Length ? pointNames[selectedPoint] : "未命名")}):");
+                GUILayout.Label($"X: {raw_position[i, baseIdx]:F3}");
+                GUILayout.Label($"Y: {raw_position[i, baseIdx+1]:F3}");
+                GUILayout.Label($"Z: {raw_position[i, baseIdx+2]:F3}");
+            }
+            
+            GUILayout.Space(10);
+            
+            // 显示所有关键点列表(部分)
+            GUILayout.Label("所有关键点数据 (部分):");
+            
+            // 计算实际显示的点数量
+            int pointsToShow = Mathf.Min(guiMaxPoints, raw_position.GetLength(1) / 3);
+            
+            for (int j = 0; j < pointsToShow; j++)
+            {
+                baseIdx = j * 3;
+                if (baseIdx + 2 < raw_position.GetLength(1))
+                {
+                    string name = j < pointNames.Length ? pointNames[j] : $"点{j}";
+                    GUILayout.Label($"{name}: X={raw_position[i, baseIdx]:F2}, Y={raw_position[i, baseIdx+1]:F2}, Z={raw_position[i, baseIdx+2]:F2}");
+                }
+            }
+            
+            // 如果有更多点，显示提示
+            if (raw_position.GetLength(1) / 3 > guiMaxPoints)
+            {
+                GUILayout.Label($"... 还有 {raw_position.GetLength(1)/3 - guiMaxPoints} 个点未显示");
+            }
+        }
+        else
+        {
+            GUILayout.Label("无可用数据");
+        }
+        
+        // 结束滚动视图
+        GUILayout.EndScrollView();
+        
+        // 控制按钮
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("增加点数"))
+        {
+            guiMaxPoints = Mathf.Min(guiMaxPoints + 5, 33); // 最多显示33个点
+        }
+        
+        if (GUILayout.Button("减少点数"))
+        {
+            guiMaxPoints = Mathf.Max(guiMaxPoints - 5, 5); // 最少显示5个点
+        }
+        
+        if (GUILayout.Button("隐藏GUI"))
+        {
+            showDebugGUI = false;
+        }
+        GUILayout.EndHorizontal();
+        
+        // 让窗口可拖动
+        GUI.DragWindow();
+    }
+    
     // Update is called once per frame
     void Update()
     {
@@ -343,10 +549,35 @@ public class NeZhaMov : MonoBehaviour
     
     private void UpdateSkeletonAnimation()
     {
+        // 检查数据是否有效
+        if (raw_position == null)
+        {
+            Debug.LogError("【动画更新】raw_position 为空，无法更新骨骼动画");
+            return;
+        }
+        
+        if (i >= raw_position.GetLength(0))
+        {
+            Debug.LogError($"【动画更新】索引 i={i} 超出范围 raw_position.GetLength(0)={raw_position.GetLength(0)}");
+            return;
+        }
+        
+        // 检查关键数据点是否存在
+        if (raw_position.GetLength(1) < 99)
+        {
+            Debug.LogError($"【动画更新】数据维度不足 raw_position.GetLength(1)={raw_position.GetLength(1)}, 需要至少99个元素");
+            return;
+        }
+        
+        // 记录开始更新
+        Debug.Log($"【动画更新】开始更新骨骼，帧索引: i={i}");
+        
         // 更新Hips位置
-        BodyPart[0].position = new Vector3((raw_position[i, 69] + raw_position[i, 72]) / 2.0f, 
-                                         (raw_position[i, 70] + raw_position[i, 73]) / 2.0f, 
-                                         (raw_position[i, 71] + raw_position[i, 74]) / 2.0f);
+        Vector3 hipsPos = new Vector3((raw_position[i, 69] + raw_position[i, 72]) / 2.0f, 
+                                    (raw_position[i, 70] + raw_position[i, 73]) / 2.0f, 
+                                    (raw_position[i, 71] + raw_position[i, 74]) / 2.0f);
+        BodyPart[0].position = hipsPos;
+        Debug.Log($"【位置更新】Hips位置: {hipsPos}");
         
         // 估计火柴人模型中对应的LeftUpperLeg与RightUpperLeg位置
         PosLeftUpperLeg = new Vector3(4.0f / 5.0f * raw_position[i, 69] + 1.0f / 5.0f * raw_position[i, 75], 
@@ -369,6 +600,9 @@ public class NeZhaMov : MonoBehaviour
         UpdateArms();
         UpdateHands();
         UpdateNeck();
+        
+        // 更新完成记录
+        Debug.Log("【动画更新】骨骼更新完成");
     }
     
     private void UpdateLowerBody()
