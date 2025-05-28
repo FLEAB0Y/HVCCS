@@ -4,27 +4,14 @@ import time
 import json
 import socket
 
-def send_combined_data(face_data_list, limb_data_list, timestamp, socket_port, debug=False):
-    """将facedata和limbdata合并为一个数据帧发送"""
-    # 合并数据，前52个是facedata，后33个是limbdata
-    combined_data = []
-    
-    # 添加facedata（已经是纯数值列表）
-    for val in face_data_list:
-        combined_data.append((len(combined_data), val))
-    
-    # 添加limbdata
-    for val in limb_data_list:
-        combined_data.append((len(combined_data), val))
-    
-    # 格式化数据，并添加时间戳
-    data_str = ";".join([f"{idx},{val}" for idx, val in combined_data])
-    data_str += f";timestamp,{timestamp}"  # 添加时间戳
+def send_combined_data(face_data_str, limb_data_str, timestamp, socket_port, debug=False):
+    """将extDesc(时间戳)、facedata和limbdata拼接到一起，用逗号分隔"""
+    # 直接拼接时间戳、face_data和limb_data，用逗号分隔
+    data_str = timestamp + "," + face_data_str + "," + limb_data_str
     
     if debug:
-        print(f"[DEBUG] 发送合并数据: 总长度={len(combined_data)}")
-        print(f"[DEBUG] 数据内容: {data_str[:]}...") 
-        
+        print(f"[DEBUG] 发送合并数据，总长度: {len(data_str)}")
+        print(f"[DEBUG] 数据开始部分: {data_str[:]}") 
     
     # 建立TCP连接
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -58,16 +45,18 @@ def grpc_thread(grpc_port, socket_port, debug=False):
                 latency = int(time.time() * 1000) - int(timestamp)  # 计算延迟
                 print(f"[gRPC Port {grpc_port}] 延迟: {latency}ms")   
                 
-                # 解析 faceData 和 limbData
-                face_data_list = json.loads(face_data_bytes.decode('utf-8'))  # 现在是纯数值列表
-                limb_data_list = json.loads(limb_data_bytes.decode('utf-8'))
+                # 直接解码字节串为字符串，不再解析为JSON
+                face_data_str = face_data_bytes.decode('utf-8')
+                limb_data_str = limb_data_bytes.decode('utf-8')
                 
                 if debug:
-                    print(f"[DEBUG] 接收到的 faceData 长度: {len(face_data_list)}")
-                    print(f"[DEBUG] 接收到的 limbData 长度: {len(limb_data_list)}")
+                    face_data_values = face_data_str.split(',')
+                    limb_data_values = limb_data_str.split(',')
+                    print(f"[DEBUG] 接收到的 faceData 长度: {len(face_data_values)}")
+                    print(f"[DEBUG] 接收到的 limbData 长度: {len(limb_data_values)}")
                 
                 # 发送合并后的数据
-                send_combined_data(face_data_list, limb_data_list, timestamp, socket_port, debug)
+                send_combined_data(face_data_str, limb_data_str, timestamp, socket_port, debug)
 
             except AttributeError as e:
                 print(f"[gRPC Port {grpc_port}] AttributeError: {e}")
@@ -82,7 +71,7 @@ if __name__ == '__main__':
     ]
 
     # 是否启用 debug 模式
-    debug = True
+    debug = False
 
     # 为每对端口启动一个线程
     threads = []

@@ -12,8 +12,8 @@ pip install mediapipe==0.10.20 --no-deps
 
 ## Unity & Quest 3 Setup
 
-- 安装unity h3.3.3-c2
-- 安装unity 2022.3.55f1，安装时选择`Android Build Support`和`Android SDK & NDK Tools`
+- Unity Hub安装unity h3.3.3-c2
+- 在浏览器输入`unityhub://2022.3.55f1/9f374180d209`自动跳转到Unity Hub安装unity 2022.3.55f1，安装时选择`Android Build Support`和`Android SDK & NDK Tools`
 - 新建HDRP项目（如果需要编译为app部署到Quest上，应该新建URP项目，因为Quest部署Anroid应用目前不支持HDRP），并进入。
 
 ### 1 Setup Meta Quest 3

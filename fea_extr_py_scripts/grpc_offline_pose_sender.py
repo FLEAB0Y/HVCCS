@@ -126,8 +126,11 @@ def process_face_result(result, timestamp_ms, frame_data_manager, debug=False, r
 
 def main(server_addr='127.0.0.1', port_num=50051, 
          pose_model_path=None, face_model_path=None, 
-         debug=False, res_path=None):
+         debug=False, res_path=None, video_path=None):
     """主函数：设置并运行姿势和面部表情检测"""
+    if not video_path:
+        raise ValueError("必须提供视频文件路径")
+        
     VisionRunningMode = mp.tasks.vision.RunningMode
     
     # 创建客户端
@@ -139,11 +142,20 @@ def main(server_addr='127.0.0.1', port_num=50051,
     frame_data_manager = FrameDataManager()
     frame_data_manager.set_client(client)
     
+    # 打开视频文件
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise ValueError(f"无法打开视频文件: {video_path}")
+        
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    
     # 创建姿势检测器
     pose_base_options = python.BaseOptions(model_asset_path=pose_model_path)
     pose_options = vision.PoseLandmarkerOptions(
         base_options=pose_base_options, 
-        running_mode=VisionRunningMode.LIVE_STREAM, 
+        running_mode=VisionRunningMode.VIDEO, 
         output_segmentation_masks=False,
         result_callback=lambda result, _, timestamp_ms: process_pose_result(
             result, timestamp_ms, frame_data_manager, frame_width, frame_height, debug=debug
@@ -155,7 +167,7 @@ def main(server_addr='127.0.0.1', port_num=50051,
     face_base_options = python.BaseOptions(model_asset_path=face_model_path)
     face_options = vision.FaceLandmarkerOptions(
         base_options=face_base_options, 
-        running_mode=VisionRunningMode.LIVE_STREAM, 
+        running_mode=VisionRunningMode.VIDEO, 
         output_face_blendshapes=True,
         output_facial_transformation_matrixes=True,
         result_callback=lambda result, _, timestamp_ms: process_face_result(
@@ -164,18 +176,20 @@ def main(server_addr='127.0.0.1', port_num=50051,
     )
     face_detector = vision.FaceLandmarker.create_from_options(face_options)
 
-    # 打开摄像头
-    cap = cv2.VideoCapture(0)
-    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    frame_timestamp_ms = int(time.time() * 1000)
+    # 使用基于帧的相对时间戳
+    frame_count = 0
+    start_time = time.time()
     
     try:
         while cap.isOpened():
-            # 从相机捕获一帧图片
+            # 从视频文件读取一帧
             ret, frame = cap.read()
             if not ret:
+                print("视频处理完成")
                 break
+            
+            # 计算当前帧的时间戳（毫秒）
+            frame_timestamp_ms = int(frame_count * (1000 / fps))
             
             # 缓冲区满了就等待
             buffer_size = client.send_data_buffer.get_size()
@@ -188,12 +202,16 @@ def main(server_addr='127.0.0.1', port_num=50051,
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
             
             # 为两个检测器分别异步检测
-            pose_detector.detect_async(mp_image, int(frame_timestamp_ms))
-            face_detector.detect_async(mp_image, int(frame_timestamp_ms))
+            pose_detector.detect_async(mp_image, frame_timestamp_ms)
+            face_detector.detect_async(mp_image, frame_timestamp_ms)
             
             if debug:
-                print(f"帧时间戳: {frame_timestamp_ms}")
-            frame_timestamp_ms = int(time.time() * 1000)
+                print(f"帧索引: {frame_count}, 时间戳: {frame_timestamp_ms}ms")
+            
+            frame_count += 1
+            
+            # 模拟视频实际播放速度
+            time.sleep(1. / fps)
             
     except KeyboardInterrupt:
         print('程序被用户中断')
@@ -210,10 +228,14 @@ if __name__ == "__main__":
     pose_model_path = os.path.join(script_dir, "..", "data", "pose_landmarker_full.task")
     face_model_path = os.path.join(script_dir, "..", "data", "face_landmarker_v2_with_blendshapes.task")
     
+    # 视频文件路径 - 需要修改为实际视频路径
+    video_path = os.path.join(script_dir, "..", "data", "asoul.mp4")
+    
     main(
         server_addr='127.0.0.1',
         port_num=50051, 
         pose_model_path=pose_model_path,
         face_model_path=face_model_path,
-        debug=False
+        debug=True,
+        video_path=video_path
     )

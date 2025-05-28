@@ -10,7 +10,7 @@ public class FaceDataReceiver : MonoBehaviour
 {
     // Socket配置
     [SerializeField] private string ipAddress = "127.0.0.1";
-    [SerializeField] private int port = 8888;
+    [SerializeField] private int port = 8890;
     [SerializeField] private int bufferSize = 8192;
     
     // 引用BlendShape控制器
@@ -92,88 +92,88 @@ public class FaceDataReceiver : MonoBehaviour
                 Debug.Log($"【数据样本】数据前100字符: {data.Substring(0, 100)}...");
             }
             
-            // 解析数据字符串
-            string[] entries = data.Split(';');
-            Debug.Log($"【数据分段】共分割出 {entries.Length} 个数据项");
+            // 解析逗号分隔的数据字符串
+            string[] parts = data.Split(',');
             
-            List<float> allValues = new List<float>();
-            long timestamp = 0;
-            
-            // 首先提取所有数值和时间戳
-            foreach (string entry in entries)
+            if (parts.Length < 152) // 1(时间戳) + 52(面部数据) + 99(姿势数据) = 152
             {
-                if (string.IsNullOrEmpty(entry)) 
-                    continue;
-                
-                string[] parts = entry.Split(',');
-                
-                // 检查是否是时间戳数据
-                if (parts.Length == 2 && parts[0] == "timestamp")
-                {
-                    if (long.TryParse(parts[1], out timestamp))
-                    {
-                        Debug.Log($"【时间戳】接收到时间戳: {timestamp}ms");
-                    }
-                    continue;
-                }
-                
-                // 处理普通数据
-                if (parts.Length == 2)
-                {
-                    if (float.TryParse(parts[1], out float value))
-                    {
-                        allValues.Add(value);
-                    }
-                }
+                Debug.LogWarning($"【数据不足】数据项不足，期望至少152项，实际为{parts.Length}项");
+                return;
             }
             
-            Debug.Log($"【数据解析】共解析出 {allValues.Count} 个浮点值数据");
+            Debug.Log($"【数据分段】共分割出 {parts.Length} 个数据项");
             
-            // 分离面部数据和肢体数据
-            if (allValues.Count >= 52)
+            // 提取时间戳（第一个数据项）
+            if (!long.TryParse(parts[0], out long timestamp))
             {
-                // 提取前52个值作为面部数据
-                float[] faceData = allValues.GetRange(0, 52).ToArray();
-                
-                // 将面部数据传递给BlendShape控制器
-                blendShapeController.ProcessBlendShapeDataArray(faceData, timestamp);
-                
-                // 如果有剩余数据，作为肢体数据处理
-                if (allValues.Count > 52)
+                Debug.LogWarning($"【时间戳错误】无法解析时间戳: {parts[0]}");
+                return;
+            }
+            
+            Debug.Log($"【时间戳】接收到时间戳: {timestamp}ms");
+            
+            // 提取面部表情数据（接下来的52个数据项）
+            float[] faceData = new float[52];
+            for (int i = 0; i < 52; i++)
+            {
+                if (float.TryParse(parts[i + 1], out float value))
                 {
-                    float[] limbData = allValues.GetRange(52, allValues.Count - 52).ToArray();
-                    
-                    // 打印肢体数据样本
-                    string limbSample = "【肢体数据】样本(前3个): ";
-                    for (int i = 0; i < Math.Min(3, limbData.Length); i++)
-                    {
-                        limbSample += $"[{i}]={limbData[i]} ";
-                    }
-                    Debug.Log(limbSample);
-                    
-                    // 触发肢体数据事件
-                    if (OnLimbDataReceived != null)
-                    {
-                        Debug.Log($"【事件触发】准备触发OnLimbDataReceived事件，数据长度: {limbData.Length}");
-                        OnLimbDataReceived(limbData, timestamp);
-                        Debug.Log($"【事件完成】OnLimbDataReceived事件已处理");
-                    }
-                    else
-                    {
-                        Debug.LogWarning("【事件未注册】没有组件订阅OnLimbDataReceived事件");
-                    }
-                    
-                    Debug.Log($"【处理完成】处理了52个面部数据和{limbData.Length}个肢体数据");
+                    faceData[i] = value;
                 }
                 else
                 {
-                    Debug.Log($"【仅面部】仅处理了52个面部数据，无肢体数据");
+                    Debug.LogWarning($"【解析错误】无法解析面部数据项 {i}: {parts[i + 1]}");
+                    faceData[i] = 0f;
                 }
+            }
+            
+            // 提取姿势数据（最后的99个数据项）
+            float[] limbData = new float[99];
+            for (int i = 0; i < 99 && i + 53 < parts.Length; i++)
+            {
+                if (float.TryParse(parts[i + 53], out float value))
+                {
+                    limbData[i] = value;
+                }
+                else
+                {
+                    Debug.LogWarning($"【解析错误】无法解析姿势数据项 {i}: {parts[i + 53]}");
+                    limbData[i] = 0f;
+                }
+            }
+            
+            // 将面部数据传递给BlendShape控制器
+            if (blendShapeController != null)
+            {
+                blendShapeController.ProcessBlendShapeDataArray(faceData, timestamp);
+                Debug.Log($"【面部数据】已处理52个面部数据项");
             }
             else
             {
-                Debug.LogWarning($"【数据不足】接收到的数据不足52个: {allValues.Count}");
+                Debug.LogError("【控制器缺失】BlendShape控制器未找到");
             }
+            
+            // 打印姿势数据样本
+            string limbSample = "【姿势数据】样本(前9个): ";
+            for (int i = 0; i < Math.Min(9, limbData.Length); i++)
+            {
+                limbSample += $"[{i}]={limbData[i].ToString("F2")} ";
+            }
+            Debug.Log(limbSample);
+            
+            // 触发姿势数据事件
+            if (OnLimbDataReceived != null)
+            {
+                Debug.Log($"【事件触发】准备触发OnLimbDataReceived事件，姿势数据长度: {limbData.Length}");
+                OnLimbDataReceived(limbData, timestamp);
+                Debug.Log($"【事件完成】OnLimbDataReceived事件已处理");
+            }
+            else
+            {
+                Debug.LogWarning("【事件未注册】没有组件订阅OnLimbDataReceived事件");
+            }
+            
+            Debug.Log($"【处理完成】处理了52个面部数据和{limbData.Length}个姿势数据");
         }
         catch (Exception e)
         {
