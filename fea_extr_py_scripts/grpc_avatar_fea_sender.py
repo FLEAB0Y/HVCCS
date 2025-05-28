@@ -18,6 +18,7 @@ class FrameDataManager:
         self.lock = threading.Lock()
         self.frame_data = {}  # 使用时间戳作为键
         self.max_frames = 10  # 最大缓存帧数
+        self.last_valid_face_data = None  # 存储最近一次有效的面部数据
     
     def update_pose_data(self, timestamp_ms, pose_data):
         with self.lock:
@@ -111,6 +112,9 @@ def process_face_result(result, timestamp_ms, frame_data_manager, debug=False, r
             blendshape_str = ','.join(map(str, blendshape_data))
             blendshape_data_bytes = blendshape_str.encode('utf-8')
 
+            # 保存最近一次有效的面部数据
+            frame_data_manager.last_valid_face_data = blendshape_data_bytes
+
             # 更新帧数据管理器
             frame_data_manager.update_face_data(timestamp_ms, blendshape_data_bytes)
             
@@ -123,6 +127,12 @@ def process_face_result(result, timestamp_ms, frame_data_manager, debug=False, r
                 for i, score in enumerate(blendshape_data):
                     print(f"表情 {i}: 强度={score:.4f}")
                 print("===============================")
+    else:
+        # 未检测到面部，使用最近一次有效的面部数据
+        if frame_data_manager.last_valid_face_data is not None:
+            if debug:
+                print("未检测到面部，使用上一次有效的面部数据")
+            frame_data_manager.update_face_data(timestamp_ms, frame_data_manager.last_valid_face_data)
 
 def main(server_addr='127.0.0.1', port_num=50051, 
          pose_model_path=None, face_model_path=None, 
