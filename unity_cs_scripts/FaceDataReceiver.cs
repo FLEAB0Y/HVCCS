@@ -16,9 +16,8 @@ public class FaceDataReceiver : MonoBehaviour
     // 引用BlendShape控制器
     [SerializeField] private BSCtrl blendShapeController;
     
-    // 动作数据事件，其他组件可以订阅此事件接收肢体数据
-    public delegate void LimbDataHandler(float[] limbData, long timestamp);
-    public event LimbDataHandler OnLimbDataReceived;
+    // 添加NeZhaMov控制器引用
+    [SerializeField] private NeZhaMov neZhaMov;
 
     // Socket对象
     private TcpListener tcpListener;
@@ -45,6 +44,20 @@ public class FaceDataReceiver : MonoBehaviour
                 }
             }
         }
+        
+        // 如果没有手动指定NeZhaMov控制器，则尝试查找
+        if (neZhaMov == null)
+        {
+            neZhaMov = GetComponent<NeZhaMov>();
+            if (neZhaMov == null)
+            {
+                neZhaMov = FindObjectOfType<NeZhaMov>();
+                if (neZhaMov == null)
+                {
+                    Debug.LogError("未找到NeZhaMov控制器，请手动指定");
+                }
+            }
+        }
     }
 
     // 当脚本启用时开始监听
@@ -68,7 +81,7 @@ public class FaceDataReceiver : MonoBehaviour
     // 在主线程中处理消息队列
     void Update()
     {
-        if (messageQueue.Count > 0 && blendShapeController != null)
+        if (messageQueue.Count > 0)
         {
             lock (queueLock)
             {
@@ -153,24 +166,15 @@ public class FaceDataReceiver : MonoBehaviour
                 Debug.LogError("【控制器缺失】BlendShape控制器未找到");
             }
             
-            // 打印姿势数据样本
-            string limbSample = "【姿势数据】样本(前9个): ";
-            for (int i = 0; i < Math.Min(9, limbData.Length); i++)
+            // 直接处理姿势数据 - 不使用事件
+            if (neZhaMov != null)
             {
-                limbSample += $"[{i}]={limbData[i].ToString("F2")} ";
-            }
-            Debug.Log(limbSample);
-            
-            // 触发姿势数据事件
-            if (OnLimbDataReceived != null)
-            {
-                Debug.Log($"【事件触发】准备触发OnLimbDataReceived事件，姿势数据长度: {limbData.Length}");
-                OnLimbDataReceived(limbData, timestamp);
-                Debug.Log($"【事件完成】OnLimbDataReceived事件已处理");
+                neZhaMov.ProcessLimbData(limbData, timestamp);
+                Debug.Log($"【姿势数据】已直接处理{limbData.Length}个姿势数据项");
             }
             else
             {
-                Debug.LogWarning("【事件未注册】没有组件订阅OnLimbDataReceived事件");
+                Debug.LogError("【控制器缺失】NeZhaMov控制器未找到");
             }
             
             Debug.Log($"【处理完成】处理了52个面部数据和{limbData.Length}个姿势数据");

@@ -40,7 +40,6 @@ public enum PositionIndex:int
 public class NeZhaMov : MonoBehaviour
 {
     public GameObject NeZha;//哪吒人物物体
-    [SerializeField] private FaceDataReceiver dataReceiver; // 引用FaceDataReceiver组件
     
     // 添加根节点位置偏移变量，可在Inspector中调整
     [Header("根节点位置调整")]
@@ -48,8 +47,6 @@ public class NeZhaMov : MonoBehaviour
     public Vector3 hipsPositionOffset = Vector3.zero;
     
     private Animator ani;//挂在哪吒上的动画组件
-    private float[] currentLimbData; // 当前的肢体数据
-    private bool hasReceivedData = false; // 是否已收到数据
     
     Transform[] BodyPart;//avatar人体模型的各个身体部件
     Vector3 raw1;
@@ -127,23 +124,6 @@ public class NeZhaMov : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        // 查找数据接收器（如果未在Inspector中指定）
-        if (dataReceiver == null)
-        {
-            dataReceiver = FindObjectOfType<FaceDataReceiver>();
-            if (dataReceiver == null)
-            {
-                Debug.LogError("未找到FaceDataReceiver组件，请确保场景中存在该组件或在Inspector中指定");
-                return;
-            }
-        }
-        
-        // 订阅数据接收事件
-        dataReceiver.OnLimbDataReceived += OnLimbDataReceived;
-        
-        // 初始化数据结构
-        currentLimbData = new float[99]; // 初始化为0值数组
-
         BodyPart = new Transform[38];//unity中的25个身体关节
         ani = NeZha.GetComponent<Animator>();
         BodyPart[0] = ani.GetBoneTransform(HumanBodyBones.Hips);//*根节点*
@@ -188,30 +168,20 @@ public class NeZhaMov : MonoBehaviour
         // 初始化中间矩阵
         InitializeMiddleMatrices();
     }
-    
-    // 当脚本被禁用时取消事件订阅
-    void OnDisable()
-    {
-        if (dataReceiver != null)
-        {
-            dataReceiver.OnLimbDataReceived -= OnLimbDataReceived;
-        }
-    }
 
-    // 从FaceDataReceiver接收数据的回调
-    private void OnLimbDataReceived(float[] limbData, long timestamp)
+    // 处理肢体数据的公共方法 - 由FaceDataReceiver直接调用
+    public void ProcessLimbData(float[] limbData, long timestamp)
     {
-        // 将接收到的数据复制到当前数据
-        if (limbData.Length == currentLimbData.Length)
+        if (limbData == null || limbData.Length != 99)
         {
-            System.Array.Copy(limbData, currentLimbData, limbData.Length);
-            hasReceivedData = true;
-            Debug.Log("接收到新的动作数据，时间戳: " + timestamp);
+            Debug.LogWarning($"接收到的数据长度不匹配: 预期99，实际{limbData?.Length ?? 0}");
+            return;
         }
-        else
-        {
-            Debug.LogWarning($"接收到的数据长度不匹配: 预期99，实际{limbData.Length}");
-        }
+
+        Debug.Log("直接处理肢体数据，时间戳: " + timestamp);
+        
+        // 直接处理数据，不再缓存
+        UpdateModel(limbData);
     }
     
     // 初始化中间矩阵
@@ -281,17 +251,6 @@ public class NeZhaMov : MonoBehaviour
         MidNeck = Quaternion.Inverse(BodyPart[24].rotation) * Quaternion.LookRotation(gaze);
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-        // 只有在收到数据后才更新模型
-        if (!hasReceivedData)
-            return;
-            
-        // 使用currentLimbData更新模型
-        UpdateModel(currentLimbData);
-    }
-    
     // 更新模型的方法
     private void UpdateModel(float[] data)
     {
