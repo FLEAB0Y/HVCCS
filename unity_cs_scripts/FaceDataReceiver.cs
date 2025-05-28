@@ -13,6 +13,11 @@ public class FaceDataReceiver : MonoBehaviour
     [SerializeField] private int port = 8890;
     [SerializeField] private int bufferSize = 8192;
     
+    // 新增：延迟反馈配置
+    [SerializeField] private int feedbackPort = 9890; // 反馈端口
+    [SerializeField] private float feedbackInterval = 1.0f; // 发送反馈的时间间隔(秒)
+    private float lastFeedbackTime = 0f;
+    
     // 引用BlendShape控制器
     [SerializeField] private BSCtrl blendShapeController;
     
@@ -81,6 +86,7 @@ public class FaceDataReceiver : MonoBehaviour
     // 在主线程中处理消息队列
     void Update()
     {
+        // 处理消息队列
         if (messageQueue.Count > 0)
         {
             lock (queueLock)
@@ -91,6 +97,46 @@ public class FaceDataReceiver : MonoBehaviour
                     ProcessReceivedData(message);
                 }
             }
+        }
+        
+        // 新增：定期发送延迟反馈
+        if (blendShapeController != null && blendShapeController.HasLatencyData)
+        {
+            if (Time.time - lastFeedbackTime >= feedbackInterval)
+            {
+                SendLatencyFeedback();
+                lastFeedbackTime = Time.time;
+            }
+        }
+    }
+    
+    // 新增：发送延迟反馈的方法
+    private void SendLatencyFeedback()
+    {
+        if (blendShapeController == null || !blendShapeController.HasLatencyData)
+            return;
+            
+        try
+        {
+            float latency = blendShapeController.Latency;
+            string feedbackData = $"latency:{latency.ToString("F3")}";
+            
+            using (TcpClient client = new TcpClient())
+            {
+                client.Connect(ipAddress, feedbackPort);
+                
+                if (client.Connected)
+                {
+                    NetworkStream stream = client.GetStream();
+                    byte[] data = Encoding.UTF8.GetBytes(feedbackData);
+                    stream.Write(data, 0, data.Length);
+                    Debug.Log($"【延迟反馈】已发送延迟数据: {latency.ToString("F3")}秒");
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"【延迟反馈】发送延迟数据失败: {e.Message}");
         }
     }
     

@@ -296,5 +296,5 @@ if __name__ == "__main__":
         port_num=50051, 
         pose_model_path=pose_model_path,
         face_model_path=face_model_path,
-        debug=True
+        debug=False
     )
