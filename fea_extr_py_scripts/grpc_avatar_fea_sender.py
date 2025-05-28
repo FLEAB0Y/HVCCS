@@ -19,6 +19,8 @@ class FrameDataManager:
         self.frame_data = {}  # 使用时间戳作为键
         self.max_frames = 10  # 最大缓存帧数
         self.last_valid_face_data = None  # 存储最近一次有效的面部数据
+        self.last_two_pose_frames = []  # 存储最近两帧的姿势数据用于平滑处理
+        self.frame_count = 0  # 已处理的帧计数
     
     def update_pose_data(self, timestamp_ms, pose_data):
         with self.lock:
@@ -42,17 +44,70 @@ class FrameDataManager:
         if frame and frame["pose"] is not None and frame["face"] is not None:
             # 这里需要访问client，通过全局变量或作为参数传入
             if hasattr(self, 'client'):
+                # 平滑处理姿势数据
+                smoothed_pose = self._smooth_pose_data(frame["pose"])
+                
                 payload_send = THStreamDataPayload(
                     rgb_data=b'\x01', 
                     point_data=b'\x02',
                     face_data=frame["face"],
-                    limb_data=frame["pose"],    
+                    limb_data=smoothed_pose,    
                     ext_data=b'\x05', 
                     ext_desc=f"{str(timestamp_ms)}"
                 )
                 self.client.send_data_buffer.add_item(payload_send)
                 # 发送后可以删除此帧数据
                 del self.frame_data[timestamp_ms]
+    
+    def _smooth_pose_data(self, current_pose_data):
+        """对姿势数据进行平滑处理"""
+        self.frame_count += 1
+        
+        # 前两帧不做平滑处理
+        if self.frame_count <= 2:
+            # 保存当前帧数据以供后续平滑使用
+            self.last_two_pose_frames.append(current_pose_data)
+            if len(self.last_two_pose_frames) > 2:
+                self.last_two_pose_frames.pop(0)  # 保持最多两帧
+            return current_pose_data
+            
+        # 第三帧及以后的帧进行平滑处理
+        try:
+            # 解析当前帧和历史帧的姿势数据
+            current_pose_values = [float(x) for x in current_pose_data.decode('utf-8').split(',')]
+            
+            # 解析历史帧数据
+            prev_frames_values = []
+            for frame_data in self.last_two_pose_frames:
+                prev_frames_values.append([float(x) for x in frame_data.decode('utf-8').split(',')])
+            
+            # 确保所有帧的数据长度一致
+            if all(len(prev_values) == len(current_pose_values) for prev_values in prev_frames_values):
+                # 计算平均值
+                smoothed_values = []
+                for i in range(len(current_pose_values)):
+                    # 当前帧和历史帧的权重可以调整，这里使用简单平均
+                    avg_value = (current_pose_values[i] + 
+                                prev_frames_values[0][i] + 
+                                prev_frames_values[1][i]) / 3.0
+                    smoothed_values.append(avg_value)
+                
+                # 更新历史帧缓存
+                self.last_two_pose_frames.pop(0)
+                self.last_two_pose_frames.append(current_pose_data)
+                
+                # 转换回字符串格式
+                smoothed_str = ','.join(map(str, smoothed_values))
+                return smoothed_str.encode('utf-8')
+            
+        except Exception as e:
+            print(f"平滑处理时出错: {e}")
+        
+        # 如果出现任何问题，返回原始数据
+        self.last_two_pose_frames.append(current_pose_data)
+        if len(self.last_two_pose_frames) > 2:
+            self.last_two_pose_frames.pop(0)
+        return current_pose_data
     
     def _cleanup_old_frames(self):
         # 清理旧帧防止内存溢出
