@@ -204,14 +204,10 @@ class LatencyMonitor(QMainWindow):
                 stats['last_update'] = current_time
 
 
-def send_combined_data(face_data_str, limb_data_str, timestamp, socket_port, debug=False):
+def send_combined_data(face_data_str, limb_data_str, timestamp, socket_port):
     """将extDesc(时间戳)、facedata和limbdata拼接到一起，用逗号分隔"""
     # 直接拼接时间戳、face_data和limb_data，用逗号分隔
     data_str = timestamp + "," + face_data_str + "," + limb_data_str
-    
-    if debug:
-        print(f"[DEBUG] 发送合并数据，总长度: {len(data_str)}")
-        print(f"[DEBUG] 数据开始部分: {data_str[:]}") 
     
     # 建立TCP连接
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -223,7 +219,7 @@ def send_combined_data(face_data_str, limb_data_str, timestamp, socket_port, deb
     # 关闭连接
     client.close()
 
-def grpc_thread(grpc_port, socket_port, latency_monitor=None, debug=False):
+def grpc_thread(grpc_port, socket_port, latency_monitor=None):
     """gRPC线程处理函数"""
     servicer = THStreamServiceServicer()
     server_thread = threading.Thread(target=serve, args=(servicer, grpc_port))
@@ -242,30 +238,20 @@ def grpc_thread(grpc_port, socket_port, latency_monitor=None, debug=False):
                 face_data_bytes = payload_rec.faceData
                 limb_data_bytes = payload_rec.limbData
                 timestamp = payload_rec.extDesc  # 获取时间戳
-                latency = int(time.time() * 1000) - int(timestamp)  # 计算延迟
-                print(f"[gRPC Port {grpc_port}] 延迟: {latency}ms")   
                 
-                # 直接解码字节串为字符串，不再解析为JSON
+                # 直接解码字节串为字符串
                 face_data_str = face_data_bytes.decode('utf-8')
                 limb_data_str = limb_data_bytes.decode('utf-8')
                 
                 # 计算数据大小
                 data_size = len(face_data_bytes) + len(limb_data_bytes)
                 
-                # 添加数据到UI
+                # 添加数据包信息到UI
                 if latency_monitor:
-                    latency_monitor.add_latency_data(grpc_port, latency)
                     latency_monitor.add_packet_data(grpc_port, data_size)
                 
-                if debug:
-                    face_data_values = face_data_str.split(',')
-                    limb_data_values = limb_data_str.split(',')
-                    print(f"[DEBUG] 接收到的 faceData 长度: {len(face_data_values)}")
-                    print(f"[DEBUG] 接收到的 limbData 长度: {len(limb_data_values)}")
-                    print(f"[DEBUG] 数据包大小: {data_size} bytes")
-                
                 # 发送合并后的数据
-                send_combined_data(face_data_str, limb_data_str, timestamp, socket_port, debug)
+                send_combined_data(face_data_str, limb_data_str, timestamp, socket_port)
 
             except AttributeError as e:
                 print(f"[gRPC Port {grpc_port}] AttributeError: {e}")
@@ -314,9 +300,6 @@ if __name__ == '__main__':
     # 对应的反馈端口
     feedback_ports = [9890, 9891, 9892, 9893]
 
-    # 是否启用 debug 模式
-    debug = False
-
     # 创建 PyQt 应用和延迟监控窗口
     app = QApplication(sys.argv)
     latency_monitor = LatencyMonitor(port_mappings)
@@ -325,7 +308,7 @@ if __name__ == '__main__':
     # 为每对端口启动一个线程
     threads = []
     for grpc_port, socket_port in port_mappings:
-        t = threading.Thread(target=grpc_thread, args=(grpc_port, socket_port, latency_monitor, debug))
+        t = threading.Thread(target=grpc_thread, args=(grpc_port, socket_port, latency_monitor))
         t.start()
         threads.append(t)
     
