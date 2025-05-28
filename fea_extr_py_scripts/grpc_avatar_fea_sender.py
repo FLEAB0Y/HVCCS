@@ -21,6 +21,7 @@ class FrameDataManager:
         self.last_valid_face_data = None  # 存储最近一次有效的面部数据
         self.last_two_pose_frames = []  # 存储最近两帧的姿势数据用于平滑处理
         self.frame_count = 0  # 已处理的帧计数
+        self.last_processed_landmarks = None  # 存储上一帧处理后的关键点数据
     
     def update_pose_data(self, timestamp_ms, pose_data):
         with self.lock:
@@ -129,12 +130,27 @@ def process_pose_result(result, timestamp_ms, frame_data_manager, frame_width, f
         for pose_landmark in result.pose_landmarks:
             # 转换为像素坐标并处理
             landmarks_data = []
-            for landmark in pose_landmark:
-                landmarks_data.append((
-                    landmark.x * frame_width,  # 转换为像素坐标
-                    frame_height - landmark.y * frame_height,  # 转换为像素坐标并反转 y 轴方向
-                    landmark.z * frame_width  # 深度信息也乘以帧宽度
-                ))
+            
+            # 如果存在上一帧数据，检查当前帧每个点的可见性
+            prev_landmarks = frame_data_manager.last_processed_landmarks
+            
+            for i, landmark in enumerate(pose_landmark):
+                # 检查可见性，如果小于0.5且有上一帧数据，则使用上一帧的数据
+                if landmark.visibility < 0.5 and prev_landmarks and i < len(prev_landmarks):
+                    # 使用上一帧的数据
+                    landmarks_data.append(prev_landmarks[i])
+                    if debug:
+                        print(f"关键点 {i} 可见性低 ({landmark.visibility:.2f})，使用上一帧数据")
+                else:
+                    # 使用当前帧数据
+                    landmarks_data.append((
+                        landmark.x * frame_width,  # 转换为像素坐标
+                        frame_height - landmark.y * frame_height,  # 转换为像素坐标并反转 y 轴方向
+                        landmark.z * frame_width  # 深度信息也乘以帧宽度
+                    ))
+            
+            # 保存处理后的关键点数据，供下一帧使用
+            frame_data_manager.last_processed_landmarks = landmarks_data.copy()
             
             # 展平为列表
             flat_landmarks = [coord for landmark in landmarks_data for coord in landmark]
@@ -280,5 +296,5 @@ if __name__ == "__main__":
         port_num=50051, 
         pose_model_path=pose_model_path,
         face_model_path=face_model_path,
-        debug=False
+        debug=True
     )
