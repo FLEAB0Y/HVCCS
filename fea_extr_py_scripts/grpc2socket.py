@@ -263,7 +263,7 @@ def grpc_thread(grpc_port, socket_port, latency_monitor=None):
             except AttributeError as e:
                 print(f"[gRPC Port {grpc_port}] AttributeError: {e}")
 
-def latency_feedback_server(feedback_port, port_mappings, latency_monitor=None):
+def latency_feedback_server(feedback_port, port_mappings, latency_monitor=None, latency_compensation=None):
     """接收Unity发送的延迟反馈数据的服务器"""
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind(("127.0.0.1", feedback_port))
@@ -276,6 +276,12 @@ def latency_feedback_server(feedback_port, port_mappings, latency_monitor=None):
         if feedback_port == socket_port + 1000:  # 9890对应8890
             break
     
+    # 获取该gRPC端口的延迟补偿值
+    compensation = 0
+    if latency_compensation and grpc_port in latency_compensation:
+        compensation = latency_compensation[grpc_port]
+        print(f"[延迟反馈] 端口 {grpc_port} 应用延迟补偿: {compensation}ms")
+    
     while True:
         try:
             client, addr = server.accept()
@@ -285,11 +291,14 @@ def latency_feedback_server(feedback_port, port_mappings, latency_monitor=None):
                 if feedback.startswith("latency:"):
                     latency_value = float(feedback.split(':')[1])
                     latency_ms = int(latency_value * 1000)  # 转换为毫秒
-                    print(f"[延迟反馈] 从Unity接收到的实际延迟: {latency_value} 秒")
                     
-                    # 将Unity反馈的延迟数据添加到UI
+                    # 应用延迟补偿
+                    compensated_latency = latency_ms - compensation
+                    print(f"[延迟反馈] 从Unity接收到的实际延迟: {latency_value} 秒, 补偿后: {compensated_latency}ms")
+                    
+                    # 将补偿后的延迟数据添加到UI
                     if latency_monitor and grpc_port:
-                        latency_monitor.add_latency_data(grpc_port, latency_ms)
+                        latency_monitor.add_latency_data(grpc_port, compensated_latency)
                     
             client.close()
         except Exception as e:
@@ -303,6 +312,20 @@ if __name__ == '__main__':
         (50053, 8892),
         (50054, 8893)
     ]
+    
+    # 定义每个用户的延迟补偿值（毫秒）通过./tools/time_diff_cal_sender.py计算
+    # time_diff = (Time_rx-Time_tx) - RTT/2
+    latency_compensation = {
+        50051: 0,   # 用户1: 0ms
+        50052: 0,   # 用户2: 0ms
+        50053: 0,   # 用户3: 0ms
+        50054: 0    # 用户4: 0ms
+    }
+    
+    # 打印延迟补偿配置
+    print("[配置] 用户延迟补偿值:")
+    for port, comp in latency_compensation.items():
+        print(f"  - B类用户{port - 50050}（端口{port}）: {comp}ms")
     
     # 对应的反馈端口
     feedback_ports = [9890, 9891, 9892, 9893]
@@ -321,7 +344,8 @@ if __name__ == '__main__':
     
     # 为每个反馈端口启动一个监听线程
     for feedback_port in feedback_ports:
-        t = threading.Thread(target=latency_feedback_server, args=(feedback_port, port_mappings, latency_monitor))
+        t = threading.Thread(target=latency_feedback_server, 
+                            args=(feedback_port, port_mappings, latency_monitor, latency_compensation))
         t.start()
         threads.append(t)
 

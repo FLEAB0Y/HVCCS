@@ -13,7 +13,7 @@ class THStreamServiceServicer(data_stream_pb2_grpc.THStreamServiceServicer):
     def BidirectionalStream(self, request_iterator, context):
         try:
             for request in request_iterator:
-                print(f"***********Received request seqNo:{request.seqNo}***********")
+                # print(f"***********Received request seqNo:{request.seqNo}***********")
                 # 缓冲区满了就等待
                 buffer_size = self.receive_data_buffer.get_size()
                 while buffer_size > 30:
@@ -74,7 +74,8 @@ if __name__ == '__main__':
         try:
             sent_timestamp_ms = int(data.extDesc)  # 将 extDesc 转换为整数
             transmission_time_ms = current_timestamp_ms - sent_timestamp_ms - diff
-
+            print(f"收到的faceData: {data.faceData[:5]}...")  # 打印前5个元素
+            print(f"收到的limbData: {data.limbData[:5]}...")  # 打印前5个元素
             # 检查传输时间是否为负数
             if transmission_time_ms < 0:
                 print(f"警告：系统时间不同步，传输耗时计算为负数！")
