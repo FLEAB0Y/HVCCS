@@ -67,10 +67,17 @@ class LatencyMonitor(QMainWindow):
             user_container = QWidget()
             user_layout = QVBoxLayout(user_container)
             
+            # 创建用户标题标签
+            user_title = QLabel(f"B类用户{i+1}，访问端口号：{grpc_port}/{socket_port}")
+            user_title.setFont(QFont('Arial', 11, QFont.Bold))
+            user_title.setStyleSheet("color: #003366; background-color: #e6f2ff; padding: 5px; border-radius: 4px;")
+            user_title.setAlignment(Qt.AlignCenter)
+            user_layout.addWidget(user_title)
+            
             # 创建延迟图表
             latency_widget = pg.PlotWidget()
             latency_widget.setBackground('w')
-            latency_widget.setTitle(f'用户 {grpc_port}/{socket_port} - 延迟')
+            latency_widget.setTitle('延迟监测')  # 简化图表标题
             latency_widget.setLabel('left', '延迟 (ms)')
             latency_widget.setLabel('bottom', '时间 (s)')
             latency_widget.showGrid(x=True, y=True)
