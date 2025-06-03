@@ -28,6 +28,40 @@ pip install mediapipe==0.10.20 --no-deps
 - Asset Store无法下载时，通过`Window/Package Manager`，点击`+`按钮，选择`Add package from name`，在[Meta官方文档](https://npm.developer.oculus.com/)中查看`com.meta.xr.sdk.core`和`com.meta.xr.sdk.interaction`，点击`Add`，等待安装完成。
 - 在Meta XR Tools中，选择`Project Setup Tool`，点击`Fix All`和`Apply All`，等待完成。
 
+#### 1.3 Avatar Setup
+- 世界坐标系中，x是左右，y是上下，z是前后。
+- `nezha`的骨骼结构是
+```
+Hips # x是-左+右，y是-前+后，z是+上-下
+    other # x是+左-右，y是+上-下，z是+前-后
+```
+- `t-pose`的骨骼结构是
+```
+Bip001 Pelvis # x是-前+后，y是+左-右，z是+上-下
+    Bip001 L Thigh # 其他骨骼x是-上+下，y是+前-后，z是+左-右
+        Bip001 L Calf
+            Bip001 L Foot
+                Bip001 L Toe0
+    Bip001 R Thigh
+        Bip001 R Calf
+            Bip001 R Foot
+                Bip001 R Toe0
+    Bip001 Spine
+        Bip001 Spine1
+            Bip001 Spine2
+                Bip001 Spine3
+                    Bip001 L Clavicle
+                        Bip001 L UpperArm
+                            Bip001 L Forearm
+                                Bip001 L Hand
+                    Bip001 Neck
+                        Bip001 Head
+                    Bip001 R Clavicle
+                        Bip001 R UpperArm
+                            Bip001 R Forearm
+                                Bip001 R Hand
+                    
+```
 
 ### 2 Unity Render Streaming & WebRTC
 #### 2.1 prepare
