@@ -33,7 +33,57 @@ pip install mediapipe==0.10.20 --no-deps
 - `nezha`的骨骼结构是
 ```
 Hips # x是-左+右，y是-前+后，z是+上-下
-    other # x是+左-右，y是+上-下，z是+前-后
+    Spine # 其他骨骼，x是+左-右，y是+上-下，z是+前-后
+        Spine1
+            Spine2
+                LeftShoulder
+                    LeftArm
+                        LeftForeArm
+                            LeftHand
+                                LeftHandThumb1
+                                LeftHandIndex1
+                                LeftHandMiddle1
+                                LeftHandRing1
+                                LeftHandPinky1
+                                    LeftHandThumb2
+                                    LeftHandIndex2
+                                    LeftHandMiddle2
+                                    LeftHandRing2
+                                    LeftHandPinky2
+                                        LeftHandThumb3
+                                        LeftHandIndex3
+                                        LeftHandMiddle3
+                                        LeftHandRing3
+                                        LeftHandPinky3                               
+                Neck
+                    Head
+                RightShoulder
+                    RightArm
+                        RightForeArm
+                            RightHand
+                                RightHandThumb1
+                                RightHandIndex1
+                                RightHandMiddle1
+                                RightHandRing1
+                                RightHandPinky1
+                                    RightHandThumb2
+                                    RightHandIndex2
+                                    RightHandMiddle2
+                                    RightHandRing2
+                                    RightHandPinky2
+                                        RightHandThumb3
+                                        RightHandIndex3
+                                        RightHandMiddle3
+                                        RightHandRing3
+                                        RightHandPinky3
+    LeftUpLeg
+        LeftLeg
+            LeftFoot
+                LeftToeBase
+    RightUpLeg
+        RightLeg
+            RightFoot
+                RightToeBase
 ```
 - `t-pose`的骨骼结构是
 ```
@@ -54,12 +104,22 @@ Bip001 Pelvis # x是-前+后，y是+左-右，z是+上-下
                         Bip001 L UpperArm
                             Bip001 L Forearm
                                 Bip001 L Hand
+                                    Bip001 L Finger0
+                                    Bip001 L Finger1
+                                    Bip001 L Finger2
+                                    Bip001 L Finger3
+                                    Bip001 L Finger4
                     Bip001 Neck
                         Bip001 Head
                     Bip001 R Clavicle
                         Bip001 R UpperArm
                             Bip001 R Forearm
                                 Bip001 R Hand
+                                    Bip001 R Finger0
+                                    Bip001 R Finger1
+                                    Bip001 R Finger2
+                                    Bip001 R Finger3
+                                    Bip001 R Finger4
                     
 ```
 
