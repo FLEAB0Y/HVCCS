@@ -74,6 +74,7 @@ if __name__ == '__main__':
         try:
             sent_timestamp_ms = int(data.extDesc)  # 将 extDesc 转换为整数
             transmission_time_ms = current_timestamp_ms - sent_timestamp_ms - diff
+            print(f"收到的pointData: {data.pointData[:10]}...")  # 打印前5个元素
             print(f"收到的faceData: {data.faceData[:5]}...")  # 打印前5个元素
             print(f"收到的limbData: {data.limbData[:5]}...")  # 打印前5个元素
             # 检查传输时间是否为负数

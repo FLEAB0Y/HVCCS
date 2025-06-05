@@ -49,11 +49,11 @@ class FrameDataManager:
                 smoothed_pose = self._smooth_pose_data(frame["pose"])
                 
                 payload_send = THStreamDataPayload(
-                    rgb_data=b'\x01', 
-                    point_data=b'\x02',
+                    rgb_data=b'\x00', 
+                    point_data=b'\x00',
                     face_data=frame["face"],
                     limb_data=smoothed_pose,    
-                    ext_data=b'\x05', 
+                    ext_data=b'\x00', 
                     ext_desc=f"{str(timestamp_ms)}"
                 )
                 self.client.send_data_buffer.add_item(payload_send)
