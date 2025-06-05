@@ -21,8 +21,8 @@ public class FaceDataReceiver : MonoBehaviour
     // 引用BlendShape控制器
     [SerializeField] private BSCtrl blendShapeController;
     
-    // 添加NeZhaMov控制器引用
-    [SerializeField] private NeZhaMov neZhaMov;
+    // 添加BDCtrl控制器引用
+    [SerializeField] private BDCtrl neZhaMov;
 
     // Socket对象
     private TcpListener tcpListener;
@@ -50,16 +50,16 @@ public class FaceDataReceiver : MonoBehaviour
             }
         }
         
-        // 如果没有手动指定NeZhaMov控制器，则尝试查找
+        // 如果没有手动指定BDCtrl控制器，则尝试查找
         if (neZhaMov == null)
         {
-            neZhaMov = GetComponent<NeZhaMov>();
+            neZhaMov = GetComponent<BDCtrl>();
             if (neZhaMov == null)
             {
-                neZhaMov = FindObjectOfType<NeZhaMov>();
+                neZhaMov = FindObjectOfType<BDCtrl>();
                 if (neZhaMov == null)
                 {
-                    Debug.LogError("未找到NeZhaMov控制器，请手动指定");
+                    Debug.LogError("未找到BDCtrl控制器，请手动指定");
                 }
             }
         }
@@ -220,7 +220,7 @@ public class FaceDataReceiver : MonoBehaviour
             }
             else
             {
-                Debug.LogError("【控制器缺失】NeZhaMov控制器未找到");
+                Debug.LogError("【控制器缺失】BDCtrl控制器未找到");
             }
             
             Debug.Log($"【处理完成】处理了52个面部数据和{limbData.Length}个姿势数据");

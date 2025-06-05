@@ -37,7 +37,7 @@ public enum PositionIndex:int
     //……
 }
 
-public class NeZhaMov : MonoBehaviour
+public class BDCtrl : MonoBehaviour
 {
     public GameObject NeZha;//哪吒人物物体
     
