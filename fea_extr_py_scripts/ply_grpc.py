@@ -115,7 +115,7 @@ if __name__ == "__main__":
     # 从命令行获取参数，如果有的话 python ply_grpc.py 127.0.0.1 50051 C:/Users/24150/plydata true
     server = '127.0.0.1'
     port = 50055
-    ply_directory = 'C:/Users/24150/plydata'
+    ply_directory = 'E:/ztw/Dataset_Scene/Assets/output'
     debug_mode = False
     
     # 解析命令行参数

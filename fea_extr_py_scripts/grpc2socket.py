@@ -48,35 +48,29 @@ class LatencyMonitor(QMainWindow):
         self.setWindowTitle('延迟和带宽监控')
         self.setGeometry(100, 100, 1200, 800)
         
-        # 创建主布局
+        # 创建主布局为网格布局
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        main_layout = QHBoxLayout(central_widget)  # 改为水平布局
-        
-        # 创建左侧B类用户组和右侧点云数据组
-        left_group = QGroupBox("B类用户监控 (30秒)")
-        left_layout = QVBoxLayout()
-        left_group.setLayout(left_layout)
-        
-        right_group = QGroupBox("点云数据监控 (30秒)")
-        right_layout = QVBoxLayout()
-        right_group.setLayout(right_layout)
+        main_layout = QGridLayout(central_widget)
         
         # 为每个端口映射创建图表和信息显示
         self.plots = {}
         self.bandwidth_plots = {}
         self.stats_labels = {}
         
-        for i, (grpc_port, socket_port) in enumerate(self.port_mappings):
+        # 计数器用于跟踪B类用户的位置
+        b_user_count = 0
+        
+        for grpc_port, socket_port in self.port_mappings:
             # 创建每个用户的容器
             user_container = QWidget()
             user_layout = QVBoxLayout(user_container)
             
             # 创建用户标题标签
             if grpc_port == 50055:
-                user_title = QLabel(f"点云数据，访问端口号：{grpc_port}/{socket_port}")
+                user_title = QLabel(f"A类用户：点云数据，访问端口号：{grpc_port}/{socket_port}")
             else:
-                user_title = QLabel(f"B类用户{i+1}，访问端口号：{grpc_port}/{socket_port}")
+                user_title = QLabel(f"B类用户{b_user_count+1}，访问端口号：{grpc_port}/{socket_port}")
                 
             user_title.setFont(QFont('Arial', 11, QFont.Bold))
             user_title.setStyleSheet("color: #003366; background-color: #e6f2ff; padding: 5px; border-radius: 4px;")
@@ -123,17 +117,18 @@ class LatencyMonitor(QMainWindow):
             user_layout.addWidget(bandwidth_widget)
             user_layout.addWidget(stats_label)
             
-            # 根据端口类型添加到左侧或右侧分组
+            # 根据用户类型放置在对应的网格位置
             if grpc_port == 50055:
-                right_layout.addWidget(user_container)
+                # A类用户放在第3列第1行
+                main_layout.addWidget(user_container, 0, 2)
             else:
-                left_layout.addWidget(user_container)
-        
-        # 将左右两组添加到主布局
-        main_layout.addWidget(left_group, 3)  # 左侧占3份宽度
-        main_layout.addWidget(right_group, 1)  # 右侧占1份宽度
-        
-        # 添加状态栏
+                # B类用户放在前2列
+                row = b_user_count // 2  # 0或1
+                col = b_user_count % 2   # 0或1
+                main_layout.addWidget(user_container, row, col)
+                b_user_count += 1
+    
+    # 添加状态栏
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage('监控已启动')

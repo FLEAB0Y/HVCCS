@@ -41,10 +41,21 @@ public class BDCtrl : MonoBehaviour
 {
     public GameObject NeZha;//哪吒人物物体
     
-    // 添加根节点位置偏移变量，可在Inspector中调整
-    [Header("根节点位置调整")]
-    [Tooltip("用于手动调整哪吒根节点(Hips)的位置偏移")]
-    public Vector3 hipsPositionOffset = Vector3.zero;
+    // 添加全局坐标系修正变量
+    [Header("全局坐标系修正")]
+    [Tooltip("修正y轴和z轴交换的问题")]
+    public bool applyAxisCorrection = true;
+    
+    // 添加数据偏移设置
+    [Header("数据偏移设置")]
+    [Tooltip("X轴数据偏移量")]
+    public float offsetX = 0f;
+    [Tooltip("Y轴数据偏移量")]
+    public float offsetY = 0f;
+    [Tooltip("Z轴数据偏移量")]
+    public float offsetZ = 0f;
+    
+    private GameObject rootCorrection;
     
     private Animator ani;//挂在哪吒上的动画组件
     
@@ -167,6 +178,9 @@ public class BDCtrl : MonoBehaviour
 
         // 初始化中间矩阵
         InitializeMiddleMatrices();
+        
+        // 创建修正节点
+        SetupAxisCorrection();
     }
 
     // 处理肢体数据的公共方法 - 由FaceDataReceiver直接调用
@@ -257,22 +271,22 @@ public class BDCtrl : MonoBehaviour
         // 创建缩放后的数据数组
         float[] scaledData = new float[data.Length];
         
-        // 对所有坐标点进行缩放
+        // 对所有坐标点进行缩放并应用偏移量
         for (int i = 0; i < data.Length; i += 3)
         {
             if (i + 2 < data.Length) // 确保有完整的xyz三个值
             {
-                scaledData[i] = data[i] / 100f;      // x坐标缩放
-                scaledData[i+1] = data[i+1] / 100f;  // y坐标缩放
-                scaledData[i+2] = data[i+2] / 300f;  // z坐标缩放
+                scaledData[i] = data[i] / 100f + offsetX;      // x坐标缩放并添加偏移
+                scaledData[i+1] = data[i+1] / 100f + offsetY;  // y坐标缩放并添加偏移
+                scaledData[i+2] = data[i+2] / 300f + offsetZ;  // z坐标缩放并添加偏移
             }
         }
         
         // 使用缩放后的数据更新模型
         // 更新Hips位置
-        BodyPart[0].position = new Vector3((scaledData[69] + scaledData[72]) / 2.0f, 
+        BodyP rt[0].position = new Vector3((scaledData[69] + scaledData[72]) / 2.0f, 
                                   (scaledData[70] + scaledData[73]) / 2.0f, 
-                                  (scaledData[71] + scaledData[74]) / 2.0f) + hipsPositionOffset;
+                                  (scaledData[71] + scaledData[74]) / 2.0f);
         
         // 估计火柴人模型中对应的LeftUpperLeg与RightUpperLeg位置
         PosLeftUpperLeg = new Vector3(4.0f / 5.0f * scaledData[69] + 1.0f / 5.0f * scaledData[75], 4.0f / 5.0f * scaledData[70] + 1.0f / 5.0f * scaledData[76], 4.0f / 5.0f * scaledData[71] + 1.0f / 5.0f * scaledData[77]);
@@ -444,5 +458,41 @@ public class BDCtrl : MonoBehaviour
         dd.Normalize();
 
         return dd;
+    }
+
+    // 创建修正节点
+    private void SetupAxisCorrection()
+    {
+        if (applyAxisCorrection)
+        {
+            // 创建一个新的游戏对象作为NeZha的父对象
+            rootCorrection = new GameObject("AxisCorrection");
+            
+            // 保存哪吒原始的世界位置和旋转
+            Vector3 originalPosition = NeZha.transform.position;
+            Quaternion originalRotation = NeZha.transform.rotation;
+            
+            // 设置修正节点为哪吒的父节点
+            rootCorrection.transform.position = Vector3.zero;
+            rootCorrection.transform.rotation = Quaternion.identity;
+            NeZha.transform.SetParent(rootCorrection.transform, false);
+            
+            // 恢复哪吒的原始世界位置和旋转
+            NeZha.transform.position = originalPosition;
+            NeZha.transform.rotation = originalRotation;
+            
+            // 添加后处理组件
+            rootCorrection.AddComponent<AxisCorrectionHandler>();
+        }
+    }
+}
+
+// 添加一个新的组件来处理轴修正
+public class AxisCorrectionHandler : MonoBehaviour
+{
+    void LateUpdate()
+    {
+        // 应用修正矩阵 - 交换Y和Z轴
+        transform.localRotation = Quaternion.Euler(90, 0, 0);
     }
 }
