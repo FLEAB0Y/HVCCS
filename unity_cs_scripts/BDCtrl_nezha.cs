@@ -284,7 +284,7 @@ public class BDCtrl : MonoBehaviour
         
         // 使用缩放后的数据更新模型
         // 更新Hips位置
-        BodyP rt[0].position = new Vector3((scaledData[69] + scaledData[72]) / 2.0f, 
+        BodyPart[0].position = new Vector3((scaledData[69] + scaledData[72]) / 2.0f, 
                                   (scaledData[70] + scaledData[73]) / 2.0f, 
                                   (scaledData[71] + scaledData[74]) / 2.0f);
         
