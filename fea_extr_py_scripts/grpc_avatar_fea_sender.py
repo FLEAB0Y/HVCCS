@@ -204,6 +204,14 @@ def process_face_result(result, timestamp_ms, frame_data_manager, debug=False, r
             if debug:
                 print("未检测到面部，使用上一次有效的面部数据")
             frame_data_manager.update_face_data(timestamp_ms, frame_data_manager.last_valid_face_data)
+        else:
+            # 新增：从未检测到面部，使用默认值（全0数据）
+            if debug:
+                print("未检测到面部，且无历史数据，使用默认值")
+            # 假设面部表情有52个特征（根据实际模型调整）
+            default_face_data = ','.join(['0.0'] * 52)
+            default_face_bytes = default_face_data.encode('utf-8')
+            frame_data_manager.update_face_data(timestamp_ms, default_face_bytes)
 
 def main(server_addr='127.0.0.1', port_num=50051, 
          pose_model_path=None, face_model_path=None, 
