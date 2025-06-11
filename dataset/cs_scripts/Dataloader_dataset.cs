@@ -1,0 +1,290 @@
+using UnityEngine;
+using System;
+using System.IO;
+using System.Collections.Generic;
+
+public class FaceDataReceiver : MonoBehaviour
+{
+    // 文件配置
+    [SerializeField] private string dataFilePath = "proc_features/asoul.txt"; // 相对于Assets目录的路径或绝对路径
+    [SerializeField] private float frameRate = 30f; // 每秒播放多少帧
+    
+    // 引用BlendShape控制器
+    [SerializeField] private BSCtrl_dataset blendShapeController;
+    
+    // 添加BDCtrl控制器引用
+    [SerializeField] private BDCtrl_dataset neZhaMov;
+
+    // 数据帧存储
+    private List<string> dataFrames = new List<string>();
+    private int currentFrameIndex = 0;
+    private float frameTimer = 0f;
+    private bool isPlaying = false;
+    
+    // 界面控制选项
+    [SerializeField] private bool autoPlay = true;
+    [SerializeField] private bool loopPlayback = true;
+
+    void Start()
+    {
+        // 如果没有手动指定BlendShape控制器，则尝试查找
+        if (blendShapeController == null)
+        {
+            blendShapeController = GetComponent<BSCtrl_dataset>();
+            if (blendShapeController == null)
+            {
+                blendShapeController = FindObjectOfType<BSCtrl_dataset>();
+                if (blendShapeController == null)
+                {
+                    Debug.LogError("未找到BlendShape控制器，请手动指定");
+                }
+            }
+        }
+        
+        // 如果没有手动指定BDCtrl控制器，则尝试查找
+        if (neZhaMov == null)
+        {
+            neZhaMov = GetComponent<BDCtrl_dataset>();
+            if (neZhaMov == null)
+            {
+                neZhaMov = FindObjectOfType<BDCtrl_dataset>();
+                if (neZhaMov == null)
+                {
+                    Debug.LogError("未找到BDCtrl控制器，请手动指定");
+                }
+            }
+        }
+        
+        // 加载数据文件
+        LoadDataFile();
+        
+        // 如果设置了自动播放，则开始播放
+        if (autoPlay && dataFrames.Count > 0)
+        {
+            isPlaying = true;
+        }
+    }
+
+    // 加载数据文件
+    private void LoadDataFile()
+    {
+        try
+        {
+            string fullPath;
+            
+            // 判断是相对路径还是绝对路径
+            if (Path.IsPathRooted(dataFilePath))
+            {
+                fullPath = dataFilePath;
+            }
+            else
+            {
+                // 相对于项目根目录的路径
+                fullPath = Path.Combine(Application.dataPath, dataFilePath);
+            }
+            
+            if (!File.Exists(fullPath))
+            {
+                Debug.LogError($"【文件错误】找不到数据文件: {fullPath}");
+                return;
+            }
+            
+            // 读取所有行
+            string[] lines = File.ReadAllLines(fullPath);
+            
+            // 过滤掉空行
+            foreach (string line in lines)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    dataFrames.Add(line);
+                }
+            }
+            
+            Debug.Log($"【文件加载】已加载 {dataFrames.Count} 帧数据");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"【文件错误】加载数据文件失败: {e.Message}");
+        }
+    }
+    
+    // 在Update中处理帧播放
+    void Update()
+    {
+        // 检测空格键按下，切换播放/暂停状态
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            if (isPlaying)
+            {
+                PauseAnimation();
+                Debug.Log("【播放控制】动画已暂停");
+            }
+            else
+            {
+                PlayAnimation();
+                Debug.Log("【播放控制】动画已开始播放");
+            }
+        }
+        
+        if (!isPlaying || dataFrames.Count == 0)
+            return;
+            
+        // 计算帧间隔时间
+        frameTimer += Time.deltaTime;
+        float frameInterval = 1f / frameRate;
+        
+        // 如果达到了播放下一帧的时间
+        if (frameTimer >= frameInterval)
+        {
+            // 处理当前帧
+            ProcessFrame(dataFrames[currentFrameIndex]);
+            
+            // 更新帧索引
+            currentFrameIndex++;
+            
+            // 如果到达末尾且设置了循环播放
+            if (currentFrameIndex >= dataFrames.Count)
+            {
+                if (loopPlayback)
+                {
+                    currentFrameIndex = 0;
+                    Debug.Log("【播放循环】动画已循环至开始");
+                }
+                else
+                {
+                    isPlaying = false;
+                    Debug.Log("【播放结束】动画已播放完毕");
+                }
+            }
+            
+            // 重置帧计时器（考虑超出的时间）
+            frameTimer -= frameInterval;
+        }
+    }
+    
+    // 处理单帧数据
+    private void ProcessFrame(string data)
+    {
+        try
+        {
+            // 解析逗号分隔的数据字符串
+            string[] parts = data.Split(',');
+            
+            if (parts.Length < 151) // 至少需要52(面部数据) + 99(姿势数据) = 151
+            {
+                Debug.LogWarning($"【数据不足】数据项不足，期望至少151项，实际为{parts.Length}项");
+                return;
+            }
+            
+            // 提取面部表情数据（前52个数据项）
+            float[] faceData = new float[52];
+            for (int i = 0; i < 52 && i < parts.Length; i++)
+            {
+                if (float.TryParse(parts[i], out float value))
+                {
+                    faceData[i] = value;
+                }
+                else
+                {
+                    Debug.LogWarning($"【解析错误】无法解析面部数据项 {i}: {parts[i]}");
+                    faceData[i] = 0f;
+                }
+            }
+            
+            // 提取姿势数据（后99个数据项）
+            float[] limbData = new float[99];
+            for (int i = 0; i < 99 && i + 52 < parts.Length; i++)
+            {
+                if (float.TryParse(parts[i + 52], out float value))
+                {
+                    limbData[i] = value;
+                }
+                else
+                {
+                    Debug.LogWarning($"【解析错误】无法解析姿势数据项 {i}: {parts[i + 52]}");
+                    limbData[i] = 0f;
+                }
+            }
+            
+            // 将面部数据传递给BlendShape控制器
+            if (blendShapeController != null)
+            {
+                // 使用0作为时间戳，因为我们不再需要计算延迟
+                blendShapeController.ProcessBlendShapeDataArray(faceData, 0);
+            }
+            else
+            {
+                Debug.LogError("【控制器缺失】BlendShape控制器未找到");
+            }
+            
+            // 处理姿势数据
+            if (neZhaMov != null)
+            {
+                neZhaMov.ProcessLimbData(limbData, 0);
+            }
+            else
+            {
+                Debug.LogError("【控制器缺失】BDCtrl控制器未找到");
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"【解析错误】解析数据错误: {e.Message}\n{e.StackTrace}");
+        }
+    }
+    
+    // 公共控制方法
+    public void PlayAnimation()
+    {
+        isPlaying = true;
+    }
+    
+    public void PauseAnimation()
+    {
+        isPlaying = false;
+    }
+    
+    public void StopAnimation()
+    {
+        isPlaying = false;
+        currentFrameIndex = 0;
+        frameTimer = 0f;
+    }
+    
+    public void SetFrame(int frameIndex)
+    {
+        if (frameIndex >= 0 && frameIndex < dataFrames.Count)
+        {
+            currentFrameIndex = frameIndex;
+            frameTimer = 0f;
+            if (!isPlaying)
+            {
+                ProcessFrame(dataFrames[currentFrameIndex]);
+            }
+        }
+    }
+    
+    public int GetTotalFrames()
+    {
+        return dataFrames.Count;
+    }
+    
+    public int GetCurrentFrame()
+    {
+        return currentFrameIndex;
+    }
+    
+    public bool IsPlaying()
+    {
+        return isPlaying;
+    }
+    
+    public void ReloadDataFile()
+    {
+        dataFrames.Clear();
+        currentFrameIndex = 0;
+        frameTimer = 0f;
+        LoadDataFile();
+    }
+}
