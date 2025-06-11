@@ -45,8 +45,6 @@ public class BSCtrl_dataset : MonoBehaviour
         
         // 查找并初始化标准BlendShape值
         FindAndInitializeBlendShapes();
-        
-        Debug.Log($"已初始化{blendShapeIndices.Count}/52个标准BlendShape控制器");
     }
     
     // 初始化52个标准BlendShape映射
@@ -136,7 +134,6 @@ public class BSCtrl_dataset : MonoBehaviour
             {
                 blendShapeIndices[blendShapeName] = index;
                 blendShapeWeights[blendShapeName] = skinnedMeshRenderer.GetBlendShapeWeight(index);
-                Debug.Log($"找到BlendShape: {blendShapeName}, 索引: {index}");
             }
             else
             {
@@ -152,7 +149,6 @@ public class BSCtrl_dataset : MonoBehaviour
         {
             // 解析数据字符串
             string[] entries = data.Split(';');
-            int successCount = 0;
             
             foreach (string entry in entries)
             {
@@ -160,12 +156,6 @@ public class BSCtrl_dataset : MonoBehaviour
                     continue;
                 
                 string[] parts = entry.Split(',');
-                
-                // 检查是否是时间戳数据 - 忽略时间戳
-                if (parts.Length == 2 && parts[0] == "timestamp")
-                {
-                    continue;
-                }
                 
                 // 处理BlendShape数据
                 if (parts.Length == 2)
@@ -177,13 +167,10 @@ public class BSCtrl_dataset : MonoBehaviour
                         {
                             // 设置BlendShape权重
                             SetBlendShapeWeight(index, weight);
-                            successCount++;
                         }
                     }
                 }
             }
-            
-            Debug.Log($"成功处理 {successCount} 个BlendShape数据项");
         }
         catch (Exception e)
         {
@@ -192,22 +179,17 @@ public class BSCtrl_dataset : MonoBehaviour
     }
     
     // 处理BlendShape数据的优化接口
-    public void ProcessBlendShapeDataArray(float[] faceData, long timestamp)
+    public void ProcessBlendShapeDataArray(float[] faceData, long _)
     {
         try
         {
-            int successCount = 0;
-            
             // 处理最多52个BlendShape值
             int maxValues = Mathf.Min(faceData.Length, 52);
             for (int i = 0; i < maxValues; i++)
             {
                 // 将接收到的值(0-1)乘以100转换为BlendShape权重值(0-100)
                 SetBlendShapeWeight(i, faceData[i] * 100f);
-                successCount++;
             }
-            
-            Debug.Log($"成功处理 {successCount}/52 个BlendShape数据项");
         }
         catch (Exception e)
         {

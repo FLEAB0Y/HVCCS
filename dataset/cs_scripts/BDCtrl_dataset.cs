@@ -188,11 +188,11 @@ public class BDCtrl_dataset : MonoBehaviour
     {
         if (limbData == null || limbData.Length != 99)
         {
-            Debug.LogWarning($"接收到的数据长度不匹配: 预期99，实际{limbData?.Length ?? 0}");
+            Debug.LogError($"接收到的数据长度不匹配: 预期99，实际{limbData?.Length ?? 0}");
             return;
         }
 
-        Debug.Log("直接处理肢体数据，时间戳: " + timestamp);
+        // 删除不必要的日志输出
         
         // 直接处理数据，不再缓存
         UpdateModel(limbData);

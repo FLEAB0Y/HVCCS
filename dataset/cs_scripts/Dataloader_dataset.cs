@@ -2,11 +2,12 @@ using UnityEngine;
 using System;
 using System.IO;
 using System.Collections.Generic;
+using System.Linq;
 
 public class FaceDataReceiver : MonoBehaviour
 {
     // 文件配置
-    [SerializeField] private string dataFilePath = "proc_features/asoul.txt"; // 相对于Assets目录的路径或绝对路径
+    [SerializeField] private string dataDirectory = "proc_features"; // 相对于Assets目录的路径或绝对路径
     [SerializeField] private float frameRate = 30f; // 每秒播放多少帧
     
     // 引用BlendShape控制器
@@ -20,6 +21,13 @@ public class FaceDataReceiver : MonoBehaviour
     private int currentFrameIndex = 0;
     private float frameTimer = 0f;
     private bool isPlaying = false;
+    
+    // 文件控制
+    private List<string> txtFiles = new List<string>();
+    private int currentFileIndex = 0;
+    private float fileTransitionTimer = 0f;
+    private bool isWaitingForNextFile = false;
+    private float fileSwitchDelay = 10f; // 文件之间的间隔，单位为秒
     
     // 界面控制选项
     [SerializeField] private bool autoPlay = true;
@@ -55,42 +63,81 @@ public class FaceDataReceiver : MonoBehaviour
             }
         }
         
-        // 加载数据文件
-        LoadDataFile();
+        // 获取所有TXT文件并按名称排序
+        FindAllTxtFiles();
         
-        // 如果设置了自动播放，则开始播放
-        if (autoPlay && dataFrames.Count > 0)
+        // 如果有文件，加载第一个
+        if (txtFiles.Count > 0)
         {
-            isPlaying = true;
+            LoadDataFile(txtFiles[0]);
+            
+            // 如果设置了自动播放，则开始播放
+            if (autoPlay && dataFrames.Count > 0)
+            {
+                isPlaying = true;
+            }
+        }
+        else
+        {
+            Debug.LogError($"【文件错误】在目录 {dataDirectory} 中没有找到任何.txt文件");
         }
     }
 
-    // 加载数据文件
-    private void LoadDataFile()
+    // 查找所有TXT文件并按名称排序
+    private void FindAllTxtFiles()
     {
         try
         {
             string fullPath;
             
             // 判断是相对路径还是绝对路径
-            if (Path.IsPathRooted(dataFilePath))
+            if (Path.IsPathRooted(dataDirectory))
             {
-                fullPath = dataFilePath;
+                fullPath = dataDirectory;
             }
             else
             {
                 // 相对于项目根目录的路径
-                fullPath = Path.Combine(Application.dataPath, dataFilePath);
+                fullPath = Path.Combine(Application.dataPath, dataDirectory);
             }
             
-            if (!File.Exists(fullPath))
+            if (!Directory.Exists(fullPath))
             {
-                Debug.LogError($"【文件错误】找不到数据文件: {fullPath}");
+                Debug.LogError($"【目录错误】找不到指定目录: {fullPath}");
+                return;
+            }
+            
+            // 获取所有.txt文件并按名称排序
+            txtFiles = Directory.GetFiles(fullPath, "*.txt")
+                .OrderBy(f => Path.GetFileName(f))
+                .ToList();
+            
+            // 移除不必要的日志输出
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"【文件错误】查找.txt文件失败: {e.Message}");
+        }
+    }
+
+    // 加载数据文件
+    private void LoadDataFile(string filePath)
+    {
+        try
+        {
+            // 清空之前的数据
+            dataFrames.Clear();
+            currentFrameIndex = 0;
+            frameTimer = 0f;
+            
+            if (!File.Exists(filePath))
+            {
+                Debug.LogError($"【文件错误】找不到数据文件: {filePath}");
                 return;
             }
             
             // 读取所有行
-            string[] lines = File.ReadAllLines(fullPath);
+            string[] lines = File.ReadAllLines(filePath);
             
             // 过滤掉空行
             foreach (string line in lines)
@@ -101,7 +148,8 @@ public class FaceDataReceiver : MonoBehaviour
                 }
             }
             
-            Debug.Log($"【文件加载】已加载 {dataFrames.Count} 帧数据");
+            // 显示当前加载的文件名
+            Debug.Log($"【文件加载】已加载 {Path.GetFileName(filePath)}");
         }
         catch (Exception e)
         {
@@ -109,7 +157,7 @@ public class FaceDataReceiver : MonoBehaviour
         }
     }
     
-    // 在Update中处理帧播放
+    // 在Update中处理帧播放和文件切换
     void Update()
     {
         // 检测空格键按下，切换播放/暂停状态
@@ -118,16 +166,37 @@ public class FaceDataReceiver : MonoBehaviour
             if (isPlaying)
             {
                 PauseAnimation();
-                Debug.Log("【播放控制】动画已暂停");
             }
             else
             {
                 PlayAnimation();
-                Debug.Log("【播放控制】动画已开始播放");
             }
         }
         
-        if (!isPlaying || dataFrames.Count == 0)
+        if (!isPlaying)
+            return;
+            
+        // 如果正在等待切换到下一个文件
+        if (isWaitingForNextFile)
+        {
+            fileTransitionTimer += Time.deltaTime;
+            if (fileTransitionTimer >= fileSwitchDelay)
+            {
+                // 重置计时器
+                fileTransitionTimer = 0f;
+                isWaitingForNextFile = false;
+                
+                // 加载下一个文件
+                currentFileIndex = (currentFileIndex + 1) % txtFiles.Count;
+                LoadDataFile(txtFiles[currentFileIndex]);
+                
+                // 显示文件切换信息
+                Debug.Log($"【文件切换】已切换到文件 {Path.GetFileName(txtFiles[currentFileIndex])}");
+            }
+            return;
+        }
+            
+        if (dataFrames.Count == 0)
             return;
             
         // 计算帧间隔时间
@@ -143,18 +212,24 @@ public class FaceDataReceiver : MonoBehaviour
             // 更新帧索引
             currentFrameIndex++;
             
-            // 如果到达末尾且设置了循环播放
+            // 如果到达末尾
             if (currentFrameIndex >= dataFrames.Count)
             {
-                if (loopPlayback)
+                // 如果还有其他文件要播放
+                if (txtFiles.Count > 1)
+                {
+                    // 开始等待切换到下一个文件
+                    isWaitingForNextFile = true;
+                    fileTransitionTimer = 0f;
+                }
+                // 否则检查是否需要循环当前文件
+                else if (loopPlayback)
                 {
                     currentFrameIndex = 0;
-                    Debug.Log("【播放循环】动画已循环至开始");
                 }
                 else
                 {
                     isPlaying = false;
-                    Debug.Log("【播放结束】动画已播放完毕");
                 }
             }
             
@@ -250,6 +325,8 @@ public class FaceDataReceiver : MonoBehaviour
         isPlaying = false;
         currentFrameIndex = 0;
         frameTimer = 0f;
+        isWaitingForNextFile = false;
+        fileTransitionTimer = 0f;
     }
     
     public void SetFrame(int frameIndex)
@@ -280,11 +357,35 @@ public class FaceDataReceiver : MonoBehaviour
         return isPlaying;
     }
     
-    public void ReloadDataFile()
+    public void ReloadCurrentFile()
     {
-        dataFrames.Clear();
-        currentFrameIndex = 0;
-        frameTimer = 0f;
-        LoadDataFile();
+        if (txtFiles.Count > 0 && currentFileIndex < txtFiles.Count)
+        {
+            LoadDataFile(txtFiles[currentFileIndex]);
+        }
+    }
+    
+    public void ReloadAllFiles()
+    {
+        FindAllTxtFiles();
+        if (txtFiles.Count > 0)
+        {
+            currentFileIndex = 0;
+            LoadDataFile(txtFiles[0]);
+        }
+    }
+    
+    public string GetCurrentFileName()
+    {
+        if (txtFiles.Count > 0 && currentFileIndex < txtFiles.Count)
+        {
+            return Path.GetFileName(txtFiles[currentFileIndex]);
+        }
+        return string.Empty;
+    }
+    
+    public int GetTotalFiles()
+    {
+        return txtFiles.Count;
     }
 }
