@@ -135,6 +135,8 @@ def process_video(video_path, face_detector, pose_detector, output_path):
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     
     frame_index = 0
+    # 跟踪上一个时间戳，确保递增
+    last_timestamp_ms = -1
     
     # 创建帧处理进度条
     pbar = tqdm(total=total_frames, desc="处理帧", unit="帧")
@@ -148,8 +150,12 @@ def process_video(video_path, face_detector, pose_detector, output_path):
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
         
-        # 计算当前帧的时间戳
+        # 计算当前帧的时间戳，确保严格递增
         frame_timestamp_ms = int(frame_index * (1000 / fps))
+        if frame_timestamp_ms <= last_timestamp_ms:
+            frame_timestamp_ms = last_timestamp_ms + 1  # 确保比上一个时间戳大
+        
+        last_timestamp_ms = frame_timestamp_ms
         frame_index += 1
         
         # 从帧中检测面部特征
@@ -230,6 +236,10 @@ if __name__ == "__main__":
         
         # 初始化输出文件
         init_output_file(output_path)
+        
+        # 为每个视频重新创建检测器对象，确保内部状态被重置
+        face_detector = create_face_landmarker(face_model_path)
+        pose_detector = create_pose_landmarker(pose_model_path)
         
         # 处理视频并保存结果
         process_video(input_video_path, face_detector, pose_detector, output_path)
