@@ -7,6 +7,7 @@ from mediapipe.framework.formats import landmark_pb2
 import cv2
 import os
 import shutil
+from tqdm import tqdm
 
 def clear_folder(folder_path):
     """清空并重新创建指定文件夹"""
@@ -135,6 +136,9 @@ def process_video(video_path, face_detector, pose_detector, output_path):
     
     frame_index = 0
     
+    # 创建帧处理进度条
+    pbar = tqdm(total=total_frames, desc="处理帧", unit="帧")
+    
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
@@ -156,10 +160,15 @@ def process_video(video_path, face_detector, pose_detector, output_path):
         
         # 保存合并的特征数据到文件
         save_combined_features(face_result, pose_result, output_path, frame_width, frame_height)
+        
+        # 更新进度条
+        pbar.update(1)
                 
         if cv2.waitKey(int(1000 / fps)) & 0xFF == ord('q'):
             break
 
+    # 关闭进度条
+    pbar.close()
     cap.release()
     cv2.destroyAllWindows()
     
@@ -206,8 +215,8 @@ if __name__ == "__main__":
     
     os.makedirs(features_dir, exist_ok=True)
     
-    # 逐个处理视频文件
-    for video_file in video_files:
+    # 使用tqdm添加视频处理进度条
+    for video_file in tqdm(video_files, desc="处理视频", unit="个"):
         input_video_path = os.path.join(videos_dir, video_file)
         
         # 获取视频文件名（不带扩展名）用于生成输出文件名

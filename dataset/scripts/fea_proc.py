@@ -1,6 +1,6 @@
 import os
 import numpy as np
-import random
+from tqdm import tqdm
 
 def quantize_data(data, bit_depth):
     """将数据量化到指定的位深度
@@ -141,28 +141,32 @@ def process_feature_file(input_path, output_dir, bit_depths, loss_rates):
     data = np.array(data)
     
     # 对每种量化等级和丢包率组合进行处理
-    for bit_depth in bit_depths:
-        for loss_rate in loss_rates:
-            # 创建输出文件名
-            output_filename = f"{name_without_ext}_q{bit_depth}_l{int(loss_rate*100)}.txt"
-            output_path = os.path.join(output_dir, output_filename)
-            
-            # 量化数据
-            quantized_data = quantize_data(data, bit_depth)
-            
-            # 应用丢包
-            processed_data = apply_packet_loss(quantized_data, loss_rate)
-            
-            # 保存到文件
-            try:
-                with open(output_path, 'w') as f:
-                    for row in processed_data:
-                        # 将数据转换回字符串并添加逗号
-                        line = ','.join([f"{value:.6f}" for value in row]) + ',\n'
-                        f.write(line)
-                print(f"  已保存: {output_filename}")
-            except Exception as e:
-                print(f"保存文件 {output_path} 失败: {e}")
+    total_combinations = len(bit_depths) * len(loss_rates)
+    with tqdm(total=total_combinations, desc=f"处理 {name_without_ext}", leave=False) as pbar:
+        for bit_depth in bit_depths:
+            for loss_rate in loss_rates:
+                # 创建输出文件名
+                output_filename = f"{name_without_ext}_q{bit_depth}_l{int(loss_rate*100)}.txt"
+                output_path = os.path.join(output_dir, output_filename)
+                
+                # 量化数据
+                quantized_data = quantize_data(data, bit_depth)
+                
+                # 应用丢包
+                processed_data = apply_packet_loss(quantized_data, loss_rate)
+                
+                # 保存到文件
+                try:
+                    with open(output_path, 'w') as f:
+                        for row in processed_data:
+                            # 将数据转换回字符串并添加逗号
+                            line = ','.join([f"{value:.6f}" for value in row]) + ',\n'
+                            f.write(line)
+                    pbar.set_postfix(file=output_filename)
+                except Exception as e:
+                    print(f"保存文件 {output_path} 失败: {e}")
+                
+                pbar.update(1)
     
     print(f"完成: {name_without_ext}")
 
@@ -194,8 +198,8 @@ def main():
     
     print(f"找到 {len(txt_files)} 个.txt文件")
     
-    # 处理每个文件
-    for txt_file in txt_files:
+    # 处理每个文件，添加进度条
+    for txt_file in tqdm(txt_files, desc="处理文件"):
         input_path = os.path.join(input_dir, txt_file)
         process_feature_file(input_path, output_dir, bit_depths, loss_rates)
     
