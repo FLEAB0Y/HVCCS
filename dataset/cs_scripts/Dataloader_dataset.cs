@@ -27,6 +27,7 @@ public class FaceDataReceiver : MonoBehaviour
     private int currentFileIndex = 0;
     private float fileTransitionTimer = 0f;
     private bool isWaitingForNextFile = false;
+    [SerializeField] [Tooltip("文件之间的切换延迟时间（秒）")] 
     private float fileSwitchDelay = 10f; // 文件之间的间隔，单位为秒
     
     // 界面控制选项
