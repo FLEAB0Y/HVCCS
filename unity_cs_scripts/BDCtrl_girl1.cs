@@ -4,14 +4,60 @@ using System.Linq;
 using System.Threading;
 using UnityEngine;
 
+//人体各个关节的列表
+public enum PositionIndex:int
+{
+    Hips=0,
+    Spine,
+    Chest,
+    UpperChest,
+    LeftShoulder,
+    LeftUpperArm,
+    LeftLowerArm,
+    LeftHand,
+    LeftThumbIntermediate,
+    LeftIndexIntermediate,
+    LeftLittleIntermediate,
+    RightShoulder,
+    RightUpperArm,
+    RightLowerArm,
+    RightHand,
+    RightThumbIntermediate,
+    RightIndexIntermediate,
+    RightLittleIntermediate,
+    LeftUpperLeg,
+    LeftLowerLeg,
+    LeftFoot,
+    RightUpperLeg,
+    RightLowerLeg,
+    RightFoot,
+    Neck,
+    LeftToes,
+    RightToes,
+    //……
+}
+
 public class BDCtrl : MonoBehaviour
 {
     public GameObject NeZha;//哪吒人物物体
     
-    // 添加根节点位置偏移变量，可在Inspector中调整
-    [Header("根节点位置调整")]
-    [Tooltip("用于手动调整哪吒根节点(Hips)的位置偏移")]
-    public Vector3 hipsPositionOffset = Vector3.zero;
+    // 添加全局坐标系修正变量
+    [Header("全局坐标系修正")]
+    [Tooltip("修正y轴和z轴交换的问题")]
+    public bool applyAxisCorrection = true;
+    
+    // 添加数据偏移设置
+    [Header("数据偏移设置")]
+    [Tooltip("X轴数据偏移量")]
+    public float offsetX = 0f;
+    [Tooltip("Y轴数据偏移量")]
+    public float offsetY = 0f;
+    [Tooltip("Z轴数据偏移量")]
+    public float offsetZ = 0f;
+    
+    private GameObject rootCorrection;
+    
+    private Animator ani;//挂在哪吒上的动画组件
     
     Transform[] BodyPart;//avatar人体模型的各个身体部件
     Vector3 raw1;
@@ -22,49 +68,6 @@ public class BDCtrl : MonoBehaviour
     Vector3 LHN;//Left Hand Normal，左手的法向(LookRotation中为y方向)
     Vector3 RHN;//Right Hand Normal，右手的法向(LookRotation中为y方向)
     Vector3 gaze;//哪吒头部的朝向
-
-    // 骨骼名称映射字典
-    private Dictionary<int, string> boneNameMap = new Dictionary<int, string>()
-    {
-        {0, "Hips"},                     // 根节点
-        {1, "Spine"},                    // 脊柱
-        {2, "Spine1"},                   // 胸腔
-        {3, "Spine2"},                   // 上胸腔
-        {4, "LeftShoulder"},             // 左肩
-        {5, "LeftArm"},                  // 左上臂
-        {6, "LeftForeArm"},              // 左下臂
-        {7, "LeftHand"},                 // 左手
-        {8, "LeftHandThumb2"},           // 左拇指
-        {9, "LeftHandIndex2"},           // 左食指
-        {10, "LeftHandPinky2"},          // 左小指
-        {11, "RightShoulder"},           // 右肩
-        {12, "RightArm"},                // 右上臂
-        {13, "RightForeArm"},            // 右下臂
-        {14, "RightHand"},               // 右手
-        {15, "RightHandThumb2"},         // 右拇指
-        {16, "RightHandIndex2"},         // 右食指
-        {17, "RightHandPinky2"},         // 右小指
-        {18, "LeftUpLeg"},               // 左上腿
-        {19, "LeftLeg"},                 // 左下腿
-        {20, "LeftFoot"},                // 左足
-        {21, "RightUpLeg"},              // 右上腿
-        {22, "RightLeg"},                // 右下腿
-        {23, "RightFoot"},               // 右足
-        {24, "Neck"},                    // 颈部
-        {25, "LeftToeBase"},             // 左脚趾
-        {26, "RightToeBase"},            // 右脚趾
-        {27, "LeftHandThumb3"},          // 左拇指尖
-        {28, "RightHandThumb3"},         // 右拇指尖
-        {29, "LeftHandIndex3"},          // 左食指尖
-        {30, "RightHandIndex3"},         // 右食指尖
-        {31, "LeftHandPinky3"},          // 左小指指尖
-        {32, "RightHandPinky3"},         // 右小指指尖
-        {33, "LeftHandMiddle2"},         // 左中指
-        {34, "RightHandMiddle2"},        // 右中指
-        {35, "LeftHandRing2"},           // 左无名指
-        {36, "RightHandRing2"},          // 右无名指
-        {37, "Head"}                     // 头部
-    };
 
     //一些部位的三维坐标
     Vector3 PosLeftUpperLeg;
@@ -132,106 +135,52 @@ public class BDCtrl : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        BodyPart = new Transform[38];//人体模型的各个身体关节
-        
-        // 通过递归查找所有骨骼
-        Transform[] allBones = NeZha.GetComponentsInChildren<Transform>();
-        
-        // 先打印模型的所有骨骼名称，帮助调试
-        Debug.Log("===== 模型所有骨骼列表开始 =====");
-        for (int i = 0; i < allBones.Length; i++)
-        {
-            Debug.Log($"骨骼[{i}]: {allBones[i].name}, 父节点: {(allBones[i].parent ? allBones[i].parent.name : "无")}");
-        }
-        Debug.Log("===== 模型所有骨骼列表结束 =====");
-        
-        // 第一步：尝试标准匹配方式
-        foreach (Transform bone in allBones)
-        {
-            foreach (var entry in boneNameMap)
-            {
-                if (bone.name.IndexOf(entry.Value, System.StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    BodyPart[entry.Key] = bone;
-                    Debug.Log($"标准匹配到骨骼: {entry.Value} -> {bone.name}");
-                    break;
-                }
-            }
-        }
-        
-        // 第二步：针对每个未找到的骨骼进行精确查找
-        for (int i = 0; i < boneNameMap.Count; i++)
-        {
-            if (BodyPart[i] == null)
-            {
-                string boneName = boneNameMap[i];
-                Debug.Log($"尝试精确查找骨骼: {boneName}");
-                
-                // 创建可能的变体名称列表
-                List<string> possibleNames = new List<string> {
-                    boneName,                  // 精确匹配
-                    boneName.ToLower(),        // 全小写
-                    "mixamorig:" + boneName,   // mixamo前缀
-                    boneName + "_end",         // _end后缀
-                    boneName.Replace("Hand", "")  // 特殊处理手部骨骼
-                };
-                
-                // 尝试所有可能的名称
-                foreach (Transform bone in allBones)
-                {
-                    foreach (string possibleName in possibleNames)
-                    {
-                        if (bone.name.IndexOf(possibleName, System.StringComparison.OrdinalIgnoreCase) >= 0)
-                        {
-                            BodyPart[i] = bone;
-                            Debug.Log($"精确查找到骨骼: {boneName} -> {bone.name}");
-                            break;
-                        }
-                    }
-                    
-                    if (BodyPart[i] != null) break;
-                }
-            }
-        }
-        
-        // 第三步：针对指定骨骼查找备选匹配方案
-        // 例如Spine1可能有特殊命名
-        if (BodyPart[2] == null) // Spine1
-        {
-            FindBoneWithNameAndAssign(allBones, "Spine1", 2);
-            // 备选名称
-            if (BodyPart[2] == null) FindBoneWithNameAndAssign(allBones, "Chest", 2);
-        }
-        
-        // 特殊手指骨骼匹配
-        if (BodyPart[8] == null) FindBoneWithNameAndAssign(allBones, "Thumb", 8);
-        if (BodyPart[9] == null) FindBoneWithNameAndAssign(allBones, "Index", 9);
-        if (BodyPart[10] == null) FindBoneWithNameAndAssign(allBones, "Little", 10);
-        if (BodyPart[15] == null) FindBoneWithNameAndAssign(allBones, "Thumb", 15);
-        if (BodyPart[16] == null) FindBoneWithNameAndAssign(allBones, "Index", 16);
-        if (BodyPart[17] == null) FindBoneWithNameAndAssign(allBones, "Little", 17);
-        
-        // 检查是否所有骨骼都已找到
-        bool allBonesFound = true;
-        for (int i = 0; i < BodyPart.Length; i++)
-        {
-            if (BodyPart[i] == null)
-            {
-                Debug.LogError($"未找到骨骼: {boneNameMap[i]}");
-                allBonesFound = false;
-            }
-        }
-        
-        if (!allBonesFound)
-        {
-            Debug.LogError("未找到所有必需的骨骼，请检查模型骨骼结构或骨骼名称映射");
-            // 打印所有找到的骨骼，帮助调试
-            PrintFoundBones();
-            return;
-        }
+        BodyPart = new Transform[38];//unity中的25个身体关节
+        ani = NeZha.GetComponent<Animator>();
+        BodyPart[0] = ani.GetBoneTransform(HumanBodyBones.Hips);//*根节点*
+        BodyPart[1] = ani.GetBoneTransform(HumanBodyBones.Spine);//脊柱
+        BodyPart[2] = ani.GetBoneTransform(HumanBodyBones.Chest);//胸腔
+        BodyPart[3] = ani.GetBoneTransform(HumanBodyBones.UpperChest);//上胸腔
+        BodyPart[4] = ani.GetBoneTransform(HumanBodyBones.LeftShoulder);//左肩
+        BodyPart[5] = ani.GetBoneTransform(HumanBodyBones.LeftUpperArm);//左上臂
+        BodyPart[6] = ani.GetBoneTransform(HumanBodyBones.LeftLowerArm);//左下臂
+        BodyPart[7] = ani.GetBoneTransform(HumanBodyBones.LeftHand);//左手
+        BodyPart[8] = ani.GetBoneTransform(HumanBodyBones.LeftThumbIntermediate);//左拇指
+        BodyPart[9] = ani.GetBoneTransform(HumanBodyBones.LeftIndexIntermediate);//左食指
+        BodyPart[10] = ani.GetBoneTransform(HumanBodyBones.LeftLittleIntermediate);//左小指
+        BodyPart[11] = ani.GetBoneTransform(HumanBodyBones.RightShoulder);//右肩
+        BodyPart[12] = ani.GetBoneTransform(HumanBodyBones.RightUpperArm);//右上臂
+        BodyPart[13] = ani.GetBoneTransform(HumanBodyBones.RightLowerArm);//右下臂
+        BodyPart[14] = ani.GetBoneTransform(HumanBodyBones.RightHand);//右手
+        BodyPart[15] = ani.GetBoneTransform(HumanBodyBones.RightThumbIntermediate);//右拇指
+        BodyPart[16] = ani.GetBoneTransform(HumanBodyBones.RightIndexIntermediate);//右食指
+        BodyPart[17] = ani.GetBoneTransform(HumanBodyBones.RightLittleIntermediate);//右小指
+        BodyPart[18] = ani.GetBoneTransform(HumanBodyBones.LeftUpperLeg);//左上腿
+        BodyPart[19] = ani.GetBoneTransform(HumanBodyBones.LeftLowerLeg);//左下腿
+        BodyPart[20] = ani.GetBoneTransform(HumanBodyBones.LeftFoot);//左足
+        BodyPart[21] = ani.GetBoneTransform(HumanBodyBones.RightUpperLeg);//右上腿
+        BodyPart[22] = ani.GetBoneTransform(HumanBodyBones.RightLowerLeg);//右下腿
+        BodyPart[23] = ani.GetBoneTransform(HumanBodyBones.RightFoot);//右足
+        BodyPart[24] = ani.GetBoneTransform(HumanBodyBones.Neck);//颈部
+        BodyPart[25] = ani.GetBoneTransform(HumanBodyBones.LeftToes);//左脚趾
+        BodyPart[26] = ani.GetBoneTransform(HumanBodyBones.RightToes);//右脚趾
+        BodyPart[27] = ani.GetBoneTransform(HumanBodyBones.LeftThumbDistal);//左拇指尖
+        BodyPart[28]=ani.GetBoneTransform(HumanBodyBones.RightThumbDistal);//右拇指尖
+        BodyPart[29] = ani.GetBoneTransform(HumanBodyBones.LeftIndexDistal);//左食指尖
+        BodyPart[30] = ani.GetBoneTransform(HumanBodyBones.RightIndexDistal);//右食指尖
+        BodyPart[31]= ani.GetBoneTransform(HumanBodyBones.LeftLittleDistal);//左小指指尖
+        BodyPart[32] = ani.GetBoneTransform(HumanBodyBones.RightLittleDistal);//右小指指尖
+        BodyPart[33] = ani.GetBoneTransform(HumanBodyBones.LeftMiddleIntermediate);//左中指
+        BodyPart[34] = ani.GetBoneTransform(HumanBodyBones.RightMiddleIntermediate);//右中指
+        BodyPart[35] = ani.GetBoneTransform(HumanBodyBones.LeftRingIntermediate);//左无名指
+        BodyPart[36] = ani.GetBoneTransform(HumanBodyBones.RightRingIntermediate);//右无名指
+        BodyPart[37] = ani.GetBoneTransform(HumanBodyBones.Head);//头部
 
         // 初始化中间矩阵
         InitializeMiddleMatrices();
+        
+        // 创建修正节点
+        SetupAxisCorrection();
     }
 
     // 处理肢体数据的公共方法 - 由FaceDataReceiver直接调用
@@ -322,14 +271,14 @@ public class BDCtrl : MonoBehaviour
         // 创建缩放后的数据数组
         float[] scaledData = new float[data.Length];
         
-        // 对所有坐标点进行缩放
+        // 对所有坐标点进行缩放并应用偏移量
         for (int i = 0; i < data.Length; i += 3)
         {
             if (i + 2 < data.Length) // 确保有完整的xyz三个值
             {
-                scaledData[i] = data[i] / 100f;      // x坐标缩放
-                scaledData[i+1] = data[i+1] / 100f;  // y坐标缩放
-                scaledData[i+2] = data[i+2] / 300f;  // z坐标缩放
+                scaledData[i] = data[i] / 100f + offsetX;      // x坐标缩放并添加偏移
+                scaledData[i+1] = data[i+1] / 100f + offsetY;  // y坐标缩放并添加偏移
+                scaledData[i+2] = data[i+2] / 300f + offsetZ;  // z坐标缩放并添加偏移
             }
         }
         
@@ -337,7 +286,7 @@ public class BDCtrl : MonoBehaviour
         // 更新Hips位置
         BodyPart[0].position = new Vector3((scaledData[69] + scaledData[72]) / 2.0f, 
                                   (scaledData[70] + scaledData[73]) / 2.0f, 
-                                  (scaledData[71] + scaledData[74]) / 2.0f) + hipsPositionOffset;
+                                  (scaledData[71] + scaledData[74]) / 2.0f);
         
         // 估计火柴人模型中对应的LeftUpperLeg与RightUpperLeg位置
         PosLeftUpperLeg = new Vector3(4.0f / 5.0f * scaledData[69] + 1.0f / 5.0f * scaledData[75], 4.0f / 5.0f * scaledData[70] + 1.0f / 5.0f * scaledData[76], 4.0f / 5.0f * scaledData[71] + 1.0f / 5.0f * scaledData[77]);
@@ -353,63 +302,55 @@ public class BDCtrl : MonoBehaviour
         LUL_vec = PosLeftUpperLeg - new Vector3(scaledData[75], scaledData[76], scaledData[77]);
         
         // 更新左上腿的rotation
-        BodyPart[18].rotation = Quaternion.LookRotation(LUL_vec, forward) * Quaternion.Inverse(MidLeftUpperLeg);
+        BodyPart[18].rotation = Quaternion.LookRotation(LUL_vec, forward) * Quaternion.Inverse(MidLeftUpperLeg) * Quaternion.Euler(0, 180, 0);
         
         // 计算右上腿与其子物体的方向
         RUL_vec = PosRightUpperLeg - new Vector3(scaledData[78], scaledData[79], scaledData[80]);
         
         // 更新右上腿的rotation
-        BodyPart[21].rotation = Quaternion.LookRotation(RUL_vec, forward) * Quaternion.Inverse(MidRightUpperLeg);
+        BodyPart[21].rotation = Quaternion.LookRotation(RUL_vec, forward) * Quaternion.Inverse(MidRightUpperLeg) * Quaternion.Euler(0, 180, 0);
         
         // 计算左下腿与其子物体的方向
         LLL_vec = new Vector3(scaledData[75], scaledData[76], scaledData[77]) - new Vector3(scaledData[81], scaledData[82], scaledData[83]);
         
         // 更新左下腿的rotation
-        BodyPart[19].rotation = Quaternion.LookRotation(LLL_vec, forward) * Quaternion.Inverse(MidLeftLowerLeg);
+        BodyPart[19].rotation = Quaternion.LookRotation(LLL_vec, forward) * Quaternion.Inverse(MidLeftLowerLeg) * Quaternion.Euler(0, -180, 0);
         
         // 计算右下腿与其子物体的方向
         RLL_vec = new Vector3(scaledData[78], scaledData[79], scaledData[80]) - new Vector3(scaledData[84], scaledData[85], scaledData[86]);
         
         // 更新右下腿的rotation
-        BodyPart[22].rotation = Quaternion.LookRotation(RLL_vec, forward) * Quaternion.Inverse(MidRightLowerLeg);
+        BodyPart[22].rotation = Quaternion.LookRotation(RLL_vec, forward) * Quaternion.Inverse(MidRightLowerLeg) * Quaternion.Euler(0, -180, 0);
         
         // 计算左足与其子物体的方向
         LF_vec = new Vector3(scaledData[81], scaledData[82], scaledData[83]) - new Vector3(scaledData[93], scaledData[94], scaledData[95]);
         
         // 更新左足的rotation
-        BodyPart[20].rotation = Quaternion.LookRotation(LF_vec, forward) * Quaternion.Inverse(MidLeftFoot);
+        BodyPart[20].rotation = Quaternion.LookRotation(LF_vec, forward) * Quaternion.Inverse(MidLeftFoot) * Quaternion.Euler(-45, 180, 0);
         
         // 计算右足与其子物体的方向
         RF_vec = new Vector3(scaledData[84], scaledData[85], scaledData[86]) - new Vector3(scaledData[96], scaledData[97], scaledData[98]);
         
         // 更新右足的rotation
-        BodyPart[23].rotation = Quaternion.LookRotation(RF_vec, forward) * Quaternion.Inverse(MidRightFoot);
+        BodyPart[23].rotation = Quaternion.LookRotation(RF_vec, forward) * Quaternion.Inverse(MidRightFoot) * Quaternion.Euler(-45, 180, 0);
 
-        // 计算Spine与其子物体的方向 - 修正为从Spine到Chest的方向
-        Sp_vec = new Vector3((scaledData[33] + scaledData[36]) / 2.0f, 
-                    (scaledData[34] + scaledData[37]) / 2.0f, 
-                    (scaledData[35] + scaledData[38]) / 2.0f) - BodyPart[0].position;
+        // 计算Spine与其子物体的方向
+        Sp_vec = BodyPart[0].position - new Vector3((scaledData[33] + scaledData[36]) / 2.0f, (scaledData[34] + scaledData[37]) / 2.0f, (scaledData[35] + scaledData[38]) / 2.0f);
         
-        // 计算Spine的rotation - 保持向上的方向
-        BodyPart[1].rotation = Quaternion.LookRotation(Sp_vec, forward) * Quaternion.Inverse(MidSpine);
+        // 计算Spine的rotation
+        BodyPart[1].rotation = Quaternion.LookRotation(Sp_vec,forward) * Quaternion.Inverse(MidSpine);
         
-        // 计算Chest与其子物体的方向 - 使用肩部中点到颈部的方向
-        Vector3 shoulderMidpoint = new Vector3((scaledData[33] + scaledData[36]) / 2.0f,
-                                     (scaledData[34] + scaledData[37]) / 2.0f,
-                                     (scaledData[35] + scaledData[38]) / 2.0f);
-        Vector3 neckPos = new Vector3((scaledData[21] + scaledData[24]) / 2.0f, 
-                             (scaledData[22] + scaledData[25]) / 2.0f, 
-                             (scaledData[23] + scaledData[26]) / 2.0f);
-        Ch_vec = neckPos - shoulderMidpoint;
+        // 计算Chest与其子物体的方向
+        Ch_vec = Sp_vec;
         
         // 计算Chest的rotation
-        BodyPart[2].rotation = Quaternion.LookRotation(Ch_vec, forward) * Quaternion.Inverse(MidChest);
+        BodyPart[2].rotation = Quaternion.LookRotation(Ch_vec,forward) * Quaternion.Inverse(MidChest);
         
-        // 计算UpperChest的方向 - 使用与Chest不同的方向
-        UC_vec = neckPos - shoulderMidpoint;
+        // 计算UpperChest的朝向
+        UC_vec = Ch_vec;
         
         // 计算UpperChest的rotation
-        BodyPart[3].rotation = Quaternion.LookRotation(UC_vec, forward) * Quaternion.Inverse(MidUpperChest);
+        BodyPart[3].rotation = Quaternion.LookRotation(Ch_vec, forward) * Quaternion.Inverse(MidUpperChest);
 
         // 计算左肩与其子物体方向
         LS_vec = new Vector3(scaledData[36] - scaledData[33], scaledData[37] - scaledData[34], scaledData[38] - scaledData[35]);
@@ -518,34 +459,40 @@ public class BDCtrl : MonoBehaviour
 
         return dd;
     }
-    
-    // 帮助调试用：显示找到的骨骼
-    private void PrintFoundBones()
+
+    // 创建修正节点
+    private void SetupAxisCorrection()
     {
-        for (int i = 0; i < BodyPart.Length; i++)
+        if (applyAxisCorrection)
         {
-            if (BodyPart[i] != null)
-            {
-                Debug.Log($"找到骨骼 [{i}]: {boneNameMap[i]} -> {BodyPart[i].name}");
-            }
-            else
-            {
-                Debug.LogWarning($"未找到骨骼 [{i}]: {boneNameMap[i]}");
-            }
+            // 创建一个新的游戏对象作为NeZha的父对象
+            rootCorrection = new GameObject("AxisCorrection");
+            
+            // 保存哪吒原始的世界位置和旋转
+            Vector3 originalPosition = NeZha.transform.position;
+            Quaternion originalRotation = NeZha.transform.rotation;
+            
+            // 设置修正节点为哪吒的父节点
+            rootCorrection.transform.position = Vector3.zero;
+            rootCorrection.transform.rotation = Quaternion.identity;
+            NeZha.transform.SetParent(rootCorrection.transform, false);
+            
+            // 恢复哪吒的原始世界位置和旋转
+            NeZha.transform.position = originalPosition;
+            NeZha.transform.rotation = originalRotation;
+            
+            // 添加后处理组件
+            rootCorrection.AddComponent<AxisCorrectionHandler>();
         }
     }
+}
 
-    // 辅助方法：根据名称查找骨骼并赋值
-    private void FindBoneWithNameAndAssign(Transform[] allBones, string nameToFind, int index)
+// 添加一个新的组件来处理轴修正
+public class AxisCorrectionHandler : MonoBehaviour
+{
+    void LateUpdate()
     {
-        foreach (Transform bone in allBones)
-        {
-            if (bone.name.IndexOf(nameToFind, System.StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                BodyPart[index] = bone;
-                Debug.Log($"特殊查找到骨骼: {nameToFind} -> {bone.name} (索引:{index})");
-                break;
-            }
-        }
+        // 应用修正矩阵 - 交换Y和Z轴
+        transform.localRotation = Quaternion.Euler(90, 0, 0);
     }
 }
