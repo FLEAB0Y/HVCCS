@@ -63,7 +63,7 @@ if __name__ == "__main__":
     
     # 构建相对路径
     features_dir = os.path.join(script_dir, "..", "proc_features")
-    output_file = os.path.join(script_dir, "..", "file_parameters.xlsx")
+    output_file = os.path.join(script_dir, "..", "wjx", "file_parameters.xlsx")
     
     print(f"读取文件夹: {features_dir}")
     print(f"输出文件路径: {output_file}")

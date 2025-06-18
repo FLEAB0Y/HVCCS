@@ -11,8 +11,8 @@ def process_questionnaire_data():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
     # 设置文件路径
-    wjx_file_path = os.path.join(script_dir, "..", "wjx.xlsx")
-    params_file_path = os.path.join(script_dir, "..", "file_parameters.xlsx")
+    wjx_file_path = os.path.join(script_dir, "..", "wjx", "wjx_cleaned.xlsx")
+    params_file_path = os.path.join(script_dir, "..", "wjx", "file_parameters.xlsx")
     
     if not os.path.exists(wjx_file_path):
         print(f"错误：未找到文件 - {wjx_file_path}")
