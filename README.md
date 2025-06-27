@@ -9,7 +9,6 @@ pip install -r requirements.txt
 pip install mediapipe==0.10.20 --no-deps
 ```
 
-
 ## Unity & Quest 3 Setup
 
 - Unity Hub安装unity h3.3.3-c2
@@ -28,7 +27,16 @@ pip install mediapipe==0.10.20 --no-deps
 - Asset Store无法下载时，通过`Window/Package Manager`，点击`+`按钮，选择`Add package from name`，在[Meta官方文档](https://npm.developer.oculus.com/)中查看`com.meta.xr.sdk.core`和`com.meta.xr.sdk.interaction`，点击`Add`，等待安装完成。
 - 在Meta XR Tools中，选择`Project Setup Tool`，点击`Fix All`和`Apply All`，等待完成。
 
-#### 1.3 Avatar Setup
+### 2 Avatar Setup
+#### 2.1 Avatar connects to c# scripts
+
+- 将`unity_cs_scripts/BDCtrl_girl1.cs`，`/unity_cs_scripts/BSCtrl.cs`和`unity_cs_scripts/FaceDataReceiver.cs`的3个csharp脚本复制到`Assets/Scripts/`文件夹下。
+- 建立多个人物模型`girl1`和`girl2`，注意其中用于绑定BSCtrl.cs脚本的骨骼`Face6`需要重命名为不同名字。点击`Add Component`找到`Scripts`文件夹，将三个脚本添加到模型。选中模型，在inspector面板中设置各个参数。
+- 模型不能直接调整位置，需要通过inspector面板中的位置偏移调整位置。
+- 为每个模型设置socket端口号，具体配置方式参见`fea_extr_py_scripts/grpc2socket.py`。
+
+#### 2.2 Avatar armatures relationships
+- 用于修改bug的骨骼参考，如无必要不用阅读。
 - 世界坐标系中，x是左右，y是上下，z是前后。
 - `nezha`的骨骼结构是
 ```
@@ -123,8 +131,8 @@ Bip001 Pelvis # x是-前+后，y是+左-右，z是+上-下
                     
 ```
 
-### 2 Unity Render Streaming & WebRTC
-#### 2.1 prepare
+### 3 Unity Render Streaming & WebRTC
+#### 3.1 prepare
 - 在unity中打开`Window/Package Manager`，点击`+`按钮，选择`Add package from git URL...`，输入以下地址：
 ```
 com.unity.webrtc@3.0.0-pre.5
@@ -145,7 +153,7 @@ npm install
 ```
 - Windows直接双击运行`run.bat`，linux在命令行运行`./run.sh`
 
-#### 2.2 setup unity scene
+#### 3.2 setup unity scene
 - 在unity中打开`Assets/Samples/Unity Render Streaming/3.1.0-exp.6/Example/`，将里面子文件夹中的场景拖入`Hierarchy`中。
 - 在`Assets`中新建`models`文件夹，将需要渲染的模型，如`nezha.fbx`放入该文件夹中。然后将模型拖入`Hierarchy/WebBrowserInput/`中。
 - 在`Assets`中新建`scripts`文件夹，将`unity_cs_scripts`文件夹中的`BSCtrl.cs`和`FaceDataReceiver.cs`拖入该文件夹中。
@@ -155,3 +163,26 @@ npm install
 - 进入`WebAPP`文件夹，运行`WebApp/run.bat`，启动web服务，可以看到ip地址。
 - 在unity中点击`play`按钮，运行unity场景。
 - 在本机浏览器中输入`127.0.0.1`，或其他电脑浏览器中输入`run.bat`运行后显示的sigaling server的ip地址，可以看到unity渲染的画面。
+
+
+## Python Scripts Setup
+
+- `HVCCS/fea_extr_py_scripts/`中存放了所有实时系统所需的python脚本。
+
+### 1 Server
+
+- **stpe1**: `tools/time_diff_cal_receiver.py`用于计算Sender和Server的本地时间差。将`RECEIVER_IP`改为Server本机IP地址，运行本程序。
+
+- **step3**: 配置好unity项目，点击运行。
+
+- **step4**： `fea_extr_py_scripts/grpc2socket.py`用于接收Sender的gprc协议推送的数据，通过socket协议转发给unity软件c#脚本`unity_cs_scripts/FaceDataReceiver.cs`。统计发送数据大小，通过Sender数据包中的时间戳，和unity返回的时间戳计算MTP时延。使用时首先为每个端口号对应的Sender设置时延校正，校正值通过`tools/time_diff_cal_receiver.py`获取。
+
+### 2 Sender
+- **step2**: `tools/time_diff_cal_sender.py`用于计算Sender和Server的本地时间差。修改`SENDER_IP`为本机IP地址，`RECEIVER_IP`为Server的IP地址。Sender是客户端，应该等Server启动后，再运行Sender。
+
+- **step5**: `fea_extr_py_scripts/grpc_avatar_fea_sender.py`自动获取系统摄像头列表中的第一个摄像头，用于获取直播视频流。需要确保Sender和Server处于同一网络下，将Sender目标IP地址设置为Server的IP地址。为每个客户端分别设置端口号。Sender是客户端，应该等Server启动后，再运行Sender。
+
+### Expected Effect
+- 运行后，请确保身体距离Sender三米左右以确保整个身体进入画面。当看到`fea_extr_py_scripts/grpc_avatar_fea_sender.py`不断打印发送信息说明运行正常
+- 在Server中弹出用户网络参数监控画面，Sender对应用户的统计表中不断更新折线图。
+- unity中对应数字人做出相应动作。如果画面中未找到数字人，可以切换Scend窗口，双击左侧Hierarchy窗口的Avatar对象，视角会自动追踪到该数字人，通过修改偏移量可以调整位置（而不是数字人本身的位置和旋转）。
