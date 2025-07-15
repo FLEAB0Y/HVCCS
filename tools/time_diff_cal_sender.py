@@ -51,6 +51,7 @@ def calculate_time_diff():
                 time_diff = (t2 - t1) - (rtt / 2)
                 
                 print(f"样本 {i+1}: 往返时间 = {rtt}ms, 估算时间差 = {time_diff}ms")
+                print(f"端到端网络时延 = {rtt / 2}ms")
                 time_diffs.append(time_diff)
                 
                 # 短暂暂停，避免过快发送
