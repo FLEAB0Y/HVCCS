@@ -11,6 +11,7 @@ import shutil
 from client import THStreamClient
 from THStreamData import THStreamDataPayload, THDataWarehouse
 import os
+import argparse  # 添加此行
 
 class FrameDataManager:
     """管理帧数据，整合同一帧的姿势和面部特征"""
@@ -292,17 +293,21 @@ def main(server_addr='127.0.0.1', port_num=50051,
         print('资源已释放')
 
 if __name__ == "__main__":
-    # 获取当前脚本所在目录
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+    parser = argparse.ArgumentParser(description="运行姿势和面部表情检测发送器")
+    parser.add_argument("--server_addr", type=str, default="127.0.0.1", help="服务器地址")
+    parser.add_argument("--port_num", type=int, default=50051, help="端口号")
+    parser.add_argument("--pose_model_path", type=str, help="姿势模型路径")
+    parser.add_argument("--face_model_path", type=str, help="面部模型路径")
+    parser.add_argument("--debug", action='store_true', help="调试模式")
+    parser.add_argument("--res_path", type=str, help="结果路径")
     
-    # 构建模型路径
-    pose_model_path = os.path.join(script_dir, "..", "data", "pose_landmarker_full.task")
-    face_model_path = os.path.join(script_dir, "..", "data", "face_landmarker_v2_with_blendshapes.task")
+    args = parser.parse_args()
     
     main(
-        server_addr='127.0.0.1',
-        port_num=50051, 
-        pose_model_path=pose_model_path,
-        face_model_path=face_model_path,
-        debug=False
+        server_addr=args.server_addr,
+        port_num=args.port_num,
+        pose_model_path=args.pose_model_path,
+        face_model_path=args.face_model_path,
+        debug=args.debug,
+        res_path=args.res_path
     )

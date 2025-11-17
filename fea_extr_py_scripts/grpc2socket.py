@@ -1,3 +1,4 @@
+import argparse
 from server import THStreamServiceServicer, serve
 import threading
 import time
@@ -5,7 +6,7 @@ import socket
 import sys
 import io
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout, QHBoxLayout,
-                           QPushButton, QWidget, QStatusBar, QGroupBox, QGridLayout)
+                           QPushButton, QWidget, QStatusBar, QGroupBox, QGridLayout, QScrollArea)
 from PyQt5.QtCore import Qt, QTimer, pyqtSlot
 from PyQt5.QtGui import QImage, QPixmap, QFont
 import pyqtgraph as pg
@@ -16,9 +17,10 @@ import numpy as np
 
 
 class LatencyMonitor(QMainWindow):
-    def __init__(self, port_mappings):
+    def __init__(self, port_mappings, point_cloud_grpc_port=None):
         super().__init__()
         self.port_mappings = port_mappings
+        self.point_cloud_grpc_port = point_cloud_grpc_port
         self.latency_data = {}  # 存储各用户的延迟数据
         self.bandwidth_data = {}  # 存储各用户的带宽数据 (bytes/sec)
         self.packet_stats = {}  # 存储各用户的数据包统计信息
@@ -48,10 +50,15 @@ class LatencyMonitor(QMainWindow):
         self.setWindowTitle('延迟和带宽监控')
         self.setGeometry(100, 100, 1200, 800)
         
-        # 创建主布局为网格布局
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
         central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        main_layout = QGridLayout(central_widget)
+        scroll_area.setWidget(central_widget)
+        self.setCentralWidget(scroll_area)
+        main_layout = QVBoxLayout(central_widget)
+
+        b_users_container = QWidget()
+        b_users_layout = QGridLayout(b_users_container)
         
         # 为每个端口映射创建图表和信息显示
         self.plots = {}
@@ -68,9 +75,13 @@ class LatencyMonitor(QMainWindow):
             
             # 创建用户标题标签
             if grpc_port == 50055:
-                user_title = QLabel(f"A类用户：点云数据，访问端口号：{grpc_port}/{socket_port}")
+                user_title = QLabel(f"全息教师：点云数据，访问端口号：{grpc_port}/{socket_port}")
             else:
-                user_title = QLabel(f"B类用户{b_user_count+1}，访问端口号：{grpc_port}/{socket_port}")
+                if self.point_cloud_grpc_port and grpc_port == self.point_cloud_grpc_port:
+                    user_title = QLabel(f"点云用户：gRPC {grpc_port} / Socket {socket_port}")
+                else:
+                    b_user_count += 1
+                    user_title = QLabel(f"全息学生{b_user_count}：gRPC {grpc_port} / Socket {socket_port}")
                 
             user_title.setFont(QFont('Arial', 11, QFont.Bold))
             user_title.setStyleSheet("color: #003366; background-color: #e6f2ff; padding: 5px; border-radius: 4px;")
@@ -119,15 +130,16 @@ class LatencyMonitor(QMainWindow):
             
             # 根据用户类型放置在对应的网格位置
             if grpc_port == 50055:
-                # A类用户放在第3列第1行
-                main_layout.addWidget(user_container, 0, 2)
+                main_layout.addWidget(user_container)
             else:
-                # B类用户放在前2列
-                row = b_user_count // 2  # 0或1
-                col = b_user_count % 2   # 0或1
-                main_layout.addWidget(user_container, row, col)
-                b_user_count += 1
-    
+                row = (b_user_count - 1) // 2
+                col = (b_user_count - 1) % 2
+                b_users_layout.addWidget(user_container, row, col)
+
+        if b_user_count:
+            main_layout.addWidget(b_users_container)
+        main_layout.addStretch()
+
     # 添加状态栏
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
@@ -319,14 +331,12 @@ def send_formatted_point_cloud(points, socket_port):
         print(f"[点云处理] 发送点云数据错误: {e}")
         return False
 
-def grpc_thread(grpc_port, socket_port, latency_monitor=None):
-    """gRPC线程处理函数"""
+def grpc_thread(grpc_port, socket_port, latency_monitor=None, point_cloud_grpc_port=None):
     servicer = THStreamServiceServicer()
     server_thread = threading.Thread(target=serve, args=(servicer, grpc_port))
     server_thread.start()
 
-    # 判断是否为点云数据专用端口
-    is_point_cloud_port = (grpc_port == 50055)
+    is_point_cloud_port = (point_cloud_grpc_port is not None and grpc_port == point_cloud_grpc_port)
     if is_point_cloud_port:
         print(f"[点云数据] 启动点云数据专用服务: gRPC端口 {grpc_port}, Socket端口 {socket_port}")
 
@@ -379,7 +389,8 @@ def grpc_thread(grpc_port, socket_port, latency_monitor=None):
             except Exception as e:
                 print(f"[gRPC Port {grpc_port}] 处理数据错误: {e}")
 
-def latency_feedback_server(feedback_port, port_mappings, latency_monitor=None, latency_compensation=None):
+def latency_feedback_server(feedback_port, port_mappings, latency_monitor=None,
+                            latency_compensation=None, feedback_offset=1000):
     """接收Unity发送的延迟反馈数据的服务器"""
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind(("127.0.0.1", feedback_port))
@@ -387,10 +398,8 @@ def latency_feedback_server(feedback_port, port_mappings, latency_monitor=None, 
     print(f"[延迟反馈] 服务器已启动，监听端口: {feedback_port}")
     
     # 根据反馈端口找到对应的grpc端口
-    grpc_port = None
-    for grpc_port, socket_port in port_mappings:
-        if feedback_port == socket_port + 1000:  # 9890对应8890
-            break
+    target = next(((gp, sp) for gp, sp in port_mappings if feedback_port == sp + feedback_offset), None)
+    grpc_port = target[0] if target else None
     
     # 获取该gRPC端口的延迟补偿值
     compensation = 0
@@ -420,55 +429,63 @@ def latency_feedback_server(feedback_port, port_mappings, latency_monitor=None, 
         except Exception as e:
             print(f"[延迟反馈] 接收反馈数据错误: {e}")
 
-if __name__ == '__main__':
-    # 定义 gRPC 和对应的 socket 端口
-    port_mappings = [
+def main():
+    parser = argparse.ArgumentParser(description="gRPC 转 Socket 转发与监控")
+    parser.add_argument("--grpc_ports", nargs='+', type=int, help="gRPC端口列表")
+    parser.add_argument("--socket_ports", nargs='+', type=int, help="Socket端口列表")
+    parser.add_argument("--point_cloud_grpc_port", type=int, help="点云数据gRPC端口")
+    parser.add_argument("--feedback_offset", type=int, default=1000, help="反馈端口与Socket端口的偏移量")
+    args = parser.parse_args()
+
+    default_mappings = [
         (50051, 8890),
         (50052, 8891),
         (50053, 8892),
         (50054, 8893),
-        (50055, 8894)  # 添加点云数据专用端口
+        (50055, 8894)
     ]
-    
-    # 定义每个用户的延迟补偿值（毫秒）通过./tools/time_diff_cal_sender.py计算
-    # time_diff = (Time_rx-Time_tx) - RTT/2
-    latency_compensation = {
-        50051: 0,   # 用户1: 0ms
-        50052: 0,   # 用户2: 0ms
-        50053: 0,   # 用户3: 0ms
-        50054: 0,   # 用户4: 0ms
-        50055: 0    # 点云数据: 0ms
-    }
-    
-    # 打印延迟补偿配置
-    print("[配置] 用户延迟补偿值:")
-    for port, comp in latency_compensation.items():
-        if port == 50055:
-            print(f"  - 点云数据（端口{port}）: {comp}ms")
-        else:
-            print(f"  - B类用户{port - 50050}（端口{port}）: {comp}ms")
-    
-    # 对应的反馈端口
-    feedback_ports = [9890, 9891, 9892, 9893, 9894]  # 添加点云数据反馈端口
 
-    # 创建 PyQt 应用和延迟监控窗口
+    if args.grpc_ports and args.socket_ports:
+        if len(args.grpc_ports) != len(args.socket_ports):
+            parser.error("gRPC端口与Socket端口数量必须一致")
+        port_mappings = list(zip(args.grpc_ports, args.socket_ports))
+    else:
+        port_mappings = default_mappings
+
+    point_cloud_grpc_port = None
+    if args.point_cloud_grpc_port:
+        if args.point_cloud_grpc_port not in [gp for gp, _ in port_mappings]:
+            parser.error("点云端口必须包含在gRPC端口列表中")
+        point_cloud_grpc_port = args.point_cloud_grpc_port
+    elif port_mappings:
+        point_cloud_grpc_port = port_mappings[-1][0]
+
+    latency_compensation = {grpc_port: 0 for grpc_port, _ in port_mappings}
+    feedback_ports = [socket_port + args.feedback_offset for _, socket_port in port_mappings]
+
+    print("[配置] 用户延迟补偿值:")
+    for grpc_port in latency_compensation:
+        label = "点云数据" if point_cloud_grpc_port and grpc_port == point_cloud_grpc_port else "通用用户"
+        print(f"  - {label}（端口{grpc_port}）: 0ms")
+
     app = QApplication(sys.argv)
-    latency_monitor = LatencyMonitor(port_mappings)
+    latency_monitor = LatencyMonitor(port_mappings, point_cloud_grpc_port)
     latency_monitor.show()
 
-    # 为每对端口启动一个线程
     threads = []
     for grpc_port, socket_port in port_mappings:
-        t = threading.Thread(target=grpc_thread, args=(grpc_port, socket_port, latency_monitor))
-        t.start()
-        threads.append(t)
-    
-    # 为每个反馈端口启动一个监听线程
-    for feedback_port in feedback_ports:
-        t = threading.Thread(target=latency_feedback_server, 
-                            args=(feedback_port, port_mappings, latency_monitor, latency_compensation))
+        t = threading.Thread(target=grpc_thread,
+                             args=(grpc_port, socket_port, latency_monitor, point_cloud_grpc_port))
         t.start()
         threads.append(t)
 
-    # 启动Qt事件循环
+    for feedback_port in feedback_ports:
+        t = threading.Thread(target=latency_feedback_server,
+                             args=(feedback_port, port_mappings, latency_monitor, latency_compensation, args.feedback_offset))
+        t.start()
+        threads.append(t)
+
     sys.exit(app.exec_())
+
+if __name__ == '__main__':
+    main()
