@@ -13,7 +13,7 @@ class HolographicClassroomGUI:
         self.root.geometry("600x600")
 
         # 虚拟环境路径（假设是conda环境，需根据实际情况调整）
-        self.venv_name = "face_detec"  # 替换为实际环境名
+        self.venv_name = "HVCCS"  # 替换为实际环境名
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
 
         # 创建输入字段
@@ -299,15 +299,29 @@ class HolographicClassroomGUI:
             raise ValueError("至少配置一组端口映射")
         return port_pairs
 
-    def _launch_in_terminal(self, cmd, success_message):
-        try:
-            quoted_cmd = " ".join(shlex.quote(part) for part in cmd)
+    def _launch_in_terminal(self, cmd, message):
+        import shlex
+        if sys.platform.startswith('win'):
+            # Windows
+            quoted_cmd = " ".join(shlex.quote(str(part)) for part in cmd)
+            subprocess.Popen(f'start cmd /k {quoted_cmd}', shell=True)
+        elif sys.platform.startswith('linux'):
+            # Linux
+            quoted_cmd = " ".join(shlex.quote(str(part)) for part in cmd)
+            # 优先尝试 gnome-terminal，否则用 x-terminal-emulator
+            try:
+                subprocess.Popen(['gnome-terminal', '--', 'bash', '-c', quoted_cmd])
+            except FileNotFoundError:
+                subprocess.Popen(['x-terminal-emulator', '-e', quoted_cmd])
+        elif sys.platform == 'darwin':
+            # MacOS
+            quoted_cmd = " ".join(shlex.quote(str(part)) for part in cmd)
             escaped_cmd = quoted_cmd.replace('"', r'\"')
-            apple_script = f'''tell application "Terminal" to do script "{escaped_cmd}"'''
-            subprocess.run(["osascript", "-e", apple_script], check=True)
-            self.output_text.insert(tk.END, success_message + "\n")
-        except subprocess.CalledProcessError as e:
-            messagebox.showerror("错误", f"运行脚本失败: {e}")
+            apple_script = f'tell application "Terminal" to do script "{escaped_cmd}"'
+            subprocess.run(['osascript', '-e', apple_script], check=True)
+        else:
+            raise RuntimeError("Unsupported OS")
+        self.output_text.insert(tk.END, message + "\n")
 
     def stop_sender(self):
         script_path = os.path.join(self.script_dir, "fea_extr_py_scripts", "grpc_avatar_fea_sender.py")
