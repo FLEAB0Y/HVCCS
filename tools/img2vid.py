@@ -36,6 +36,11 @@ def clear_folder(folder_path):
 
 
 if __name__ == "__main__":
+    output_fps = 15
+
+    if output_fps <= 0:
+        raise ValueError("fps must be greater than 0")
+
     # 使用相对路径
     script_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = os.path.dirname(script_dir)  # 上一级目录 (HVCCS)
@@ -43,10 +48,9 @@ if __name__ == "__main__":
     output_video_path = os.path.join(base_dir, 'res', 'video_res')
     clear_folder(output_video_path)
     
-    landmarks_path = os.path.join(base_dir, 'res', 'detec_res')
-    render_res_path = os.path.join(base_dir, 'res', 'render_res')
+    input_path1 = os.path.join(base_dir, 'res', 'splines_encoder')
+    input_path2 = os.path.join(base_dir, 'res', 'splines_decoder')
     
-    # 将facelandmarks图像拼接为视频
-    images_to_video(landmarks_path, os.path.join(output_video_path, "pose_landmarks.mp4"))
-    # 将render res拼接为视频
-    # images_to_video(render_res_path, os.path.join(output_video_path, "render_output.mp4"))
+
+    images_to_video(input_path1, os.path.join(output_video_path, "splines_encoder.mp4"), fps=output_fps)
+    images_to_video(input_path2, os.path.join(output_video_path, "splines_decoder.mp4"), fps=output_fps)
