@@ -1,4 +1,3 @@
-import argparse
 import json
 import os
 import time
@@ -17,7 +16,134 @@ from server import THStreamServiceServicer
 
 
 PACKET_TAG = b"POSE99V1"
-DEFAULT_CHECKPOINT_PATH = "/home/ztw/HVCCS/checkpoints/pose_mamba_init_k17_d3_w32_h128_ds64_dc4_ex4_nl4_s2026.pt"
+DEFAULT_CODEC_CONFIG_PATH = "/home/ztw/HVCCS/checkpoints/pose_codec_config.json"
+
+MODEL_HPARAM_KEYS = (
+    "num_keypoints",
+    "model_in_dim",
+    "history_len",
+    "gnn_hidden",
+    "mamba_d_state",
+    "mamba_d_conv",
+    "mamba_expand",
+    "mamba_n_layer",
+    "i_frame_interval",
+    "quantize_i_frame",
+    "quantize_p_frame",
+    "quant_scale",
+    "entropy_enabled",
+    "entropy_level",
+    "model_seed",
+)
+
+DECODER_RUNTIME_KEYS = (
+    "host",
+    "port",
+    "window_size",
+    "cuda_device",
+    "max_frames",
+    "debug",
+    "output_path",
+)
+
+
+def _to_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in {"1", "true", "yes", "on"}:
+            return True
+        if v in {"0", "false", "no", "off"}:
+            return False
+    raise ValueError(f"invalid bool value: {value}")
+
+
+def load_runtime_codec_config(config_path: str) -> dict:
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"codec_config not found: {config_path}")
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = json.load(f)
+    print(f"loaded_codec_config: {config_path}")
+
+    if not isinstance(config, dict):
+        raise ValueError("codec config root must be a JSON object")
+
+    missing_top_keys = [
+        key for key in ("checkpoint_path", "model_hparams", "decoder_runtime") if key not in config
+    ]
+    if missing_top_keys:
+        raise ValueError(f"codec config missing required keys: {missing_top_keys}")
+
+    checkpoint_path = str(config["checkpoint_path"]).strip()
+    if not checkpoint_path:
+        raise ValueError("checkpoint_path in codec config is empty")
+
+    config_hparams = config["model_hparams"]
+    if not isinstance(config_hparams, dict):
+        raise ValueError("model_hparams in codec config must be a JSON object")
+    missing_hparam_keys = [key for key in MODEL_HPARAM_KEYS if key not in config_hparams]
+    if missing_hparam_keys:
+        raise ValueError(f"model_hparams missing required keys: {missing_hparam_keys}")
+
+    model_hparams = {
+        "num_keypoints": int(config_hparams["num_keypoints"]),
+        "model_in_dim": int(config_hparams["model_in_dim"]),
+        "history_len": int(config_hparams["history_len"]),
+        "gnn_hidden": int(config_hparams["gnn_hidden"]),
+        "mamba_d_state": int(config_hparams["mamba_d_state"]),
+        "mamba_d_conv": int(config_hparams["mamba_d_conv"]),
+        "mamba_expand": int(config_hparams["mamba_expand"]),
+        "mamba_n_layer": int(config_hparams["mamba_n_layer"]),
+        "i_frame_interval": int(config_hparams["i_frame_interval"]),
+        "quantize_i_frame": int(_to_bool(config_hparams["quantize_i_frame"])),
+        "quantize_p_frame": int(_to_bool(config_hparams["quantize_p_frame"])),
+        "quant_scale": float(config_hparams["quant_scale"]),
+        "entropy_enabled": int(_to_bool(config_hparams["entropy_enabled"])),
+        "entropy_level": int(config_hparams["entropy_level"]),
+        "model_seed": int(config_hparams["model_seed"]),
+    }
+
+    config_decoder_runtime = config["decoder_runtime"]
+    if not isinstance(config_decoder_runtime, dict):
+        raise ValueError("decoder_runtime in codec config must be a JSON object")
+    missing_decoder_runtime_keys = [
+        key for key in DECODER_RUNTIME_KEYS if key not in config_decoder_runtime
+    ]
+    if missing_decoder_runtime_keys:
+        raise ValueError(
+            f"decoder_runtime missing required keys: {missing_decoder_runtime_keys}"
+        )
+
+    decoder_runtime = {
+        "host": str(config_decoder_runtime["host"]),
+        "port": int(config_decoder_runtime["port"]),
+        "window_size": int(config_decoder_runtime["window_size"]),
+        "cuda_device": int(config_decoder_runtime["cuda_device"]),
+        "max_frames": int(config_decoder_runtime["max_frames"]),
+        "debug": _to_bool(config_decoder_runtime["debug"]),
+        "output_path": str(config_decoder_runtime["output_path"]),
+    }
+
+    if decoder_runtime["window_size"] < 1:
+        raise ValueError(
+            f"decoder_runtime.window_size must be >= 1, got {decoder_runtime['window_size']}"
+        )
+    if decoder_runtime["max_frames"] < 1:
+        raise ValueError(
+            f"decoder_runtime.max_frames must be >= 1, got {decoder_runtime['max_frames']}"
+        )
+    if not decoder_runtime["output_path"].strip():
+        raise ValueError("decoder_runtime.output_path is empty")
+
+    return {
+        "checkpoint_path": checkpoint_path,
+        "model_hparams": model_hparams,
+        "decoder_runtime": decoder_runtime,
+    }
 
 
 def _is_cuda_arch_supported(cuda_device: int) -> bool:
@@ -370,86 +496,44 @@ def run_receiver_service(
 
 
 def main() -> None:
-    # ===== 模型超参数（程序内统一定义，不通过命令行传递） =====
-    MODEL_HPARAMS = {
-        # 每帧关键点数量（Human3.6M: 17）
-        "num_keypoints": 17,
-        # 输入关键点维度，当前姿态是xyz三维
-        "model_in_dim": 3,
-        # 时序历史长度
-        "history_len": 8,
-        # GNN隐藏维度，同时作为Mamba的d_model（质量优先：更大容量）
-        "gnn_hidden": 128,
-        # Mamba状态维度（质量优先：更强记忆）
-        "mamba_d_state": 64,
-        # Mamba局部卷积宽度（当前 causal_conv1d 约束为 2~4）
-        "mamba_d_conv": 4,
-        # Mamba通道扩展倍率
-        "mamba_expand": 4,
-        # Mamba堆叠层数
-        "mamba_n_layer": 4,
-        # I帧间隔（0表示仅冷启动I帧；>0表示按间隔插入I帧）
-        "i_frame_interval": 8,
-        # 是否量化I帧
-        "quantize_i_frame": 0,
-        # 是否量化P帧（残差）
-        "quantize_p_frame": 0,
-        # 量化比例（q = round(x * quant_scale)）
-        "quant_scale": 1000.0,
-        # 是否开启熵编码
-        "entropy_enabled": 0,
-        # zlib压缩级别（0~9）
-        "entropy_level": 6,
-        # 模型初始化种子，编解码两端需一致
-        "model_seed": 2026,
-    }
+    runtime_cfg = load_runtime_codec_config(DEFAULT_CODEC_CONFIG_PATH)
+    model_hparams = runtime_cfg["model_hparams"]
+    decoder_runtime = runtime_cfg["decoder_runtime"]
+    checkpoint_path = runtime_cfg["checkpoint_path"]
 
-    parser = argparse.ArgumentParser(description="Mamba pose decoder gRPC receiver")
-    parser.add_argument("--host", type=str, default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=50051)
-    parser.add_argument("--window_size", type=int, default=8)
-    parser.add_argument("--cuda_device", type=int, default=0)
-    parser.add_argument("--max_frames", type=int, default=300)
-    parser.add_argument("--debug", action="store_true")
-    parser.add_argument(
-        "--output_path",
-        type=str,
-        default="/home/ztw/HVCCS/res/decode_res/pose_recon_codec_h36m.npy",
-    )
-    args = parser.parse_args()
-
-    if args.window_size != MODEL_HPARAMS["history_len"]:
+    if decoder_runtime["window_size"] != model_hparams["history_len"]:
         raise ValueError(
-            f"window_size({args.window_size}) 必须与 history_len({MODEL_HPARAMS['history_len']}) 一致"
+            "decoder_runtime.window_size("
+            f"{decoder_runtime['window_size']}) 必须与 history_len({model_hparams['history_len']}) 一致"
         )
 
-    if not os.path.exists(DEFAULT_CHECKPOINT_PATH):
-        raise FileNotFoundError(f"checkpoint not found: {DEFAULT_CHECKPOINT_PATH}")
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(f"checkpoint not found: {checkpoint_path}")
 
     run_receiver_service(
-        host=args.host,
-        port=args.port,
-        window_size=args.window_size,
-        num_keypoints=MODEL_HPARAMS["num_keypoints"],
-        model_in_dim=MODEL_HPARAMS["model_in_dim"],
-        history_len=MODEL_HPARAMS["history_len"],
-        gnn_hidden=MODEL_HPARAMS["gnn_hidden"],
-        mamba_d_state=MODEL_HPARAMS["mamba_d_state"],
-        mamba_d_conv=MODEL_HPARAMS["mamba_d_conv"],
-        mamba_expand=MODEL_HPARAMS["mamba_expand"],
-        mamba_n_layer=MODEL_HPARAMS["mamba_n_layer"],
-        i_frame_interval=MODEL_HPARAMS["i_frame_interval"],
-        quantize_i_frame=MODEL_HPARAMS["quantize_i_frame"],
-        quantize_p_frame=MODEL_HPARAMS["quantize_p_frame"],
-        quant_scale=MODEL_HPARAMS["quant_scale"],
-        entropy_enabled=MODEL_HPARAMS["entropy_enabled"],
-        entropy_level=MODEL_HPARAMS["entropy_level"],
-        model_seed=MODEL_HPARAMS["model_seed"],
-        cuda_device=args.cuda_device,
-        checkpoint_path=DEFAULT_CHECKPOINT_PATH,
-        max_frames=args.max_frames,
-        debug=args.debug,
-        output_path=args.output_path,
+        host=decoder_runtime["host"],
+        port=decoder_runtime["port"],
+        window_size=decoder_runtime["window_size"],
+        num_keypoints=model_hparams["num_keypoints"],
+        model_in_dim=model_hparams["model_in_dim"],
+        history_len=model_hparams["history_len"],
+        gnn_hidden=model_hparams["gnn_hidden"],
+        mamba_d_state=model_hparams["mamba_d_state"],
+        mamba_d_conv=model_hparams["mamba_d_conv"],
+        mamba_expand=model_hparams["mamba_expand"],
+        mamba_n_layer=model_hparams["mamba_n_layer"],
+        i_frame_interval=model_hparams["i_frame_interval"],
+        quantize_i_frame=model_hparams["quantize_i_frame"],
+        quantize_p_frame=model_hparams["quantize_p_frame"],
+        quant_scale=model_hparams["quant_scale"],
+        entropy_enabled=model_hparams["entropy_enabled"],
+        entropy_level=model_hparams["entropy_level"],
+        model_seed=model_hparams["model_seed"],
+        cuda_device=decoder_runtime["cuda_device"],
+        checkpoint_path=checkpoint_path,
+        max_frames=decoder_runtime["max_frames"],
+        debug=decoder_runtime["debug"],
+        output_path=decoder_runtime["output_path"],
     )
 
 
