@@ -1,0 +1,504 @@
+import argparse
+import csv
+import json
+import os
+
+import numpy as np
+
+
+def safe_div(numerator, denominator, eps=1e-12):
+	if denominator is None:
+		return float("nan")
+	if not np.isfinite(denominator):
+		return float("nan")
+	if abs(denominator) <= eps:
+		return float("nan")
+	return float(numerator / denominator)
+
+
+def collect_npz_files_by_suffix(input_dir, suffix):
+	if not os.path.isdir(input_dir):
+		raise FileNotFoundError(f"Directory not found: {input_dir}")
+
+	files = []
+	for name in os.listdir(input_dir):
+		full_path = os.path.join(input_dir, name)
+		if not os.path.isfile(full_path):
+			continue
+		if not name.endswith(suffix):
+			continue
+		files.append(name)
+	files.sort()
+	return files
+
+
+def build_id_to_path_map(input_dir, suffix):
+	mapping = {}
+	for name in collect_npz_files_by_suffix(input_dir, suffix):
+		sample_id = name[: -len(suffix)]
+		mapping[sample_id] = os.path.join(input_dir, name)
+	return mapping
+
+
+def load_spline_npz(npz_path):
+	data = np.load(npz_path, allow_pickle=False)
+	if "time_sec" not in data or "coeffs" not in data:
+		raise KeyError(f"Missing required keys in {npz_path}. Need time_sec and coeffs")
+
+	time_sec = data["time_sec"].astype(np.float64)
+	coeffs = data["coeffs"].astype(np.float64)
+
+	if coeffs.ndim != 4:
+		raise ValueError(f"Unexpected coeffs shape {coeffs.shape}, expected (K,3,4,S)")
+	if coeffs.shape[1] != 3 or coeffs.shape[2] != 4:
+		raise ValueError(f"Unexpected coeffs shape {coeffs.shape}, expected axis=3 and cubic=4")
+	if len(time_sec) != coeffs.shape[3] + 1:
+		raise ValueError(
+			f"time_sec length {len(time_sec)} mismatches segments {coeffs.shape[3]} in {npz_path}"
+		)
+	if np.any(np.diff(time_sec) <= 0):
+		raise ValueError(f"time_sec must be strictly increasing in {npz_path}")
+
+	return time_sec, coeffs
+
+
+def build_overlap_intervals(gt_time_sec, pred_time_sec, eps=1e-12):
+	gt_seg = len(gt_time_sec) - 1
+	pred_seg = len(pred_time_sec) - 1
+
+	i = 0
+	j = 0
+	intervals = []
+	total_duration = 0.0
+
+	while i < gt_seg and j < pred_seg:
+		gt_end = gt_time_sec[i + 1]
+		pred_end = pred_time_sec[j + 1]
+
+		left = max(gt_time_sec[i], pred_time_sec[j])
+		right = min(gt_end, pred_end)
+
+		if right - left > eps:
+			intervals.append((i, j, float(left), float(right)))
+			total_duration += float(right - left)
+
+		if gt_end <= pred_end + eps:
+			i += 1
+		if pred_end <= gt_end + eps:
+			j += 1
+
+	return intervals, total_duration
+
+
+def local_to_global_coeff(local_coeff, start_t):
+	# local_coeff: [a, b, c, d], y(t)=a*(t-s)^3 + b*(t-s)^2 + c*(t-s) + d
+	a, b, c, d = local_coeff
+	s = start_t
+
+	g3 = a
+	g2 = b - 3.0 * a * s
+	g1 = c - 2.0 * b * s + 3.0 * a * (s ** 2)
+	g0 = d - c * s + b * (s ** 2) - a * (s ** 3)
+	return np.array([g3, g2, g1, g0], dtype=np.float64)
+
+
+def integrate_square_of_poly(poly_desc, left, right):
+	sq = np.polymul(poly_desc, poly_desc)
+	sq_int = np.polyint(sq)
+	return float(np.polyval(sq_int, right) - np.polyval(sq_int, left))
+
+
+def evaluate_segment_curve(coeff_k3_4, seg_start_t, ts):
+	# coeff_k3_4 shape: (K, 3, 4), ts shape: (M,)
+	tau = (ts - seg_start_t)[:, None, None]
+	a = coeff_k3_4[:, :, 0][None, :, :]
+	b = coeff_k3_4[:, :, 1][None, :, :]
+	c = coeff_k3_4[:, :, 2][None, :, :]
+	d = coeff_k3_4[:, :, 3][None, :, :]
+	return ((a * tau + b) * tau + c) * tau + d
+
+
+def evaluate_segment_derivatives(coeff_k3_4, seg_start_t, ts):
+	# coeff_k3_4 shape: (K, 3, 4), ts shape: (M,)
+	tau = (ts - seg_start_t)[:, None, None]
+	a = coeff_k3_4[:, :, 0][None, :, :]
+	b = coeff_k3_4[:, :, 1][None, :, :]
+	c = coeff_k3_4[:, :, 2][None, :, :]
+
+	vel = (3.0 * a * tau + 2.0 * b) * tau + c
+	acc = 6.0 * a * tau + 2.0 * b
+	return vel, acc
+
+
+def compute_analytic_metrics(gt_time_sec, gt_coeffs, pred_time_sec, pred_coeffs, intervals, total_duration):
+	num_kpts, num_dims, _, _ = gt_coeffs.shape
+	channels = num_kpts * num_dims
+
+	pos_sq_integral = 0.0
+	vel_sq_integral = 0.0
+	acc_sq_integral = 0.0
+
+	for kpt in range(num_kpts):
+		for dim in range(num_dims):
+			for gt_idx, pred_idx, left, right in intervals:
+				gt_local = gt_coeffs[kpt, dim, :, gt_idx]
+				pred_local = pred_coeffs[kpt, dim, :, pred_idx]
+
+				gt_global = local_to_global_coeff(gt_local, gt_time_sec[gt_idx])
+				pred_global = local_to_global_coeff(pred_local, pred_time_sec[pred_idx])
+				diff = pred_global - gt_global
+
+				pos_sq_integral += integrate_square_of_poly(diff, left, right)
+
+				d1 = np.array([3.0 * diff[0], 2.0 * diff[1], diff[2]], dtype=np.float64)
+				vel_sq_integral += integrate_square_of_poly(d1, left, right)
+
+				d2 = np.array([6.0 * diff[0], 2.0 * diff[1]], dtype=np.float64)
+				acc_sq_integral += integrate_square_of_poly(d2, left, right)
+
+	duration_channels = total_duration * channels
+	if duration_channels <= 0:
+		raise ValueError("Non-positive overlap duration")
+
+	pos_mse = pos_sq_integral / duration_channels
+	vel_mse = vel_sq_integral / duration_channels
+	acc_mse = acc_sq_integral / duration_channels
+
+	return {
+		"pos_sq_integral": pos_sq_integral,
+		"vel_sq_integral": vel_sq_integral,
+		"acc_sq_integral": acc_sq_integral,
+		"channels": channels,
+		"duration_sec": total_duration,
+		"crmse_mm": float(np.sqrt(pos_mse)),
+		"vel_rmse_mmps": float(np.sqrt(vel_mse)),
+		"acc_rmse_mmps2": float(np.sqrt(acc_mse)),
+	}
+
+
+def compute_sampled_metrics(
+	gt_time_sec,
+	gt_coeffs,
+	pred_time_sec,
+	pred_coeffs,
+	intervals,
+	total_duration,
+	samples_per_interval,
+):
+	if samples_per_interval < 2:
+		raise ValueError(f"samples_per_interval must be >= 2, got {samples_per_interval}")
+
+	if total_duration <= 0:
+		raise ValueError("Non-positive overlap duration")
+
+	mpjpe_integral = 0.0
+	all_joint_errors = []
+
+	gt_pos_min = np.inf
+	gt_pos_max = -np.inf
+	gt_vel_min = np.inf
+	gt_vel_max = -np.inf
+	gt_acc_min = np.inf
+	gt_acc_max = -np.inf
+
+	for idx, (gt_idx, pred_idx, left, right) in enumerate(intervals):
+		endpoint = idx == len(intervals) - 1
+		ts = np.linspace(left, right, samples_per_interval, endpoint=endpoint, dtype=np.float64)
+		if ts.size < 2:
+			continue
+
+		gt_values = evaluate_segment_curve(gt_coeffs[:, :, :, gt_idx], gt_time_sec[gt_idx], ts)
+		pred_values = evaluate_segment_curve(pred_coeffs[:, :, :, pred_idx], pred_time_sec[pred_idx], ts)
+		gt_vel, gt_acc = evaluate_segment_derivatives(gt_coeffs[:, :, :, gt_idx], gt_time_sec[gt_idx], ts)
+
+		gt_pos_min = min(gt_pos_min, float(np.min(gt_values)))
+		gt_pos_max = max(gt_pos_max, float(np.max(gt_values)))
+		gt_vel_min = min(gt_vel_min, float(np.min(gt_vel)))
+		gt_vel_max = max(gt_vel_max, float(np.max(gt_vel)))
+		gt_acc_min = min(gt_acc_min, float(np.min(gt_acc)))
+		gt_acc_max = max(gt_acc_max, float(np.max(gt_acc)))
+
+		diff = pred_values - gt_values
+		joint_err = np.linalg.norm(diff, axis=2)  # (M, K)
+		mpjpe_t = joint_err.mean(axis=1)
+
+		mpjpe_integral += float(np.trapz(mpjpe_t, ts))
+		all_joint_errors.append(joint_err.reshape(-1))
+
+	if len(all_joint_errors) == 0:
+		raise ValueError("No sampled points generated for sampled metrics")
+
+	joint_errors = np.concatenate(all_joint_errors, axis=0)
+	mpjpe_cont = mpjpe_integral / total_duration
+
+	gt_pos_range = float(gt_pos_max - gt_pos_min)
+	gt_vel_range = float(gt_vel_max - gt_vel_min)
+	gt_acc_range = float(gt_acc_max - gt_acc_min)
+
+	return {
+		"mpjpe_cont_mm": float(mpjpe_cont),
+		"p95_joint_err_mm": float(np.percentile(joint_errors, 95.0)),
+		"max_joint_err_mm": float(np.max(joint_errors)),
+		"gt_pos_range_mm": gt_pos_range,
+		"gt_vel_range_mmps": gt_vel_range,
+		"gt_acc_range_mmps2": gt_acc_range,
+	}
+
+
+def summarize_results(rows, analytic_global):
+	summary = {
+		"num_files": len(rows),
+		"analytic_global": analytic_global,
+	}
+	if len(rows) == 0:
+		return summary
+
+	numeric_keys = [
+		"crmse_mm",
+		"ncrmse_by_pos_range",
+		"vel_rmse_mmps",
+		"nvel_rmse_by_vel_range",
+		"acc_rmse_mmps2",
+		"nacc_rmse_by_acc_range",
+		"mpjpe_cont_mm",
+		"nmpjpe_by_pos_range",
+		"p95_joint_err_mm",
+		"np95_joint_err_by_pos_range",
+		"max_joint_err_mm",
+		"nmax_joint_err_by_pos_range",
+		"gt_pos_range_mm",
+		"gt_vel_range_mmps",
+		"gt_acc_range_mmps2",
+	]
+	per_file_stats = {}
+	for key in numeric_keys:
+		values = [r[key] for r in rows if key in r and r[key] is not None]
+		if len(values) == 0:
+			continue
+		arr = np.asarray(values, dtype=np.float64)
+		per_file_stats[key] = {
+			"mean": float(arr.mean()),
+			"median": float(np.median(arr)),
+			"p95": float(np.percentile(arr, 95.0)),
+			"max": float(arr.max()),
+		}
+
+	summary["per_file_stats"] = per_file_stats
+	return summary
+
+
+def write_rows_csv(rows, csv_path):
+	os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+	if len(rows) == 0:
+		with open(csv_path, "w", newline="") as fp:
+			fp.write("sample_id\n")
+		return
+
+	header = []
+	for row in rows:
+		for key in row.keys():
+			if key not in header:
+				header.append(key)
+
+	with open(csv_path, "w", newline="") as fp:
+		writer = csv.DictWriter(fp, fieldnames=header)
+		writer.writeheader()
+		writer.writerows(rows)
+
+
+def run_metrics(
+	gt_dir,
+	pred_dir,
+	output_dir,
+	gt_suffix,
+	pred_suffix,
+	samples_per_interval,
+	max_files,
+):
+	gt_map = build_id_to_path_map(gt_dir, gt_suffix)
+	pred_map = build_id_to_path_map(pred_dir, pred_suffix)
+
+	gt_ids = set(gt_map.keys())
+	pred_ids = set(pred_map.keys())
+	matched_ids = sorted(gt_ids & pred_ids)
+
+	if max_files is not None and max_files > 0:
+		matched_ids = matched_ids[:max_files]
+
+	print(f"Ground truth files: {len(gt_map)}")
+	print(f"Prediction files: {len(pred_map)}")
+	print(f"Matched files: {len(matched_ids)}")
+
+	rows = []
+
+	total_pos_sq = 0.0
+	total_vel_sq = 0.0
+	total_acc_sq = 0.0
+	total_duration_channels = 0.0
+
+	failed = 0
+	for idx, sample_id in enumerate(matched_ids, start=1):
+		gt_path = gt_map[sample_id]
+		pred_path = pred_map[sample_id]
+
+		try:
+			gt_t, gt_c = load_spline_npz(gt_path)
+			pr_t, pr_c = load_spline_npz(pred_path)
+
+			if gt_c.shape[0] != pr_c.shape[0] or gt_c.shape[1] != pr_c.shape[1]:
+				raise ValueError(
+					f"Keypoint/dim mismatch: gt={gt_c.shape[:2]} pred={pr_c.shape[:2]}"
+				)
+
+			intervals, duration = build_overlap_intervals(gt_t, pr_t)
+			if len(intervals) == 0 or duration <= 0:
+				raise ValueError("No overlap intervals between ground truth and prediction")
+
+			analytic = compute_analytic_metrics(gt_t, gt_c, pr_t, pr_c, intervals, duration)
+			sampled = compute_sampled_metrics(
+				gt_t,
+				gt_c,
+				pr_t,
+				pr_c,
+				intervals,
+				duration,
+				samples_per_interval=samples_per_interval,
+			)
+
+			row = {
+				"sample_id": sample_id,
+				"duration_sec": analytic["duration_sec"],
+				"crmse_mm": analytic["crmse_mm"],
+				"ncrmse_by_pos_range": safe_div(analytic["crmse_mm"], sampled["gt_pos_range_mm"]),
+				"vel_rmse_mmps": analytic["vel_rmse_mmps"],
+				"nvel_rmse_by_vel_range": safe_div(analytic["vel_rmse_mmps"], sampled["gt_vel_range_mmps"]),
+				"acc_rmse_mmps2": analytic["acc_rmse_mmps2"],
+				"nacc_rmse_by_acc_range": safe_div(analytic["acc_rmse_mmps2"], sampled["gt_acc_range_mmps2"]),
+				"mpjpe_cont_mm": sampled["mpjpe_cont_mm"],
+				"nmpjpe_by_pos_range": safe_div(sampled["mpjpe_cont_mm"], sampled["gt_pos_range_mm"]),
+				"p95_joint_err_mm": sampled["p95_joint_err_mm"],
+				"np95_joint_err_by_pos_range": safe_div(sampled["p95_joint_err_mm"], sampled["gt_pos_range_mm"]),
+				"max_joint_err_mm": sampled["max_joint_err_mm"],
+				"nmax_joint_err_by_pos_range": safe_div(sampled["max_joint_err_mm"], sampled["gt_pos_range_mm"]),
+				"gt_pos_range_mm": sampled["gt_pos_range_mm"],
+				"gt_vel_range_mmps": sampled["gt_vel_range_mmps"],
+				"gt_acc_range_mmps2": sampled["gt_acc_range_mmps2"],
+				"gt_path": gt_path,
+				"pred_path": pred_path,
+			}
+			rows.append(row)
+
+			total_pos_sq += analytic["pos_sq_integral"]
+			total_vel_sq += analytic["vel_sq_integral"]
+			total_acc_sq += analytic["acc_sq_integral"]
+			total_duration_channels += analytic["duration_sec"] * analytic["channels"]
+
+			print(
+				f"[{idx}/{len(matched_ids)}] {sample_id}: "
+				f"cRMSE={analytic['crmse_mm']:.4f} mm, "
+				f"ncRMSE={safe_div(analytic['crmse_mm'], sampled['gt_pos_range_mm']):.6f}, "
+				f"MPJPE_cont={sampled['mpjpe_cont_mm']:.4f} mm"
+			)
+		except Exception as exc:
+			failed += 1
+			print(f"[{idx}/{len(matched_ids)}] Failed {sample_id}: {exc}")
+
+	analytic_global = None
+	if total_duration_channels > 0:
+		analytic_global = {
+			"crmse_mm": float(np.sqrt(total_pos_sq / total_duration_channels)),
+			"vel_rmse_mmps": float(np.sqrt(total_vel_sq / total_duration_channels)),
+			"acc_rmse_mmps2": float(np.sqrt(total_acc_sq / total_duration_channels)),
+			"duration_channels": float(total_duration_channels),
+		}
+
+	summary = summarize_results(rows, analytic_global)
+	summary["failed_files"] = failed
+	summary["matched_files"] = len(matched_ids)
+	summary["gt_suffix"] = gt_suffix
+	summary["pred_suffix"] = pred_suffix
+	summary["samples_per_interval"] = int(samples_per_interval)
+
+	os.makedirs(output_dir, exist_ok=True)
+	csv_path = os.path.join(output_dir, "metrics_per_file.csv")
+	summary_path = os.path.join(output_dir, "metrics_summary.json")
+
+	write_rows_csv(rows, csv_path)
+	with open(summary_path, "w") as fp:
+		json.dump(summary, fp, indent=2)
+
+	print("=" * 60)
+	print(f"Saved per-file metrics: {csv_path}")
+	print(f"Saved summary: {summary_path}")
+	if analytic_global is not None:
+		print(
+			"Global analytic metrics: "
+			f"cRMSE={analytic_global['crmse_mm']:.4f} mm, "
+			f"vRMSE={analytic_global['vel_rmse_mmps']:.4f} mm/s, "
+			f"aRMSE={analytic_global['acc_rmse_mmps2']:.4f} mm/s^2"
+		)
+
+
+def build_argparser():
+	parser = argparse.ArgumentParser(
+		description=(
+			"Compare predicted realtime spline curves against offline splines_fit ground truth. "
+			"Use analytic integration whenever possible; use dense sampling for non-analytic metrics."
+		)
+	)
+	parser.add_argument(
+		"--gt-dir",
+		type=str,
+		default="/home/data/ztw/AtheletePose3D/data/train_set/S3_splines",
+		help="Ground truth spline directory (from splines_fit).",
+	)
+	parser.add_argument(
+		"--pred-dir",
+		type=str,
+		default="/home/ztw/HVCCS/res/splines_fit_kalman",
+		help="Prediction spline directory (e.g., Kalman or ABG realtime output).",
+	)
+	parser.add_argument(
+		"--output-dir",
+		type=str,
+		default="/home/ztw/HVCCS/res/splines_metrics",
+		help="Output directory for CSV/JSON metrics.",
+	)
+	parser.add_argument(
+		"--gt-suffix",
+		type=str,
+		default="_notaknot_spline.npz",
+		help="Ground truth filename suffix for matching sample IDs.",
+	)
+	parser.add_argument(
+		"--pred-suffix",
+		type=str,
+		default="_kalman_realtime_spline.npz",
+		help="Prediction filename suffix for matching sample IDs.",
+	)
+	parser.add_argument(
+		"--samples-per-interval",
+		type=int,
+		default=20,
+		help="Dense sampling points per overlap interval for non-analytic metrics.",
+	)
+	parser.add_argument(
+		"--max-files",
+		type=int,
+		default=None,
+		help="Optional cap for quick test runs.",
+	)
+	return parser
+
+
+if __name__ == "__main__":
+	args = build_argparser().parse_args()
+	run_metrics(
+		gt_dir=args.gt_dir,
+		pred_dir=args.pred_dir,
+		output_dir=args.output_dir,
+		gt_suffix=args.gt_suffix,
+		pred_suffix=args.pred_suffix,
+		samples_per_interval=args.samples_per_interval,
+		max_files=args.max_files,
+	)
