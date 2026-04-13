@@ -140,9 +140,158 @@ class ABGPredictor:
 		return self.x, self.v, self.a
 
 
+def select_torch_device(cuda_device):
+	import torch
+
+	if cuda_device < 0:
+		return torch.device("cpu")
+	if not torch.cuda.is_available():
+		return torch.device("cpu")
+	if cuda_device >= torch.cuda.device_count():
+		return torch.device("cpu")
+	return torch.device(f"cuda:{cuda_device}")
+
+
+class MambaPredictor:
+	has_acceleration = False
+
+	def __init__(
+		self,
+		channels,
+		num_keypoints,
+		num_dims,
+		checkpoint_path,
+		history_len=8,
+		cuda_device=-1,
+	):
+		if not checkpoint_path:
+			raise ValueError("mamba checkpoint_path is required when predictor_type='mamba'")
+		self.channels = int(channels)
+		self.num_keypoints = int(num_keypoints)
+		self.num_dims = int(num_dims)
+		if self.channels != self.num_keypoints * self.num_dims:
+			raise ValueError(
+				f"channels mismatch: channels={self.channels}, num_keypoints={self.num_keypoints}, num_dims={self.num_dims}"
+			)
+
+		self.history_len = int(history_len)
+		self.model, self.device = self._load_model(checkpoint_path, cuda_device)
+		if self.history_len <= 0:
+			self.history_len = 8
+
+		self._history = []
+		self._prev_x = None
+		self._initialized = False
+
+	def _load_model(self, checkpoint_path, cuda_device):
+		try:
+			import torch
+		except ImportError as exc:
+			raise ImportError("torch is required for mamba predictor") from exc
+
+		try:
+			from poselandmark_online_encoder_v2 import SpatioTemporalPredictor
+		except Exception as exc:
+			raise ImportError(
+				"Failed to import SpatioTemporalPredictor from poselandmark_online_encoder_v2.py"
+			) from exc
+
+		if not os.path.exists(checkpoint_path):
+			raise FileNotFoundError(f"mamba checkpoint not found: {checkpoint_path}")
+
+		ckpt = torch.load(checkpoint_path, map_location="cpu")
+		if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
+			state_dict = ckpt["model_state_dict"]
+			meta = ckpt.get("meta", {})
+		else:
+			state_dict = ckpt
+			meta = {}
+
+		meta_num_keypoints = int(meta.get("num_keypoints", self.num_keypoints))
+		meta_in_dim = int(meta.get("model_in_dim", self.num_dims))
+		meta_out_dim = int(meta.get("model_out_dim", meta_in_dim))
+		if meta_num_keypoints != self.num_keypoints:
+			raise ValueError(
+				f"mamba checkpoint num_keypoints mismatch: ckpt={meta_num_keypoints}, data={self.num_keypoints}"
+			)
+		if meta_in_dim != self.num_dims:
+			raise ValueError(
+				f"mamba checkpoint model_in_dim mismatch: ckpt={meta_in_dim}, data={self.num_dims}"
+			)
+
+		if self.history_len <= 0:
+			self.history_len = int(meta.get("history_len", 8))
+
+		model = SpatioTemporalPredictor(
+			in_dim=meta_in_dim,
+			out_dim=meta_out_dim,
+			gnn_hidden=int(meta.get("gnn_hidden", 128)),
+			mamba_d_state=int(meta.get("mamba_d_state", 64)),
+			mamba_d_conv=int(meta.get("mamba_d_conv", 4)),
+			mamba_expand=int(meta.get("mamba_expand", 4)),
+			mamba_n_layer=int(meta.get("mamba_n_layer", 4)),
+			num_nodes=meta_num_keypoints,
+		)
+
+		model.load_state_dict(state_dict, strict=True)
+		device = select_torch_device(cuda_device)
+		model = model.to(device)
+		model.eval()
+		return model, device
+
+	def initialize(self, measurement0):
+		self.x = measurement0.copy()
+		self.v = np.zeros(self.channels, dtype=np.float64)
+		self._history = [measurement0.reshape(self.num_keypoints, self.num_dims).copy()]
+		self._prev_x = self.x.copy()
+		self._initialized = True
+
+	def update(self, measurement_k, dt):
+		if not self._initialized:
+			raise RuntimeError("Mamba predictor is not initialized")
+
+		self.x = measurement_k.copy()
+		if self._prev_x is None:
+			self.v = np.zeros(self.channels, dtype=np.float64)
+		else:
+			self.v = (self.x - self._prev_x) / dt
+
+		self._history.append(self.x.reshape(self.num_keypoints, self.num_dims).copy())
+		if len(self._history) > self.history_len:
+			self._history.pop(0)
+
+		if len(self._history) >= self.history_len:
+			import torch
+
+			seq = np.stack(self._history[-self.history_len :], axis=0).astype(np.float32, copy=False)
+			seq_tensor = torch.from_numpy(seq).unsqueeze(0).to(self.device)
+			with torch.no_grad():
+				pred_next = self.model(seq_tensor).detach().cpu().numpy()[0]
+
+			if pred_next.shape[0] != self.num_keypoints or pred_next.shape[1] < self.num_dims:
+				raise ValueError(
+					f"Unexpected mamba prediction shape {pred_next.shape}, expected ({self.num_keypoints}, >= {self.num_dims})"
+				)
+
+			next_x = pred_next[:, : self.num_dims].reshape(-1).astype(np.float64, copy=False)
+			if pred_next.shape[1] >= 2 * self.num_dims:
+				pred_v = pred_next[:, self.num_dims : 2 * self.num_dims].reshape(-1)
+				self.v = pred_v.astype(np.float64, copy=False)
+			else:
+				# If model does not expose velocity head, derive slope from predicted next position.
+				self.v = (next_x - self.x) / dt
+
+		self._prev_x = self.x.copy()
+
+	def get_state(self):
+		return self.x, self.v, None
+
+
 def create_predictor(
 	predictor_type,
 	channels,
+	num_keypoints=17,
+	num_dims=3,
 	process_acc_var=3e5,
 	measurement_var=9.0,
 	init_pos_var=1.0,
@@ -150,6 +299,9 @@ def create_predictor(
 	alpha=0.65,
 	beta=0.08,
 	gamma=0.005,
+	mamba_checkpoint_path="",
+	mamba_history_len=8,
+	mamba_cuda_device=-1,
 ):
 	if predictor_type == "kalman":
 		return KalmanCVPredictor(
@@ -165,6 +317,15 @@ def create_predictor(
 			alpha=alpha,
 			beta=beta,
 			gamma=gamma,
+		)
+	if predictor_type == "mamba":
+		return MambaPredictor(
+			channels=channels,
+			num_keypoints=num_keypoints,
+			num_dims=num_dims,
+			checkpoint_path=mamba_checkpoint_path,
+			history_len=mamba_history_len,
+			cuda_device=mamba_cuda_device,
 		)
 	raise ValueError(f"Unsupported predictor_type: {predictor_type}")
 
@@ -256,7 +417,12 @@ def fit_realtime_segments_with_predictor(pose_data, fps, predictor):
 
 def save_result(save_path, source_shape, result, predictor_name):
 	os.makedirs(os.path.dirname(save_path), exist_ok=True)
-	predictor_label = "kalman_cv" if predictor_name == "kalman" else "alpha_beta_gamma"
+	predictor_label_map = {
+		"kalman": "kalman_cv",
+		"abg": "alpha_beta_gamma",
+		"mamba": "mamba",
+	}
+	predictor_label = predictor_label_map.get(predictor_name, predictor_name)
 	np.savez_compressed(
 		save_path,
 		source_shape=np.asarray(source_shape, dtype=np.int32),
@@ -274,6 +440,9 @@ def save_result(save_path, source_shape, result, predictor_name):
 		alpha=np.asarray([result["alpha"]], dtype=np.float64) if "alpha" in result else np.asarray([], dtype=np.float64),
 		beta=np.asarray([result["beta"]], dtype=np.float64) if "beta" in result else np.asarray([], dtype=np.float64),
 		gamma=np.asarray([result["gamma"]], dtype=np.float64) if "gamma" in result else np.asarray([], dtype=np.float64),
+		mamba_history_len=np.asarray([result["mamba_history_len"]], dtype=np.float64)
+		if "mamba_history_len" in result
+		else np.asarray([], dtype=np.float64),
 	)
 
 
@@ -289,36 +458,64 @@ def process_folder(
 	alpha=0.65,
 	beta=0.08,
 	gamma=0.005,
+	mamba_checkpoint_path="",
+	mamba_history_len=8,
+	mamba_cuda_device=-1,
 ):
 	predictor_type = predictor_type.lower().strip()
-	if predictor_type not in {"kalman", "abg"}:
-		raise ValueError(f"predictor_type must be one of ['kalman', 'abg'], got: {predictor_type}")
+	if predictor_type == "aby":
+		predictor_type = "abg"
+	if predictor_type not in {"kalman", "abg", "mamba"}:
+		raise ValueError(
+			f"predictor_type must be one of ['kalman', 'abg', 'aby', 'mamba'], got: {predictor_type}"
+		)
 
 	files = collect_h36m_npy_files(input_dir)
 	print(f"[{predictor_type}] Found {len(files)} file(s) in: {input_dir}")
 
 	processed = 0
 	failed = 0
+	mamba_predictor = None
 
 	for idx, name in enumerate(files, start=1):
 		input_path = os.path.join(input_dir, name)
 		stem = os.path.splitext(name)[0]
-		suffix = "kalman_realtime_spline" if predictor_type == "kalman" else "abg_realtime_spline"
+		suffix_map = {
+			"kalman": "kalman_realtime_spline",
+			"abg": "abg_realtime_spline",
+			"mamba": "mamba_realtime_spline",
+		}
+		suffix = suffix_map[predictor_type]
 		output_path = os.path.join(output_dir, f"{stem}_{suffix}.npz")
 		try:
 			pose_data = load_pose_array(input_path)
 			channels = pose_data.shape[1] * pose_data.shape[2]
-			predictor = create_predictor(
-				predictor_type=predictor_type,
-				channels=channels,
-				process_acc_var=process_acc_var,
-				measurement_var=measurement_var,
-				init_pos_var=init_pos_var,
-				init_vel_var=init_vel_var,
-				alpha=alpha,
-				beta=beta,
-				gamma=gamma,
-			)
+			if predictor_type == "mamba":
+				if mamba_predictor is None:
+					mamba_predictor = create_predictor(
+						predictor_type=predictor_type,
+						channels=channels,
+						num_keypoints=pose_data.shape[1],
+						num_dims=pose_data.shape[2],
+						mamba_checkpoint_path=mamba_checkpoint_path,
+						mamba_history_len=mamba_history_len,
+						mamba_cuda_device=mamba_cuda_device,
+					)
+				predictor = mamba_predictor
+			else:
+				predictor = create_predictor(
+					predictor_type=predictor_type,
+					channels=channels,
+					num_keypoints=pose_data.shape[1],
+					num_dims=pose_data.shape[2],
+					process_acc_var=process_acc_var,
+					measurement_var=measurement_var,
+					init_pos_var=init_pos_var,
+					init_vel_var=init_vel_var,
+					alpha=alpha,
+					beta=beta,
+					gamma=gamma,
+				)
 			result = fit_realtime_segments_with_predictor(
 				pose_data=pose_data,
 				fps=fps,
@@ -328,6 +525,8 @@ def process_folder(
 				result["alpha"] = float(alpha)
 				result["beta"] = float(beta)
 				result["gamma"] = float(gamma)
+			if predictor_type == "mamba":
+				result["mamba_history_len"] = float(mamba_history_len)
 			save_result(output_path, source_shape=pose_data.shape, result=result, predictor_name=predictor_type)
 			print(f"[{idx}/{len(files)}] Saved: {output_path}")
 			processed += 1
@@ -340,7 +539,7 @@ def process_folder(
 
 
 if __name__ == "__main__":
-	# Predictor type: "kalman" (constant-velocity Kalman) or "abg" (alpha-beta-gamma).
+	# Predictor type: "kalman", "abg" (or alias "aby"), "mamba".
 	predictor_type = "kalman"
 	# Input folder containing files that end with "h36m.npy".
 	input_dir = "/home/data/ztw/AtheletePose3D/data/train_set/S3"
@@ -365,8 +564,20 @@ if __name__ == "__main__":
 	# ABG gain for acceleration correction.
 	gamma = 0.005
 
+	# Mamba checkpoint for sequence prediction (required when predictor_type == "mamba").
+	mamba_checkpoint_path = ""
+	# History window length used by mamba predictor.
+	mamba_history_len = 8
+	# CUDA device for mamba predictor. Set to -1 for CPU.
+	mamba_cuda_device = -1
+
 	if output_dir is None:
-		output_dir = "/home/ztw/HVCCS/res/splines_fit_kalman" if predictor_type == "kalman" else "/home/ztw/HVCCS/res/splines_fit_abg"
+		if predictor_type == "kalman":
+			output_dir = "/home/ztw/HVCCS/res/splines_fit_kalman"
+		elif predictor_type in {"abg", "aby"}:
+			output_dir = "/home/ztw/HVCCS/res/splines_fit_abg"
+		else:
+			output_dir = "/home/ztw/HVCCS/res/splines_fit_mamba"
 
 	process_folder(
 		input_dir=input_dir,
@@ -380,4 +591,7 @@ if __name__ == "__main__":
 		alpha=alpha,
 		beta=beta,
 		gamma=gamma,
+		mamba_checkpoint_path=mamba_checkpoint_path,
+		mamba_history_len=mamba_history_len,
+		mamba_cuda_device=mamba_cuda_device,
 	)

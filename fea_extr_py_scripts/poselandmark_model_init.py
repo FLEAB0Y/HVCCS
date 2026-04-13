@@ -20,7 +20,9 @@ def build_ckpt_name(hparams: dict) -> str:
 		"pose_mamba_init"
 		f"_k{hparams['num_keypoints']}"
 		f"_d{hparams['model_in_dim']}"
+		f"_o{hparams['model_out_dim']}"
 		f"_w{hparams['history_len']}"
+		f"_f{hparams['future_len']}"
 		f"_h{hparams['gnn_hidden']}"
 		f"_ds{hparams['mamba_d_state']}"
 		f"_dc{hparams['mamba_d_conv']}"
@@ -39,18 +41,24 @@ def main() -> None:
 		"num_keypoints": 17,
 		# 输入关键点维度，当前姿态是xyz三维
 		"model_in_dim": 3,
-		# 时序历史长度（质量优先：更长上下文）
-		"history_len": 32,
+		# 输出维度：xyz + vxyz
+		"model_out_dim": 6,
+		# 训练目标：未来1帧
+		"future_len": 1,
+		# 时序历史长度：输入8帧
+		"history_len": 8,
 		# GNN隐藏维度，同时作为Mamba的d_model（质量优先：更大容量）
-		"gnn_hidden": 128,
+		"gnn_hidden": 256,
 		# Mamba状态维度（质量优先：更强记忆）
-		"mamba_d_state": 64,
+		"mamba_d_state": 128,
 		# Mamba局部卷积宽度（当前 causal_conv1d 约束为 2~4）
 		"mamba_d_conv": 4,
 		# Mamba通道扩展倍率
 		"mamba_expand": 4,
 		# Mamba堆叠层数
-		"mamba_n_layer": 4,
+		"mamba_n_layer": 8,
+		# 输出目标模式：预测坐标+速度
+		"target_mode": "coord_and_velocity",
 		# 模型初始化随机种子
 		"model_seed": 2026,
 	}
@@ -65,8 +73,11 @@ def main() -> None:
 	args = parser.parse_args()
 
 	expected_stream_dims = MODEL_HPARAMS["num_keypoints"] * MODEL_HPARAMS["model_in_dim"]
+	expected_target_dims = MODEL_HPARAMS["num_keypoints"] * MODEL_HPARAMS["model_out_dim"]
 	if expected_stream_dims <= 0:
 		raise ValueError(f"invalid stream dims: {expected_stream_dims}")
+	if expected_target_dims <= 0:
+		raise ValueError(f"invalid target dims: {expected_target_dims}")
 
 	torch.manual_seed(MODEL_HPARAMS["model_seed"])
 	np.random.seed(MODEL_HPARAMS["model_seed"])
@@ -78,6 +89,7 @@ def main() -> None:
 
 	model = SpatioTemporalPredictor(
 		in_dim=MODEL_HPARAMS["model_in_dim"],
+		out_dim=MODEL_HPARAMS["model_out_dim"],
 		gnn_hidden=MODEL_HPARAMS["gnn_hidden"],
 		mamba_d_state=MODEL_HPARAMS["mamba_d_state"],
 		mamba_d_conv=MODEL_HPARAMS["mamba_d_conv"],
@@ -100,7 +112,10 @@ def main() -> None:
 			"predictor": "mamba",
 			"num_keypoints": MODEL_HPARAMS["num_keypoints"],
 			"model_in_dim": MODEL_HPARAMS["model_in_dim"],
+			"model_out_dim": MODEL_HPARAMS["model_out_dim"],
+			"future_len": MODEL_HPARAMS["future_len"],
 			"history_len": MODEL_HPARAMS["history_len"],
+			"target_mode": MODEL_HPARAMS["target_mode"],
 			"gnn_hidden": MODEL_HPARAMS["gnn_hidden"],
 			"mamba_d_state": MODEL_HPARAMS["mamba_d_state"],
 			"mamba_d_conv": MODEL_HPARAMS["mamba_d_conv"],
@@ -115,7 +130,10 @@ def main() -> None:
 
 	print(f"checkpoint_saved: {out_path}")
 	print(f"stream_dims_per_frame: {expected_stream_dims} ({MODEL_HPARAMS['num_keypoints']}x{MODEL_HPARAMS['model_in_dim']})")
+	print(f"target_dims_per_frame: {expected_target_dims} ({MODEL_HPARAMS['num_keypoints']}x{MODEL_HPARAMS['model_out_dim']})")
 	print(f"history_len: {MODEL_HPARAMS['history_len']}")
+	print(f"future_len: {MODEL_HPARAMS['future_len']}")
+	print(f"target_mode: {MODEL_HPARAMS['target_mode']}")
 	print(f"model_params_total: {total_params}")
 	print(f"model_params_trainable: {trainable_params}")
 	print(f"mamba_params: {mamba_params}")
