@@ -5,7 +5,10 @@ from datetime import datetime
 import numpy as np
 import torch
 
-from poselandmark_online_encoder_v2 import SpatioTemporalPredictor
+try:
+	from splines_fit_train import SpatioTemporalPredictor
+except Exception:
+	from fea_extr_py_scripts.splines_fit_train import SpatioTemporalPredictor
 
 
 def count_params(module: torch.nn.Module):
