@@ -2,7 +2,42 @@ import argparse
 import os
 
 import matplotlib.pyplot as plt
+from matplotlib.artist import Artist
 import numpy as np
+
+
+def load_pose_array(npy_path):
+	if not os.path.isfile(npy_path):
+		raise FileNotFoundError(f"Pose file not found: {npy_path}")
+
+	data = np.load(npy_path)
+	if data.ndim == 4 and data.shape[0] == 1:
+		data = data[0]
+
+	if data.ndim != 3 or data.shape[-1] != 3:
+		raise ValueError(
+			f"Unexpected pose shape {data.shape}. Expected (frames, keypoints, 3) or (1, frames, keypoints, 3)."
+		)
+
+	return data.astype(np.float64, copy=False)
+
+
+def extract_pose_channel_points(pose_data, keypoint_idx, axis_idx, pose_fps):
+	if pose_fps <= 0:
+		raise ValueError(f"pose_fps must be > 0, got {pose_fps}")
+	if keypoint_idx < 0 or keypoint_idx >= pose_data.shape[1]:
+		raise ValueError(
+			f"keypoint_idx={keypoint_idx} out of range [0, {pose_data.shape[1] - 1}] for pose file"
+		)
+	if axis_idx < 0 or axis_idx >= pose_data.shape[2]:
+		raise ValueError(
+			f"axis_idx={axis_idx} out of range [0, {pose_data.shape[2] - 1}] for pose file"
+		)
+
+	num_frames = pose_data.shape[0]
+	pose_time_sec = np.arange(num_frames, dtype=np.float64) / float(pose_fps)
+	pose_values = pose_data[:, keypoint_idx, axis_idx].astype(np.float64, copy=False)
+	return pose_time_sec, pose_values
 
 
 def load_spline_npz(npz_path):
@@ -141,6 +176,73 @@ def eval_local_cubic_derivative(local_coeff, seg_start_t, ts):
 	return (3.0 * a * dt + 2.0 * b) * dt + c
 
 
+def build_uniform_sample_times(start_sec, end_sec, fps, tol=1e-12):
+	if fps <= 0:
+		raise ValueError(f"upsample fps must be > 0, got {fps}")
+	if end_sec <= start_sec + tol:
+		return np.asarray([], dtype=np.float64)
+
+	dt = 1.0 / float(fps)
+	count = int(np.floor((end_sec - start_sec) / dt + tol)) + 1
+	ts = start_sec + np.arange(count, dtype=np.float64) * dt
+	if ts.size == 0:
+		return np.asarray([start_sec, end_sec], dtype=np.float64)
+	if ts[-1] < end_sec - tol:
+		ts = np.concatenate([ts, np.asarray([end_sec], dtype=np.float64)])
+	return ts
+
+
+def eval_spline_pose_at_times(time_sec, coeffs, ts):
+	"""Evaluate spline pose values at arbitrary global timestamps.
+
+	time_sec: shape (S+1,)
+	coeffs: shape (K, D, 4, S)
+	ts: shape (N,)
+	returns: shape (N, K, D)
+	"""
+	if coeffs.ndim != 4 or coeffs.shape[2] != 4:
+		raise ValueError(f"Unexpected coeffs shape {coeffs.shape}, expected (K, D, 4, S)")
+	if len(time_sec) != coeffs.shape[3] + 1:
+		raise ValueError("time_sec and coeffs segment count mismatch")
+	if np.any(np.diff(time_sec) <= 0):
+		raise ValueError("time_sec must be strictly increasing")
+
+	seg_count = coeffs.shape[3]
+	seg_idx = np.searchsorted(time_sec, ts, side="right") - 1
+	seg_idx = np.clip(seg_idx, 0, seg_count - 1)
+
+	out = np.empty((len(ts), coeffs.shape[0], coeffs.shape[1]), dtype=np.float64)
+	for n, sidx in enumerate(seg_idx):
+		tau = float(ts[n] - time_sec[sidx])
+		a = coeffs[:, :, 0, sidx]
+		b = coeffs[:, :, 1, sidx]
+		c = coeffs[:, :, 2, sidx]
+		d = coeffs[:, :, 3, sidx]
+		out[n] = ((a * tau + b) * tau + c) * tau + d
+	return out
+
+
+def resample_pose_at_times(pose_time_sec, pose_data, ts):
+	"""Resample pose points at target timestamps with linear interpolation.
+
+	returns:
+		pose_resampled: shape (N, K, D)
+		valid_mask: shape (N,), True when all joints/dims are finite at that time
+	"""
+	out = np.full((len(ts), pose_data.shape[1], pose_data.shape[2]), np.nan, dtype=np.float64)
+	for j in range(pose_data.shape[1]):
+		for d in range(pose_data.shape[2]):
+			out[:, j, d] = np.interp(
+				ts,
+				pose_time_sec,
+				pose_data[:, j, d],
+				left=np.nan,
+				right=np.nan,
+			)
+	valid = np.isfinite(out).all(axis=(1, 2))
+	return out, valid
+
+
 def compute_channel_metrics(
 	gt_time_sec,
 	gt_channel_coeffs,
@@ -266,13 +368,26 @@ def plot_two_splines(
 	pred_dense,
 	gt_vel_dense,
 	pred_vel_dense,
+	upsample_time_sec=None,
+	upsample_abs_err=None,
+	upsample_mpjpe_series=None,
+	pose_time_sec=None,
+	pose_values=None,
 	frame_marker_times=None,
 	plot_dpi=320,
 ):
 	if t_dense.size == 0:
 		raise ValueError("No dense curve samples to plot")
 
-	fig, ax = plt.subplots(figsize=(12, 6.5))
+	fig, axes = plt.subplots(
+		2,
+		1,
+		figsize=(12, 8.2),
+		sharex=True,
+		gridspec_kw={"height_ratios": [3.2, 1.3]},
+	)
+	ax = axes[0]
+	ax_err = axes[1]
 
 	pos_gt_line, = ax.plot(
 		t_dense * 1000.0,
@@ -288,6 +403,22 @@ def plot_two_splines(
 		linewidth=1.4,
 		label="Position Pred",
 	)
+
+	pose_scatter = None
+	if pose_time_sec is not None and pose_values is not None and len(pose_time_sec) > 0:
+		left = float(t_dense[0])
+		right = float(t_dense[-1])
+		mask = (pose_time_sec >= left - 1e-12) & (pose_time_sec <= right + 1e-12)
+		if np.any(mask):
+			pose_scatter = ax.scatter(
+				pose_time_sec[mask] * 1000.0,
+				pose_values[mask],
+				s=12,
+				alpha=0.85,
+				color="tab:purple",
+				label="Pose Points",
+				zorder=3,
+			)
 
 	ax_vel = ax.twinx()
 	vel_gt_line, = ax_vel.plot(
@@ -308,7 +439,6 @@ def plot_two_splines(
 	)
 
 	ax.set_title(title, fontsize=12)
-	ax.set_xlabel("Time (ms)")
 	ax.set_ylabel("Position (mm)")
 	ax_vel.set_ylabel("Velocity (mm/s)")
 
@@ -325,9 +455,59 @@ def plot_two_splines(
 			else:
 				ax.axvline(t_sec * 1000.0, color="0.75", linewidth=0.45, alpha=0.18, zorder=0)
 
-	lines = [pos_gt_line, pos_pred_line, vel_gt_line, vel_pred_line]
+	lines: list[Artist] = [pos_gt_line, pos_pred_line, vel_gt_line, vel_pred_line]
 	labels = ["Position GT", "Position Pred", "Velocity GT", "Velocity Pred"]
+	if pose_scatter is not None:
+		lines.append(pose_scatter)
+		labels.append("Pose Points")
 	ax.legend(lines, labels, loc="upper right", fontsize=9)
+
+	# Upsampled absolute error and MPJPE series.
+	if (
+		upsample_time_sec is not None
+		and upsample_abs_err is not None
+		and upsample_mpjpe_series is not None
+		and len(upsample_time_sec) > 0
+	):
+		err_line, = ax_err.plot(
+			upsample_time_sec * 1000.0,
+			upsample_abs_err,
+			color="tab:brown",
+			linewidth=0.9,
+			marker="o",
+			markersize=2.8,
+			alpha=0.85,
+			label="Abs Error (resampled)",
+		)
+		mpjpe_line, = ax_err.plot(
+			upsample_time_sec * 1000.0,
+			upsample_mpjpe_series,
+			color="tab:cyan",
+			linewidth=1.1,
+			alpha=0.95,
+			label="MPJPE (resampled)",
+		)
+
+		imax = int(np.argmax(upsample_abs_err))
+		t_max = float(upsample_time_sec[imax] * 1000.0)
+		e_max = float(upsample_abs_err[imax])
+		ax_err.scatter([t_max], [e_max], color="red", s=20, zorder=4, label="Max Abs Error")
+		ax_err.annotate(
+			f"max={e_max:.3f} mm",
+			xy=(t_max, e_max),
+			xytext=(8, 6),
+			textcoords="offset points",
+			fontsize=8,
+			color="red",
+		)
+
+		ax_err.legend([err_line, mpjpe_line], ["Abs Error (resampled)", "MPJPE (resampled)"], loc="upper right", fontsize=9)
+
+	ax_err.minorticks_on()
+	ax_err.grid(which="major", linestyle="-", linewidth=0.45, alpha=0.45)
+	ax_err.grid(which="minor", linestyle=":", linewidth=0.4, alpha=0.35)
+	ax_err.set_ylabel("Error (mm)")
+	ax_err.set_xlabel("Time (ms)")
 
 	metric_text = (
 		f"cRMSE: {metrics['cRMSE_mm']:.4f} mm\n"
@@ -338,6 +518,7 @@ def plot_two_splines(
 		f"MaxAE: {metrics['MaxAE_mm']:.4f} mm\n"
 		f"VelRMSE: {metrics['VelRMSE_mmps']:.4f} mm/s\n"
 		f"AccRMSE: {metrics['AccRMSE_mmps2']:.4f} mm/s^2\n"
+		f"MPJPE@{metrics.get('upsample_fps', float('nan')):.1f}Hz: {metrics.get('MPJPE_upsampled_mm', float('nan')):.4f} mm\n"
 		f"Overlap: {metrics['duration_sec']:.4f} s"
 	)
 
@@ -358,7 +539,17 @@ def plot_two_splines(
 	plt.close(fig)
 
 
-def run_compare(gt_file, pred_file, spline_id, samples_per_interval, output_path, plot_dpi=320):
+def run_compare(
+	gt_file,
+	pred_file,
+	spline_id,
+	samples_per_interval,
+	output_path,
+	plot_dpi=320,
+	upsample_fps=90.0,
+	pose_file=None,
+	pose_fps=30.0,
+):
 	gt_t, gt_coeffs = load_spline_npz(gt_file)
 	pred_t, pred_coeffs = load_spline_npz(pred_file)
 
@@ -371,6 +562,18 @@ def run_compare(gt_file, pred_file, spline_id, samples_per_interval, output_path
 	intervals, duration = build_overlap_intervals(gt_t, pred_t)
 	if len(intervals) == 0 or duration <= 0:
 		raise ValueError("No overlap between ground-truth and prediction spline time ranges")
+
+	pose_time_sec = None
+	pose_values = None
+	pose_data = None
+	if pose_file:
+		pose_data = load_pose_array(pose_file)
+		pose_time_sec, pose_values = extract_pose_channel_points(
+			pose_data=pose_data,
+			keypoint_idx=kpt,
+			axis_idx=dim,
+			pose_fps=pose_fps,
+		)
 
 	metrics = compute_channel_metrics(
 		gt_time_sec=gt_t,
@@ -388,6 +591,44 @@ def run_compare(gt_file, pred_file, spline_id, samples_per_interval, output_path
 	)
 	frame_marker_times = collect_overlap_frame_markers(gt_t, pred_t, intervals)
 
+	upsample_time_sec = None
+	upsample_abs_err = None
+	upsample_mpjpe_series = None
+	if upsample_fps is not None and upsample_fps > 0:
+		overlap_start = float(intervals[0][2])
+		overlap_end = float(intervals[-1][3])
+		upsample_time_all = build_uniform_sample_times(overlap_start, overlap_end, upsample_fps)
+		upsample_time_sec = upsample_time_all
+		if upsample_time_sec.size > 0:
+			pred_pose_up = eval_spline_pose_at_times(pred_t, pred_coeffs, upsample_time_sec)
+			if pose_data is None or pose_time_sec is None:
+				metrics["MPJPE_upsampled_mm"] = float("nan")
+				metrics["upsample_fps"] = float(upsample_fps)
+				upsample_time_sec = None
+			else:
+				gt_pose_up, valid_mask = resample_pose_at_times(pose_time_sec, pose_data, upsample_time_sec)
+				if np.any(valid_mask):
+					valid_times = upsample_time_sec[valid_mask]
+					pred_valid = pred_pose_up[valid_mask]
+					gt_valid = gt_pose_up[valid_mask]
+					joint_err = np.linalg.norm(pred_valid - gt_valid, axis=2)
+					upsample_mpjpe_series = joint_err.mean(axis=1)
+					upsample_abs_err = np.abs(
+						pred_valid[:, kpt, dim] - gt_valid[:, kpt, dim]
+					).astype(np.float64, copy=False)
+					upsample_time_sec = valid_times
+					metrics["MPJPE_upsampled_mm"] = float(np.mean(upsample_mpjpe_series))
+					metrics["upsample_fps"] = float(upsample_fps)
+				else:
+					metrics["MPJPE_upsampled_mm"] = float("nan")
+					metrics["upsample_fps"] = float(upsample_fps)
+					upsample_time_sec = None
+					upsample_abs_err = None
+					upsample_mpjpe_series = None
+		else:
+			metrics["MPJPE_upsampled_mm"] = float("nan")
+			metrics["upsample_fps"] = float(upsample_fps)
+
 	plot_two_splines(
 		output_path=output_path,
 		title=title,
@@ -397,6 +638,11 @@ def run_compare(gt_file, pred_file, spline_id, samples_per_interval, output_path
 		pred_dense=metrics["pred_dense"],
 		gt_vel_dense=metrics["gt_vel_dense"],
 		pred_vel_dense=metrics["pred_vel_dense"],
+		upsample_time_sec=upsample_time_sec,
+		upsample_abs_err=upsample_abs_err,
+		upsample_mpjpe_series=upsample_mpjpe_series,
+		pose_time_sec=pose_time_sec,
+		pose_values=pose_values,
 		frame_marker_times=frame_marker_times,
 		plot_dpi=plot_dpi,
 	)
@@ -404,6 +650,8 @@ def run_compare(gt_file, pred_file, spline_id, samples_per_interval, output_path
 	print(f"Total spline dimensions: {total} ({gt_coeffs.shape[0]} * {gt_coeffs.shape[1]})")
 	print(f"Selected spline id: {spline_id} -> keypoint={kpt}, axis={axis_name(dim)}")
 	print(f"Saved plot: {output_path}")
+	if pose_file:
+		print(f"Pose overlay: {pose_file} | pose_fps={pose_fps}")
 	print(
 		"Metrics: "
 		f"cRMSE={metrics['cRMSE_mm']:.6f} mm, "
@@ -413,7 +661,8 @@ def run_compare(gt_file, pred_file, spline_id, samples_per_interval, output_path
 		f"P95AE={metrics['P95AE_mm']:.6f} mm, "
 		f"MaxAE={metrics['MaxAE_mm']:.6f} mm, "
 		f"VelRMSE={metrics['VelRMSE_mmps']:.6f} mm/s, "
-		f"AccRMSE={metrics['AccRMSE_mmps2']:.6f} mm/s^2"
+		f"AccRMSE={metrics['AccRMSE_mmps2']:.6f} mm/s^2, "
+		f"MPJPE@{metrics.get('upsample_fps', float('nan')):.1f}Hz={metrics.get('MPJPE_upsampled_mm', float('nan')):.6f} mm"
 	)
 
 
@@ -450,6 +699,24 @@ def build_argparser():
 		default=320,
 		help="Output plot DPI for saved figure.",
 	)
+	parser.add_argument(
+		"--upsample-fps",
+		type=float,
+		default=90.0,
+		help="Uniform resampling FPS for spline MPJPE metric and abs-error plotting.",
+	)
+	parser.add_argument(
+		"--pose-file",
+		type=str,
+		default=None,
+		help="Ground-truth pose npy path for overlay and pred_spline-vs-gt_pose upsampled MPJPE.",
+	)
+	parser.add_argument(
+		"--pose-fps",
+		type=float,
+		default=30.0,
+		help="FPS for pose-file timestamps alignment. Used only for visualization.",
+	)
 	return parser
 
 
@@ -469,13 +736,19 @@ if __name__ == "__main__":
 			samples_per_interval=args.samples_per_interval,
 			output_path=args.output_path,
 			plot_dpi=args.plot_dpi,
+			upsample_fps=args.upsample_fps,
+			pose_file=args.pose_file,
+			pose_fps=args.pose_fps,
 		)
 	else:
 		gt_file = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps_notaknot_splines/Running_37_cam_1_h36m_notaknot_spline.npz"
-		pred_file = "/home/ztw/HVCCS/res/splines_fit_baseline/Running_37_cam_1_h36m_baseline_realtime_spline.npz"
+		pred_file = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps_notaknot_splines/Running_37_cam_1_h36m_30fps_notaknot_spline.npz"
+		gt_pose_file = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps/Running_37_cam_1_h36m.npy"
+		gt_pose_fps = 120.0
 		spline_id = 0               # valid range: 0..50 for 17x3
 		samples_per_interval = 40   # dense sampling for MAE/P95/Max approximation
-		output_path = "/home/ztw/HVCCS/res/splines_metrics/baseline5.png"
+		upsample_fps = 120.0        # uniform spline resampling FPS for MPJPE/abs-error points
+		output_path = "/home/ztw/HVCCS/res/splines_metrics/downsample.png"
 		plot_dpi = 640              # increase saved plot resolution
 		run_compare(
 			gt_file=gt_file,
@@ -484,4 +757,7 @@ if __name__ == "__main__":
 			samples_per_interval=samples_per_interval,
 			output_path=output_path,
 			plot_dpi=plot_dpi,
+			upsample_fps=upsample_fps,
+			pose_file=gt_pose_file,
+			pose_fps=gt_pose_fps,
 		)

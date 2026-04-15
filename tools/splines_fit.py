@@ -28,8 +28,6 @@ def collect_h36m_npy_files(input_dir):
 		full_path = os.path.join(input_dir, name)
 		if not os.path.isfile(full_path):
 			continue
-		if not name.lower().endswith("h36m.npy"):
-			continue
 		files.append(name)
 
 	files.sort()
@@ -205,15 +203,15 @@ def process_folder(input_dir, output_dir, fps=120.0, fit_mode="notaknot"):
 
 
 if __name__ == "__main__":
-	Label = "test/S2_cam_1"
+	Label = "train/S1_cam_1"
 	# Fitting mode: "notaknot" uses global cubic spline; "clamped" uses segment Hermite with truth endpoints.
-	fit_mode = "clamped"
+	fit_mode = "notaknot"
 	# Source frame rate in Hz used to compute timestamps and dt.
-	fps = 120.0
+	fps = 30.0
 	# Input folder containing files that end with "h36m.npy".
-	input_dir = f"/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/{Label}_120fps"
+	input_dir = f"/home/data/ztw/AtheletePose3D/h36m_pose_cam_1_downsample/{Label}_30fps"
 	# Output folder template for fitted spline npz files. {fit_mode} will be replaced at runtime.
-	output_dir = f"/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/{Label}_120fps_{{fit_mode}}_splines"
+	output_dir = f"/home/data/ztw/AtheletePose3D/h36m_pose_cam_1_downsample/{Label}_30fps_{{fit_mode}}_splines"
 	
 
 	process_folder(

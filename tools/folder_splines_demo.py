@@ -250,11 +250,11 @@ def process_folder(
 
 
 if __name__ == "__main__":
-	input_dir = "/home/data/ztw/AtheletePose3D/data/train_set/S3_splines"
-	source_pose_dir = "/home/data/ztw/AtheletePose3D/data/train_set/S3"
+	input_dir = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps_notaknot_splines"
+	source_pose_dir = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps"
 	output_dir = "/home/ztw/HVCCS/res/S3_splines_plots"
 	keypoint_idx = 0  # set in [0, 16]
-	point_downsample_factor = 4  # set >= 1
+	point_downsample_factor = 1  # set >= 1
 
 	process_folder(
 		input_dir=input_dir,

@@ -62,6 +62,82 @@ def load_spline_npz(npz_path):
 	return time_sec, coeffs
 
 
+def load_pose_array(npy_path):
+	if not os.path.isfile(npy_path):
+		raise FileNotFoundError(f"Pose file not found: {npy_path}")
+
+	data = np.load(npy_path)
+	if data.ndim == 4 and data.shape[0] == 1:
+		data = data[0]
+
+	if data.ndim != 3 or data.shape[-1] != 3:
+		raise ValueError(
+			f"Unexpected pose shape {data.shape}. Expected (frames, keypoints, 3) or (1, frames, keypoints, 3)."
+		)
+
+	return data.astype(np.float64, copy=False)
+
+
+def build_uniform_sample_times(start_sec, end_sec, fps, tol=1e-12):
+	if fps <= 0:
+		raise ValueError(f"upsample fps must be > 0, got {fps}")
+	if end_sec <= start_sec + tol:
+		return np.asarray([], dtype=np.float64)
+
+	dt = 1.0 / float(fps)
+	count = int(np.floor((end_sec - start_sec) / dt + tol)) + 1
+	ts = start_sec + np.arange(count, dtype=np.float64) * dt
+	if ts.size == 0:
+		return np.asarray([start_sec, end_sec], dtype=np.float64)
+	if ts[-1] < end_sec - tol:
+		ts = np.concatenate([ts, np.asarray([end_sec], dtype=np.float64)])
+	return ts
+
+
+def eval_spline_pose_at_times(time_sec, coeffs, ts):
+	if coeffs.ndim != 4 or coeffs.shape[2] != 4:
+		raise ValueError(f"Unexpected coeffs shape {coeffs.shape}, expected (K, D, 4, S)")
+	if len(time_sec) != coeffs.shape[3] + 1:
+		raise ValueError("time_sec and coeffs segment count mismatch")
+	if np.any(np.diff(time_sec) <= 0):
+		raise ValueError("time_sec must be strictly increasing")
+
+	seg_count = coeffs.shape[3]
+	seg_idx = np.searchsorted(time_sec, ts, side="right") - 1
+	seg_idx = np.clip(seg_idx, 0, seg_count - 1)
+
+	out = np.empty((len(ts), coeffs.shape[0], coeffs.shape[1]), dtype=np.float64)
+	for n, sidx in enumerate(seg_idx):
+		tau = float(ts[n] - time_sec[sidx])
+		a = coeffs[:, :, 0, sidx]
+		b = coeffs[:, :, 1, sidx]
+		c = coeffs[:, :, 2, sidx]
+		d = coeffs[:, :, 3, sidx]
+		out[n] = ((a * tau + b) * tau + c) * tau + d
+	return out
+
+
+def build_pose_time_sec(num_frames, pose_fps):
+	if pose_fps <= 0:
+		raise ValueError(f"pose_fps must be > 0, got {pose_fps}")
+	return np.arange(num_frames, dtype=np.float64) / float(pose_fps)
+
+
+def resample_pose_at_times(pose_time_sec, pose_data, ts):
+	out = np.full((len(ts), pose_data.shape[1], pose_data.shape[2]), np.nan, dtype=np.float64)
+	for j in range(pose_data.shape[1]):
+		for d in range(pose_data.shape[2]):
+			out[:, j, d] = np.interp(
+				ts,
+				pose_time_sec,
+				pose_data[:, j, d],
+				left=np.nan,
+				right=np.nan,
+			)
+	valid = np.isfinite(out).all(axis=(1, 2))
+	return out, valid
+
+
 def build_overlap_intervals(gt_time_sec, pred_time_sec, eps=1e-12):
 	gt_seg = len(gt_time_sec) - 1
 	pred_seg = len(pred_time_sec) - 1
@@ -274,6 +350,44 @@ def compute_sampled_metrics(
 	}
 
 
+def compute_pose_upsampled_metrics(
+	pred_time_sec,
+	pred_coeffs,
+	pose_time_sec,
+	pose_data,
+	intervals,
+	upsample_fps,
+):
+	if upsample_fps is None or upsample_fps <= 0:
+		raise ValueError(f"upsample_fps must be > 0, got {upsample_fps}")
+	if len(intervals) == 0:
+		raise ValueError("No overlap intervals for upsampled pose metrics")
+
+	overlap_start = float(intervals[0][2])
+	overlap_end = float(intervals[-1][3])
+	target_ts = build_uniform_sample_times(overlap_start, overlap_end, upsample_fps)
+	if target_ts.size == 0:
+		raise ValueError("No upsample timestamps generated")
+
+	pred_pose_up = eval_spline_pose_at_times(pred_time_sec, pred_coeffs, target_ts)
+	gt_pose_up, valid_mask = resample_pose_at_times(pose_time_sec, pose_data, target_ts)
+	if not np.any(valid_mask):
+		raise ValueError("No valid overlap timestamps with gt pose for upsampled MPJPE")
+
+	pred_valid = pred_pose_up[valid_mask]
+	gt_valid = gt_pose_up[valid_mask]
+	joint_err = np.linalg.norm(pred_valid - gt_valid, axis=2)
+	mpjpe_series = joint_err.mean(axis=1)
+
+	return {
+		"upsample_fps": float(upsample_fps),
+		"num_upsample_points": int(pred_valid.shape[0]),
+		"mpjpe_pose_upsampled_mm": float(np.mean(mpjpe_series)),
+		"p95_joint_err_pose_upsampled_mm": float(np.percentile(joint_err, 95.0)),
+		"max_joint_err_pose_upsampled_mm": float(np.max(joint_err)),
+	}
+
+
 def summarize_results(rows, analytic_global):
 	summary = {
 		"num_files": len(rows),
@@ -291,10 +405,16 @@ def summarize_results(rows, analytic_global):
 		"nacc_rmse_by_acc_range",
 		"mpjpe_cont_mm",
 		"nmpjpe_by_pos_range",
+		"mpjpe_pose_upsampled_mm",
+		"nmpjpe_pose_upsampled_by_pos_range",
 		"p95_joint_err_mm",
 		"np95_joint_err_by_pos_range",
+		"p95_joint_err_pose_upsampled_mm",
+		"np95_joint_err_pose_upsampled_by_pos_range",
 		"max_joint_err_mm",
 		"nmax_joint_err_by_pos_range",
+		"max_joint_err_pose_upsampled_mm",
+		"nmax_joint_err_pose_upsampled_by_pos_range",
 		"gt_pos_range_mm",
 		"gt_vel_range_mmps",
 		"gt_acc_range_mmps2",
@@ -338,24 +458,31 @@ def write_rows_csv(rows, csv_path):
 def run_metrics(
 	gt_dir,
 	pred_dir,
+	gt_pose_dir,
 	output_dir,
 	gt_suffix,
 	pred_suffix,
+	gt_pose_suffix,
+	gt_pose_fps,
 	samples_per_interval,
+	upsample_fps,
 	max_files,
 ):
 	gt_map = build_id_to_path_map(gt_dir, gt_suffix)
 	pred_map = build_id_to_path_map(pred_dir, pred_suffix)
+	pose_map = build_id_to_path_map(gt_pose_dir, gt_pose_suffix)
 
 	gt_ids = set(gt_map.keys())
 	pred_ids = set(pred_map.keys())
-	matched_ids = sorted(gt_ids & pred_ids)
+	pose_ids = set(pose_map.keys())
+	matched_ids = sorted(gt_ids & pred_ids & pose_ids)
 
 	if max_files is not None and max_files > 0:
 		matched_ids = matched_ids[:max_files]
 
 	print(f"Ground truth files: {len(gt_map)}")
 	print(f"Prediction files: {len(pred_map)}")
+	print(f"Ground truth pose files: {len(pose_map)}")
 	print(f"Matched files: {len(matched_ids)}")
 
 	rows = []
@@ -369,6 +496,7 @@ def run_metrics(
 	for idx, sample_id in enumerate(matched_ids, start=1):
 		gt_path = gt_map[sample_id]
 		pred_path = pred_map[sample_id]
+		pose_path = pose_map[sample_id]
 
 		try:
 			gt_t, gt_c = load_spline_npz(gt_path)
@@ -394,6 +522,17 @@ def run_metrics(
 				samples_per_interval=samples_per_interval,
 			)
 
+			pose_data = load_pose_array(pose_path)
+			pose_time_sec = build_pose_time_sec(pose_data.shape[0], gt_pose_fps)
+			pose_up = compute_pose_upsampled_metrics(
+				pred_time_sec=pr_t,
+				pred_coeffs=pr_c,
+				pose_time_sec=pose_time_sec,
+				pose_data=pose_data,
+				intervals=intervals,
+				upsample_fps=upsample_fps,
+			)
+
 			row = {
 				"sample_id": sample_id,
 				"duration_sec": analytic["duration_sec"],
@@ -405,15 +544,30 @@ def run_metrics(
 				"nacc_rmse_by_acc_range": safe_div(analytic["acc_rmse_mmps2"], sampled["gt_acc_range_mmps2"]),
 				"mpjpe_cont_mm": sampled["mpjpe_cont_mm"],
 				"nmpjpe_by_pos_range": safe_div(sampled["mpjpe_cont_mm"], sampled["gt_pos_range_mm"]),
+				"mpjpe_pose_upsampled_mm": pose_up["mpjpe_pose_upsampled_mm"],
+				"nmpjpe_pose_upsampled_by_pos_range": safe_div(
+					pose_up["mpjpe_pose_upsampled_mm"], sampled["gt_pos_range_mm"]
+				),
 				"p95_joint_err_mm": sampled["p95_joint_err_mm"],
 				"np95_joint_err_by_pos_range": safe_div(sampled["p95_joint_err_mm"], sampled["gt_pos_range_mm"]),
+				"p95_joint_err_pose_upsampled_mm": pose_up["p95_joint_err_pose_upsampled_mm"],
+				"np95_joint_err_pose_upsampled_by_pos_range": safe_div(
+					pose_up["p95_joint_err_pose_upsampled_mm"], sampled["gt_pos_range_mm"]
+				),
 				"max_joint_err_mm": sampled["max_joint_err_mm"],
 				"nmax_joint_err_by_pos_range": safe_div(sampled["max_joint_err_mm"], sampled["gt_pos_range_mm"]),
+				"max_joint_err_pose_upsampled_mm": pose_up["max_joint_err_pose_upsampled_mm"],
+				"nmax_joint_err_pose_upsampled_by_pos_range": safe_div(
+					pose_up["max_joint_err_pose_upsampled_mm"], sampled["gt_pos_range_mm"]
+				),
+				"upsample_fps": pose_up["upsample_fps"],
+				"num_upsample_points": pose_up["num_upsample_points"],
 				"gt_pos_range_mm": sampled["gt_pos_range_mm"],
 				"gt_vel_range_mmps": sampled["gt_vel_range_mmps"],
 				"gt_acc_range_mmps2": sampled["gt_acc_range_mmps2"],
 				"gt_path": gt_path,
 				"pred_path": pred_path,
+				"gt_pose_path": pose_path,
 			}
 			rows.append(row)
 
@@ -426,7 +580,8 @@ def run_metrics(
 				f"[{idx}/{len(matched_ids)}] {sample_id}: "
 				f"cRMSE={analytic['crmse_mm']:.4f} mm, "
 				f"ncRMSE={safe_div(analytic['crmse_mm'], sampled['gt_pos_range_mm']):.6f}, "
-				f"MPJPE_cont={sampled['mpjpe_cont_mm']:.4f} mm"
+				f"MPJPE_cont={sampled['mpjpe_cont_mm']:.4f} mm, "
+				f"MPJPE_pose_up={pose_up['mpjpe_pose_upsampled_mm']:.4f} mm"
 			)
 		except Exception as exc:
 			failed += 1
@@ -449,6 +604,9 @@ def run_metrics(
 	summary["matched_files"] = len(matched_ids)
 	summary["gt_suffix"] = gt_suffix
 	summary["pred_suffix"] = pred_suffix
+	summary["gt_pose_suffix"] = gt_pose_suffix
+	summary["gt_pose_fps"] = float(gt_pose_fps)
+	summary["upsample_fps"] = float(upsample_fps)
 	summary["samples_per_interval"] = int(samples_per_interval)
 
 	os.makedirs(output_dir, exist_ok=True)
@@ -497,6 +655,12 @@ def build_argparser():
 		help="Output directory for CSV/JSON metrics.",
 	)
 	parser.add_argument(
+		"--gt-pose-dir",
+		type=str,
+		default="/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps",
+		help="Ground truth pose directory (npy), used by upsampled pose MPJPE.",
+	)
+	parser.add_argument(
 		"--gt-suffix",
 		type=str,
 		default="_notaknot_spline.npz",
@@ -509,10 +673,28 @@ def build_argparser():
 		help="Prediction filename suffix for matching sample IDs.",
 	)
 	parser.add_argument(
+		"--gt-pose-suffix",
+		type=str,
+		default=".npy",
+		help="Ground truth pose filename suffix for matching sample IDs.",
+	)
+	parser.add_argument(
+		"--gt-pose-fps",
+		type=float,
+		default=120.0,
+		help="FPS for ground truth pose timestamps.",
+	)
+	parser.add_argument(
 		"--samples-per-interval",
 		type=int,
 		default=40,
 		help="Dense sampling points per overlap interval for non-analytic metrics.",
+	)
+	parser.add_argument(
+		"--upsample-fps",
+		type=float,
+		default=90.0,
+		help="Uniform resampling FPS for pred_spline-vs-gt_pose MPJPE metrics.",
 	)
 	parser.add_argument(
 		"--max-files",
@@ -524,13 +706,50 @@ def build_argparser():
 
 
 if __name__ == "__main__":
-	args = build_argparser().parse_args()
-	run_metrics(
-		gt_dir=args.gt_dir,
-		pred_dir=args.pred_dir,
-		output_dir=args.output_dir,
-		gt_suffix=args.gt_suffix,
-		pred_suffix=args.pred_suffix,
-		samples_per_interval=args.samples_per_interval,
-		max_files=args.max_files,
-	)
+	# -----------------------------------------------------------------
+	# Direct config mode: edit values below and run this script directly.
+	# Set USE_CLI=True if you prefer passing parameters via command line.
+	# -----------------------------------------------------------------
+	USE_CLI = False
+
+	if USE_CLI:
+		args = build_argparser().parse_args()
+		run_metrics(
+			gt_dir=args.gt_dir,
+			pred_dir=args.pred_dir,
+			gt_pose_dir=args.gt_pose_dir,
+			output_dir=args.output_dir,
+			gt_suffix=args.gt_suffix,
+			pred_suffix=args.pred_suffix,
+			gt_pose_suffix=args.gt_pose_suffix,
+			gt_pose_fps=args.gt_pose_fps,
+			samples_per_interval=args.samples_per_interval,
+			upsample_fps=args.upsample_fps,
+			max_files=args.max_files,
+		)
+	else:
+		gt_dir = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps_notaknot_splines"
+		pred_dir = "/home/ztw/HVCCS/res/splines_fit_baseline"
+		gt_pose_dir = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps"
+		output_dir = "/home/ztw/HVCCS/res/splines_metrics_batch"
+		gt_suffix = "_notaknot_spline.npz"
+		pred_suffix = "_baseline_realtime_spline.npz"
+		gt_pose_suffix = ".npy"
+		gt_pose_fps = 120.0
+		samples_per_interval = 40
+		upsample_fps = 90.0
+		max_files = None
+
+		run_metrics(
+			gt_dir=gt_dir,
+			pred_dir=pred_dir,
+			gt_pose_dir=gt_pose_dir,
+			output_dir=output_dir,
+			gt_suffix=gt_suffix,
+			pred_suffix=pred_suffix,
+			gt_pose_suffix=gt_pose_suffix,
+			gt_pose_fps=gt_pose_fps,
+			samples_per_interval=samples_per_interval,
+			upsample_fps=upsample_fps,
+			max_files=max_files,
+		)
