@@ -108,6 +108,27 @@ def integrate_square_of_poly(poly_desc, left, right):
 	return float(np.polyval(sq_int, right) - np.polyval(sq_int, left))
 
 
+def shift_local_cubic_to_new_origin(local_coeff, shift):
+	"""Shift y(t)=a*t^3+b*t^2+c*t+d to y(u)=y(u+shift) around a new local origin."""
+	a, b, c, d = local_coeff
+	s = float(shift)
+	return np.array(
+		[
+			a,
+			b + 3.0 * a * s,
+			c + 2.0 * b * s + 3.0 * a * (s ** 2),
+			d + c * s + b * (s ** 2) + a * (s ** 3),
+		],
+		dtype=np.float64,
+	)
+
+
+def clamp_small_negative(value, tol):
+	if value < 0.0 and value > -tol:
+		return 0.0
+	return value
+
+
 def evaluate_segment_curve(coeff_k3_4, seg_start_t, ts):
 	# coeff_k3_4 shape: (K, 3, 4), ts shape: (M,)
 	tau = (ts - seg_start_t)[:, None, None]
@@ -144,17 +165,21 @@ def compute_analytic_metrics(gt_time_sec, gt_coeffs, pred_time_sec, pred_coeffs,
 				gt_local = gt_coeffs[kpt, dim, :, gt_idx]
 				pred_local = pred_coeffs[kpt, dim, :, pred_idx]
 
-				gt_global = local_to_global_coeff(gt_local, gt_time_sec[gt_idx])
-				pred_global = local_to_global_coeff(pred_local, pred_time_sec[pred_idx])
-				diff = pred_global - gt_global
+				# Integrate in overlap-local time u=t-left to reduce cancellation error.
+				gt_u = shift_local_cubic_to_new_origin(gt_local, left - gt_time_sec[gt_idx])
+				pred_u = shift_local_cubic_to_new_origin(pred_local, left - pred_time_sec[pred_idx])
+				diff_u = pred_u - gt_u
+				seg_len = float(right - left)
 
-				pos_sq_integral += integrate_square_of_poly(diff, left, right)
+				pos_contrib = integrate_square_of_poly(diff_u, 0.0, seg_len)
+				d1 = np.array([3.0 * diff_u[0], 2.0 * diff_u[1], diff_u[2]], dtype=np.float64)
+				vel_contrib = integrate_square_of_poly(d1, 0.0, seg_len)
+				d2 = np.array([6.0 * diff_u[0], 2.0 * diff_u[1]], dtype=np.float64)
+				acc_contrib = integrate_square_of_poly(d2, 0.0, seg_len)
 
-				d1 = np.array([3.0 * diff[0], 2.0 * diff[1], diff[2]], dtype=np.float64)
-				vel_sq_integral += integrate_square_of_poly(d1, left, right)
-
-				d2 = np.array([6.0 * diff[0], 2.0 * diff[1]], dtype=np.float64)
-				acc_sq_integral += integrate_square_of_poly(d2, left, right)
+				pos_sq_integral += clamp_small_negative(pos_contrib, tol=1e-12)
+				vel_sq_integral += clamp_small_negative(vel_contrib, tol=1e-12)
+				acc_sq_integral += clamp_small_negative(acc_contrib, tol=1e-9)
 
 	duration_channels = total_duration * channels
 	if duration_channels <= 0:
@@ -163,6 +188,10 @@ def compute_analytic_metrics(gt_time_sec, gt_coeffs, pred_time_sec, pred_coeffs,
 	pos_mse = pos_sq_integral / duration_channels
 	vel_mse = vel_sq_integral / duration_channels
 	acc_mse = acc_sq_integral / duration_channels
+
+	pos_mse = clamp_small_negative(pos_mse, tol=1e-15)
+	vel_mse = clamp_small_negative(vel_mse, tol=1e-15)
+	acc_mse = clamp_small_negative(acc_mse, tol=1e-12)
 
 	return {
 		"pos_sq_integral": pos_sq_integral,
@@ -405,10 +434,13 @@ def run_metrics(
 
 	analytic_global = None
 	if total_duration_channels > 0:
+		global_pos_mse = clamp_small_negative(total_pos_sq / total_duration_channels, tol=1e-15)
+		global_vel_mse = clamp_small_negative(total_vel_sq / total_duration_channels, tol=1e-15)
+		global_acc_mse = clamp_small_negative(total_acc_sq / total_duration_channels, tol=1e-12)
 		analytic_global = {
-			"crmse_mm": float(np.sqrt(total_pos_sq / total_duration_channels)),
-			"vel_rmse_mmps": float(np.sqrt(total_vel_sq / total_duration_channels)),
-			"acc_rmse_mmps2": float(np.sqrt(total_acc_sq / total_duration_channels)),
+			"crmse_mm": float(np.sqrt(global_pos_mse)),
+			"vel_rmse_mmps": float(np.sqrt(global_vel_mse)),
+			"acc_rmse_mmps2": float(np.sqrt(global_acc_mse)),
 			"duration_channels": float(total_duration_channels),
 		}
 
@@ -449,19 +481,19 @@ def build_argparser():
 	parser.add_argument(
 		"--gt-dir",
 		type=str,
-		default="/home/data/ztw/AtheletePose3D/data/train_set/S3_splines",
+		default="/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps_notaknot_splines",
 		help="Ground truth spline directory (from splines_fit).",
 	)
 	parser.add_argument(
 		"--pred-dir",
 		type=str,
-		default="/home/ztw/HVCCS/res/splines_fit_kalman",
-		help="Prediction spline directory (e.g., Kalman or ABG realtime output).",
+		default="/home/ztw/HVCCS/res/splines_fit_baseline",
+		help="Prediction spline directory (e.g., Kalman, ABG or Baseline realtime output).",
 	)
 	parser.add_argument(
 		"--output-dir",
 		type=str,
-		default="/home/ztw/HVCCS/res/splines_metrics",
+		default="/home/ztw/HVCCS/res/splines_metrics_batch",
 		help="Output directory for CSV/JSON metrics.",
 	)
 	parser.add_argument(
@@ -473,13 +505,13 @@ def build_argparser():
 	parser.add_argument(
 		"--pred-suffix",
 		type=str,
-		default="_kalman_realtime_spline.npz",
+		default="_baseline_realtime_spline.npz",
 		help="Prediction filename suffix for matching sample IDs.",
 	)
 	parser.add_argument(
 		"--samples-per-interval",
 		type=int,
-		default=20,
+		default=40,
 		help="Dense sampling points per overlap interval for non-analytic metrics.",
 	)
 	parser.add_argument(

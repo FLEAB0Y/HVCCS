@@ -1,6 +1,5 @@
 import argparse
 import os
-import re
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -72,6 +71,27 @@ def build_overlap_intervals(gt_time_sec, pred_time_sec, eps=1e-12):
 	return intervals, total_duration
 
 
+def collect_overlap_frame_markers(gt_time_sec, pred_time_sec, intervals, tol=1e-12):
+	if len(intervals) == 0:
+		return np.asarray([], dtype=np.float64)
+
+	overlap_start = float(intervals[0][2])
+	overlap_end = float(intervals[-1][3])
+
+	gt_markers = gt_time_sec[(gt_time_sec >= overlap_start - tol) & (gt_time_sec <= overlap_end + tol)]
+	pred_markers = pred_time_sec[(pred_time_sec >= overlap_start - tol) & (pred_time_sec <= overlap_end + tol)]
+	all_markers = np.sort(np.concatenate([gt_markers, pred_markers]).astype(np.float64, copy=False))
+
+	if all_markers.size == 0:
+		return all_markers
+
+	dedup = [all_markers[0]]
+	for t in all_markers[1:]:
+		if abs(t - dedup[-1]) > tol:
+			dedup.append(t)
+	return np.asarray(dedup, dtype=np.float64)
+
+
 def local_to_global_coeff(local_coeff, seg_start_t):
 	# y(t) = a*(t-s)^3 + b*(t-s)^2 + c*(t-s) + d
 	a, b, c, d = local_coeff
@@ -88,6 +108,25 @@ def integrate_square_poly(poly_desc, left, right):
 	sq = np.polymul(poly_desc, poly_desc)
 	sq_int = np.polyint(sq)
 	return float(np.polyval(sq_int, right) - np.polyval(sq_int, left))
+
+
+def shift_local_cubic_to_new_origin(local_coeff, shift):
+	"""Shift y(t)=a*t^3+b*t^2+c*t+d to y(u)=y(u+shift) with u's origin at new point.
+
+	This keeps integration in a local time window to avoid catastrophic cancellation
+	from converting to global-time coefficients.
+	"""
+	a, b, c, d = local_coeff
+	s = float(shift)
+	return np.array(
+		[
+			a,
+			b + 3.0 * a * s,
+			c + 2.0 * b * s + 3.0 * a * (s ** 2),
+			d + c * s + b * (s ** 2) + a * (s ** 3),
+		],
+		dtype=np.float64,
+	)
 
 
 def eval_local_cubic(local_coeff, seg_start_t, ts):
@@ -131,17 +170,29 @@ def compute_channel_metrics(
 		gt_local = gt_channel_coeffs[:, gt_idx]
 		pred_local = pred_channel_coeffs[:, pred_idx]
 
-		gt_global = local_to_global_coeff(gt_local, gt_time_sec[gt_idx])
-		pred_global = local_to_global_coeff(pred_local, pred_time_sec[pred_idx])
-		diff_global = pred_global - gt_global
+		# Integrate in overlap-local time u = t - left for better numerical stability.
+		gt_u = shift_local_cubic_to_new_origin(gt_local, left - gt_time_sec[gt_idx])
+		pred_u = shift_local_cubic_to_new_origin(pred_local, left - pred_time_sec[pred_idx])
+		diff_u = pred_u - gt_u
+		seg_len = float(right - left)
 
-		pos_sq_integral += integrate_square_poly(diff_global, left, right)
+		pos_contrib = integrate_square_poly(diff_u, 0.0, seg_len)
+		d1 = np.array([3.0 * diff_u[0], 2.0 * diff_u[1], diff_u[2]], dtype=np.float64)
+		vel_contrib = integrate_square_poly(d1, 0.0, seg_len)
+		d2 = np.array([6.0 * diff_u[0], 2.0 * diff_u[1]], dtype=np.float64)
+		acc_contrib = integrate_square_poly(d2, 0.0, seg_len)
 
-		d1 = np.array([3.0 * diff_global[0], 2.0 * diff_global[1], diff_global[2]], dtype=np.float64)
-		vel_sq_integral += integrate_square_poly(d1, left, right)
+		# Guard against tiny negative values from floating-point round-off.
+		if pos_contrib < 0.0 and pos_contrib > -1e-12:
+			pos_contrib = 0.0
+		if vel_contrib < 0.0 and vel_contrib > -1e-12:
+			vel_contrib = 0.0
+		if acc_contrib < 0.0 and acc_contrib > -1e-9:
+			acc_contrib = 0.0
 
-		d2 = np.array([6.0 * diff_global[0], 2.0 * diff_global[1]], dtype=np.float64)
-		acc_sq_integral += integrate_square_poly(d2, left, right)
+		pos_sq_integral += pos_contrib
+		vel_sq_integral += vel_contrib
+		acc_sq_integral += acc_contrib
 
 		endpoint = idx == len(intervals) - 1
 		ts = np.linspace(left, right, samples_per_interval, endpoint=endpoint, dtype=np.float64)
@@ -215,6 +266,8 @@ def plot_two_splines(
 	pred_dense,
 	gt_vel_dense,
 	pred_vel_dense,
+	frame_marker_times=None,
+	plot_dpi=320,
 ):
 	if t_dense.size == 0:
 		raise ValueError("No dense curve samples to plot")
@@ -233,7 +286,6 @@ def plot_two_splines(
 		pred_dense,
 		color="tab:red",
 		linewidth=1.4,
-		linestyle="--",
 		label="Position Pred",
 	)
 
@@ -251,7 +303,6 @@ def plot_two_splines(
 		pred_vel_dense,
 		color="tab:orange",
 		linewidth=1.2,
-		linestyle="--",
 		alpha=0.9,
 		label="Velocity Pred",
 	)
@@ -265,6 +316,14 @@ def plot_two_splines(
 	ax.minorticks_on()
 	ax.grid(which="major", linestyle="-", linewidth=0.55, alpha=0.50)
 	ax.grid(which="minor", linestyle=":", linewidth=0.45, alpha=0.45)
+
+	# Draw one vertical reference line per frame boundary in overlap range.
+	if frame_marker_times is not None and len(frame_marker_times) > 0:
+		for idx, t_sec in enumerate(frame_marker_times):
+			if idx % 5 == 0:
+				ax.axvline(t_sec * 1000.0, color="0.60", linewidth=0.60, alpha=0.24, zorder=0)
+			else:
+				ax.axvline(t_sec * 1000.0, color="0.75", linewidth=0.45, alpha=0.18, zorder=0)
 
 	lines = [pos_gt_line, pos_pred_line, vel_gt_line, vel_pred_line]
 	labels = ["Position GT", "Position Pred", "Velocity GT", "Velocity Pred"]
@@ -295,25 +354,11 @@ def plot_two_splines(
 
 	fig.tight_layout()
 	os.makedirs(os.path.dirname(output_path), exist_ok=True)
-	fig.savefig(output_path, dpi=180)
+	fig.savefig(output_path, dpi=int(plot_dpi))
 	plt.close(fig)
 
 
-def with_spline_id_in_filename(output_path, spline_id):
-	dirname = os.path.dirname(output_path)
-	basename = os.path.basename(output_path)
-	stem, ext = os.path.splitext(basename)
-
-	# If sid already exists, replace it; otherwise append.
-	if re.search(r"_sid\d+$", stem):
-		stem = re.sub(r"_sid\d+$", f"_sid{spline_id}", stem)
-	else:
-		stem = f"{stem}_sid{spline_id}"
-
-	return os.path.join(dirname, f"{stem}{ext}")
-
-
-def run_compare(gt_file, pred_file, spline_id, samples_per_interval, output_path):
+def run_compare(gt_file, pred_file, spline_id, samples_per_interval, output_path, plot_dpi=320):
 	gt_t, gt_coeffs = load_spline_npz(gt_file)
 	pred_t, pred_coeffs = load_spline_npz(pred_file)
 
@@ -341,8 +386,7 @@ def run_compare(gt_file, pred_file, spline_id, samples_per_interval, output_path
 		f"Spline Compare | id={spline_id} / total={total} "
 		f"(keypoint={kpt}, axis={axis_name(dim)})"
 	)
-
-	output_path = with_spline_id_in_filename(output_path, spline_id)
+	frame_marker_times = collect_overlap_frame_markers(gt_t, pred_t, intervals)
 
 	plot_two_splines(
 		output_path=output_path,
@@ -353,6 +397,8 @@ def run_compare(gt_file, pred_file, spline_id, samples_per_interval, output_path
 		pred_dense=metrics["pred_dense"],
 		gt_vel_dense=metrics["gt_vel_dense"],
 		pred_vel_dense=metrics["pred_vel_dense"],
+		frame_marker_times=frame_marker_times,
+		plot_dpi=plot_dpi,
 	)
 
 	print(f"Total spline dimensions: {total} ({gt_coeffs.shape[0]} * {gt_coeffs.shape[1]})")
@@ -398,6 +444,12 @@ def build_argparser():
 		default="/home/ztw/HVCCS/res/splines_metrics/splines_compare_plot.png",
 		help="Output plot path",
 	)
+	parser.add_argument(
+		"--plot-dpi",
+		type=int,
+		default=320,
+		help="Output plot DPI for saved figure.",
+	)
 	return parser
 
 
@@ -416,18 +468,20 @@ if __name__ == "__main__":
 			spline_id=args.spline_id,
 			samples_per_interval=args.samples_per_interval,
 			output_path=args.output_path,
+			plot_dpi=args.plot_dpi,
 		)
 	else:
-		gt_file = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/train/S1_cam_1_60fps_notaknot_splines/Axel_1_cam_1_h36m_notaknot_spline.npz"
-		pred_file = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/train/S1_cam_1_60fps_clamped_splines/Axel_1_cam_1_h36m_clamped_spline.npz"
-		spline_id = 1               # valid range: 0..50 for 17x3
+		gt_file = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps_notaknot_splines/Running_37_cam_1_h36m_notaknot_spline.npz"
+		pred_file = "/home/ztw/HVCCS/res/splines_fit_baseline/Running_37_cam_1_h36m_baseline_realtime_spline.npz"
+		spline_id = 0               # valid range: 0..50 for 17x3
 		samples_per_interval = 40   # dense sampling for MAE/P95/Max approximation
-		output_path = "/home/ztw/HVCCS/res/splines_metrics/Alex_1_cam_1_sid1.png"
-
+		output_path = "/home/ztw/HVCCS/res/splines_metrics/baseline5.png"
+		plot_dpi = 640              # increase saved plot resolution
 		run_compare(
 			gt_file=gt_file,
 			pred_file=pred_file,
 			spline_id=spline_id,
 			samples_per_interval=samples_per_interval,
 			output_path=output_path,
+			plot_dpi=plot_dpi,
 		)
