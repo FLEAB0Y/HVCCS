@@ -693,7 +693,7 @@ def build_argparser():
 	parser.add_argument(
 		"--upsample-fps",
 		type=float,
-		default=90.0,
+		default=120.0,
 		help="Uniform resampling FPS for pred_spline-vs-gt_pose MPJPE metrics.",
 	)
 	parser.add_argument(
@@ -728,21 +728,21 @@ if __name__ == "__main__":
 			max_files=args.max_files,
 		)
 	else:
-		gt_dir = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps_notaknot_splines"
-		pred_dir = "/home/ztw/HVCCS/res/splines_fit_baseline"
+		gt_splines_dir = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps_notaknot_splines"
+		pred_splines_dir = "/home/ztw/HVCCS/res/splines_fit_baseline"
 		gt_pose_dir = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps"
 		output_dir = "/home/ztw/HVCCS/res/splines_metrics_batch"
 		gt_suffix = "_notaknot_spline.npz"
-		pred_suffix = "_baseline_realtime_spline.npz"
+		pred_suffix = "_30fps_baseline_realtime_spline.npz"
 		gt_pose_suffix = ".npy"
 		gt_pose_fps = 120.0
 		samples_per_interval = 40
-		upsample_fps = 90.0
+		upsample_fps = 120.0
 		max_files = None
 
 		run_metrics(
-			gt_dir=gt_dir,
-			pred_dir=pred_dir,
+			gt_dir=gt_splines_dir,
+			pred_dir=pred_splines_dir,
 			gt_pose_dir=gt_pose_dir,
 			output_dir=output_dir,
 			gt_suffix=gt_suffix,

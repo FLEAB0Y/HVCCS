@@ -203,9 +203,9 @@ def process_folder(input_dir, output_dir, fps=120.0, fit_mode="notaknot"):
 
 
 if __name__ == "__main__":
-	Label = "train/S1_cam_1"
+	Label = "test/S2_cam_1"
 	# Fitting mode: "notaknot" uses global cubic spline; "clamped" uses segment Hermite with truth endpoints.
-	fit_mode = "notaknot"
+	fit_mode = "clamped"
 	# Source frame rate in Hz used to compute timestamps and dt.
 	fps = 30.0
 	# Input folder containing files that end with "h36m.npy".

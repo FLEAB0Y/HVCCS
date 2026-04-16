@@ -176,6 +176,136 @@ def eval_local_cubic_derivative(local_coeff, seg_start_t, ts):
 	return (3.0 * a * dt + 2.0 * b) * dt + c
 
 
+def rigid_align_points_3d(src_points, dst_points):
+	"""Rigidly align src to dst with Kabsch (rotation + translation, no scale)."""
+	if src_points.ndim != 2 or dst_points.ndim != 2:
+		raise ValueError("src_points and dst_points must be 2D arrays")
+	if src_points.shape != dst_points.shape:
+		raise ValueError(f"shape mismatch: src={src_points.shape}, dst={dst_points.shape}")
+	if src_points.shape[1] != 3:
+		raise ValueError("rigid alignment requires 3D points")
+
+	mu_src = np.mean(src_points, axis=0)
+	mu_dst = np.mean(dst_points, axis=0)
+	src_c = src_points - mu_src
+	dst_c = dst_points - mu_dst
+
+	H = src_c.T @ dst_c
+	U, _, Vt = np.linalg.svd(H)
+	R = Vt.T @ U.T
+	if np.linalg.det(R) < 0:
+		Vt[-1, :] *= -1.0
+		R = Vt.T @ U.T
+	t = mu_dst - (R @ mu_src)
+	aligned = src_points @ R.T + t
+	return aligned, R, t
+
+
+def compute_pose_all_channel_metrics(gt_pose_mm, pred_pose_mm, fps):
+	"""Compute all-channel (17x3) metrics from pose samples at the same timestamps."""
+	if gt_pose_mm.shape != pred_pose_mm.shape:
+		raise ValueError(f"pose shape mismatch: gt={gt_pose_mm.shape}, pred={pred_pose_mm.shape}")
+	if gt_pose_mm.ndim != 3 or gt_pose_mm.shape[2] != 3:
+		raise ValueError(f"unexpected pose shape: {gt_pose_mm.shape}")
+	if fps <= 0:
+		raise ValueError(f"fps must be > 0, got {fps}")
+
+	diff = pred_pose_mm - gt_pose_mm
+	abs_err = np.abs(diff)
+
+	crmse = float(np.sqrt(np.mean(diff ** 2)))
+	gt_range = float(np.max(gt_pose_mm) - np.min(gt_pose_mm)) if gt_pose_mm.size > 0 else float("nan")
+	if np.isfinite(gt_range) and gt_range > 1e-12:
+		nrmse = float(crmse / gt_range)
+	else:
+		nrmse = float("nan")
+
+	mae = float(np.mean(abs_err)) if abs_err.size > 0 else float("nan")
+	p95 = float(np.percentile(abs_err, 95.0)) if abs_err.size > 0 else float("nan")
+	maxae = float(np.max(abs_err)) if abs_err.size > 0 else float("nan")
+
+	if gt_pose_mm.shape[0] >= 2:
+		vel_gt = np.diff(gt_pose_mm, axis=0) * float(fps)
+		vel_pred = np.diff(pred_pose_mm, axis=0) * float(fps)
+		vel_rmse = float(np.sqrt(np.mean((vel_pred - vel_gt) ** 2)))
+	else:
+		vel_rmse = float("nan")
+
+	if gt_pose_mm.shape[0] >= 3:
+		acc_gt = np.diff(gt_pose_mm, n=2, axis=0) * float(fps ** 2)
+		acc_pred = np.diff(pred_pose_mm, n=2, axis=0) * float(fps ** 2)
+		acc_rmse = float(np.sqrt(np.mean((acc_pred - acc_gt) ** 2)))
+	else:
+		acc_rmse = float("nan")
+
+	joint_err = np.linalg.norm(diff, axis=2)
+	mpjpe = float(np.mean(joint_err)) if joint_err.size > 0 else float("nan")
+
+	return {
+		"cRMSE_mm": crmse,
+		"NRMSE_range": nrmse,
+		"GT_range_mm": gt_range,
+		"MAE_mm": mae,
+		"P95AE_mm": p95,
+		"MaxAE_mm": maxae,
+		"VelRMSE_mmps": vel_rmse,
+		"AccRMSE_mmps2": acc_rmse,
+		"MPJPE_upsampled_mm": mpjpe,
+		"channel_count": int(gt_pose_mm.shape[1] * gt_pose_mm.shape[2]),
+	}
+
+
+def compute_wham_rte_jitter(gt_pose_mm, pred_pose_mm, fps, root_kpt_idx=0):
+	"""Compute WHAM-style RTE/Jitter from aligned root trajectory and all-joint jerk.
+
+	- RTE: rigid alignment on root translation (fixed scale), then normalize by GT path length.
+	- Jitter: mean over time of mean over joints of jerk norm, divided by 10 (m/s^3 scale).
+	"""
+	if gt_pose_mm.shape != pred_pose_mm.shape:
+		raise ValueError(f"pose shape mismatch: gt={gt_pose_mm.shape}, pred={pred_pose_mm.shape}")
+	if gt_pose_mm.ndim != 3 or gt_pose_mm.shape[2] != 3:
+		raise ValueError(f"unexpected pose shape: {gt_pose_mm.shape}")
+	if fps <= 0:
+		raise ValueError(f"fps must be > 0, got {fps}")
+	if root_kpt_idx < 0 or root_kpt_idx >= gt_pose_mm.shape[1]:
+		raise ValueError(f"root_kpt_idx={root_kpt_idx} out of range")
+
+	gt_root = gt_pose_mm[:, root_kpt_idx, :]
+	pred_root = pred_pose_mm[:, root_kpt_idx, :]
+	pred_root_aligned, _, _ = rigid_align_points_3d(pred_root, gt_root)
+
+	if gt_root.shape[0] >= 2:
+		disp = float(np.sum(np.linalg.norm(np.diff(gt_root, axis=0), axis=1)))
+	else:
+		disp = 0.0
+	if disp > 1e-9:
+		rte = np.linalg.norm(gt_root - pred_root_aligned, axis=1)
+		rte_percent = float(np.mean(rte / disp) * 100.0)
+	else:
+		rte_percent = float("nan")
+
+	if pred_pose_mm.shape[0] >= 4:
+		jerk_mmps3 = (
+			pred_pose_mm[3:]
+			- 3.0 * pred_pose_mm[2:-1]
+			+ 3.0 * pred_pose_mm[1:-2]
+			- pred_pose_mm[:-3]
+		) * (float(fps) ** 3)
+		jitter_frame_mmps3 = np.linalg.norm(jerk_mmps3, axis=2).mean(axis=1)
+		jitter_mps3 = float(np.mean(jitter_frame_mmps3) / 1000.0)
+		jitter_10mps3 = float(jitter_mps3 / 10.0)
+	else:
+		jitter_mps3 = float("nan")
+		jitter_10mps3 = float("nan")
+
+	return {
+		"RTE_percent": rte_percent,
+		"Jitter_10mps3": jitter_10mps3,
+		"Jitter_mps3": jitter_mps3,
+		"root_sample_count": int(gt_pose_mm.shape[0]),
+	}
+
+
 def build_uniform_sample_times(start_sec, end_sec, fps, tol=1e-12):
 	if fps <= 0:
 		raise ValueError(f"upsample fps must be > 0, got {fps}")
@@ -241,6 +371,53 @@ def resample_pose_at_times(pose_time_sec, pose_data, ts):
 			)
 	valid = np.isfinite(out).all(axis=(1, 2))
 	return out, valid
+
+
+def downsample_pose_linear(pose_time_sec, pose_data, target_fps):
+	"""Downsample pose sequence to target fps by timestamp resampling."""
+	if target_fps <= 0:
+		raise ValueError(f"target_fps must be > 0, got {target_fps}")
+	ts_ds = build_uniform_sample_times(float(pose_time_sec[0]), float(pose_time_sec[-1]), target_fps)
+	pose_ds, valid = resample_pose_at_times(pose_time_sec, pose_data, ts_ds)
+	if not np.any(valid):
+		raise ValueError("No valid samples produced while downsampling pose")
+	return ts_ds[valid], pose_ds[valid]
+
+
+def eval_pose_linear_from_controls(control_ts, control_pose, eval_ts):
+	"""Evaluate piecewise-linear pose defined by control points at eval timestamps."""
+	out = np.full((len(eval_ts), control_pose.shape[1], control_pose.shape[2]), np.nan, dtype=np.float64)
+	for j in range(control_pose.shape[1]):
+		for d in range(control_pose.shape[2]):
+			out[:, j, d] = np.interp(
+				eval_ts,
+				control_ts,
+				control_pose[:, j, d],
+				left=np.nan,
+				right=np.nan,
+			)
+	valid = np.isfinite(out).all(axis=(1, 2))
+	return out, valid
+
+
+def build_linear_channel_coeffs(control_ts, control_values):
+	"""Build piecewise-linear coefficients as cubic form [a,b,c,d] with a=b=0 per segment."""
+	if control_ts.ndim != 1 or control_values.ndim != 1:
+		raise ValueError("control_ts and control_values must be 1D arrays")
+	if len(control_ts) != len(control_values):
+		raise ValueError("control_ts and control_values length mismatch")
+	if len(control_ts) < 2:
+		raise ValueError("At least 2 control points are required for linear interpolation")
+	if np.any(np.diff(control_ts) <= 0):
+		raise ValueError("control_ts must be strictly increasing")
+
+	seg = len(control_ts) - 1
+	coeffs = np.empty((4, seg), dtype=np.float64)
+	for i in range(seg):
+		dt = float(control_ts[i + 1] - control_ts[i])
+		slope = float((control_values[i + 1] - control_values[i]) / dt)
+		coeffs[:, i] = np.array([0.0, 0.0, slope, float(control_values[i])], dtype=np.float64)
+	return control_ts.astype(np.float64, copy=False), coeffs
 
 
 def compute_channel_metrics(
@@ -512,12 +689,11 @@ def plot_two_splines(
 	metric_text = (
 		f"cRMSE: {metrics['cRMSE_mm']:.4f} mm\n"
 		f"NRMSE(range): {metrics['NRMSE_range']:.4f}\n"
-		f"GT range: {metrics['GT_range_mm']:.4f} mm\n"
 		f"MAE: {metrics['MAE_mm']:.4f} mm\n"
 		f"P95AE: {metrics['P95AE_mm']:.4f} mm\n"
 		f"MaxAE: {metrics['MaxAE_mm']:.4f} mm\n"
-		f"VelRMSE: {metrics['VelRMSE_mmps']:.4f} mm/s\n"
-		f"AccRMSE: {metrics['AccRMSE_mmps2']:.4f} mm/s^2\n"
+		f"RTE: {metrics.get('RTE_percent', float('nan')):.4f} %\n"
+		f"Jitter: {metrics.get('Jitter_10mps3', float('nan')):.4f} (10 m/s^3)\n"
 		f"MPJPE@{metrics.get('upsample_fps', float('nan')):.1f}Hz: {metrics.get('MPJPE_upsampled_mm', float('nan')):.4f} mm\n"
 		f"Overlap: {metrics['duration_sec']:.4f} s"
 	)
@@ -549,6 +725,8 @@ def run_compare(
 	upsample_fps=90.0,
 	pose_file=None,
 	pose_fps=30.0,
+	linear_downsample_fps=30.0,
+	linear_output_path=None,
 ):
 	gt_t, gt_coeffs = load_spline_npz(gt_file)
 	pred_t, pred_coeffs = load_spline_npz(pred_file)
@@ -566,14 +744,20 @@ def run_compare(
 	pose_time_sec = None
 	pose_values = None
 	pose_data = None
-	if pose_file:
-		pose_data = load_pose_array(pose_file)
-		pose_time_sec, pose_values = extract_pose_channel_points(
-			pose_data=pose_data,
-			keypoint_idx=kpt,
-			axis_idx=dim,
-			pose_fps=pose_fps,
+	if not pose_file:
+		raise ValueError("pose_file is required: all metrics are computed from GT pose vs upsampled prediction")
+
+	pose_data = load_pose_array(pose_file)
+	if pose_data.shape[1] != pred_coeffs.shape[0] or pose_data.shape[2] != pred_coeffs.shape[1]:
+		raise ValueError(
+			f"pose shape mismatch with spline channels: pose={pose_data.shape[1:]} vs spline={pred_coeffs.shape[:2]}"
 		)
+	pose_time_sec, pose_values = extract_pose_channel_points(
+		pose_data=pose_data,
+		keypoint_idx=kpt,
+		axis_idx=dim,
+		pose_fps=pose_fps,
+	)
 
 	metrics = compute_channel_metrics(
 		gt_time_sec=gt_t,
@@ -594,40 +778,51 @@ def run_compare(
 	upsample_time_sec = None
 	upsample_abs_err = None
 	upsample_mpjpe_series = None
-	if upsample_fps is not None and upsample_fps > 0:
-		overlap_start = float(intervals[0][2])
-		overlap_end = float(intervals[-1][3])
-		upsample_time_all = build_uniform_sample_times(overlap_start, overlap_end, upsample_fps)
-		upsample_time_sec = upsample_time_all
-		if upsample_time_sec.size > 0:
-			pred_pose_up = eval_spline_pose_at_times(pred_t, pred_coeffs, upsample_time_sec)
-			if pose_data is None or pose_time_sec is None:
-				metrics["MPJPE_upsampled_mm"] = float("nan")
-				metrics["upsample_fps"] = float(upsample_fps)
-				upsample_time_sec = None
-			else:
-				gt_pose_up, valid_mask = resample_pose_at_times(pose_time_sec, pose_data, upsample_time_sec)
-				if np.any(valid_mask):
-					valid_times = upsample_time_sec[valid_mask]
-					pred_valid = pred_pose_up[valid_mask]
-					gt_valid = gt_pose_up[valid_mask]
-					joint_err = np.linalg.norm(pred_valid - gt_valid, axis=2)
-					upsample_mpjpe_series = joint_err.mean(axis=1)
-					upsample_abs_err = np.abs(
-						pred_valid[:, kpt, dim] - gt_valid[:, kpt, dim]
-					).astype(np.float64, copy=False)
-					upsample_time_sec = valid_times
-					metrics["MPJPE_upsampled_mm"] = float(np.mean(upsample_mpjpe_series))
-					metrics["upsample_fps"] = float(upsample_fps)
-				else:
-					metrics["MPJPE_upsampled_mm"] = float("nan")
-					metrics["upsample_fps"] = float(upsample_fps)
-					upsample_time_sec = None
-					upsample_abs_err = None
-					upsample_mpjpe_series = None
-		else:
-			metrics["MPJPE_upsampled_mm"] = float("nan")
+	if upsample_fps is None or upsample_fps <= 0:
+		raise ValueError(f"upsample_fps must be > 0 for all-channel metrics, got {upsample_fps}")
+
+	overlap_start = max(float(pred_t[0]), float(pose_time_sec[0]))
+	overlap_end = min(float(pred_t[-1]), float(pose_time_sec[-1]))
+	if overlap_end <= overlap_start:
+		raise ValueError("No overlap between prediction spline timeline and GT pose timeline")
+
+	upsample_time_all = build_uniform_sample_times(overlap_start, overlap_end, upsample_fps)
+	upsample_time_sec = upsample_time_all
+	if upsample_time_sec.size > 0:
+		pred_pose_up = eval_spline_pose_at_times(pred_t, pred_coeffs, upsample_time_sec)
+		gt_pose_up, valid_mask = resample_pose_at_times(pose_time_sec, pose_data, upsample_time_sec)
+		if np.any(valid_mask):
+			valid_times = upsample_time_sec[valid_mask]
+			pred_valid = pred_pose_up[valid_mask]
+			gt_valid = gt_pose_up[valid_mask]
+
+			joint_err = np.linalg.norm(pred_valid - gt_valid, axis=2)
+			upsample_mpjpe_series = joint_err.mean(axis=1)
+			upsample_abs_err = np.abs(
+				pred_valid[:, kpt, dim] - gt_valid[:, kpt, dim]
+			).astype(np.float64, copy=False)
+			upsample_time_sec = valid_times
+
+			metrics.update(
+				compute_pose_all_channel_metrics(
+					gt_pose_mm=gt_valid,
+					pred_pose_mm=pred_valid,
+					fps=float(upsample_fps),
+				)
+			)
+			metrics.update(
+				compute_wham_rte_jitter(
+					gt_pose_mm=gt_valid,
+					pred_pose_mm=pred_valid,
+					fps=float(upsample_fps),
+					root_kpt_idx=0,
+				)
+			)
 			metrics["upsample_fps"] = float(upsample_fps)
+		else:
+			raise ValueError("No valid overlapping pose samples after resampling")
+	else:
+		raise ValueError("No upsample timestamps generated; check overlap range and upsample_fps")
 
 	plot_two_splines(
 		output_path=output_path,
@@ -647,23 +842,131 @@ def run_compare(
 		plot_dpi=plot_dpi,
 	)
 
+	if linear_output_path is None:
+		linear_output_path = os.path.join(os.path.dirname(output_path), "downsample_linear.png")
+
+	# Linear interpolation baseline:
+	# 1) downsample GT pose to target FPS
+	# 2) connect points with piecewise linear interpolation
+	# 3) compare this linear curve to GT pose curve on all 17x3 channels
+	ctrl_ts, ctrl_pose = downsample_pose_linear(pose_time_sec, pose_data, linear_downsample_fps)
+	lin_pred_all, lin_valid = eval_pose_linear_from_controls(ctrl_ts, ctrl_pose, upsample_time_all)
+	gt_all, gt_valid = resample_pose_at_times(pose_time_sec, pose_data, upsample_time_all)
+	valid_lin = lin_valid & gt_valid
+	if not np.any(valid_lin):
+		raise ValueError("No valid overlapping samples for linear interpolation baseline")
+
+	ts_lin = upsample_time_all[valid_lin]
+	gt_lin = gt_all[valid_lin]
+	pred_lin = lin_pred_all[valid_lin]
+
+	lin_scatter_metrics = compute_pose_all_channel_metrics(
+		gt_pose_mm=gt_lin,
+		pred_pose_mm=pred_lin,
+		fps=float(upsample_fps),
+	)
+	lin_scatter_metrics.update(
+		compute_wham_rte_jitter(
+			gt_pose_mm=gt_lin,
+			pred_pose_mm=pred_lin,
+			fps=float(upsample_fps),
+			root_kpt_idx=0,
+		)
+	)
+	lin_scatter_metrics["upsample_fps"] = float(upsample_fps)
+
+	# Curve metrics for linear baseline are computed against gt_spline (not gt_pose points).
+	lin_curve_t, lin_curve_coeff = build_linear_channel_coeffs(ctrl_ts, ctrl_pose[:, kpt, dim])
+	lin_intervals, lin_duration = build_overlap_intervals(gt_t, lin_curve_t)
+	if len(lin_intervals) == 0 or lin_duration <= 0:
+		raise ValueError("No overlap between gt_spline and linear baseline timeline")
+	lin_curve_metrics = compute_channel_metrics(
+		gt_time_sec=gt_t,
+		gt_channel_coeffs=gt_coeffs[kpt, dim],
+		pred_time_sec=lin_curve_t,
+		pred_channel_coeffs=lin_curve_coeff,
+		intervals=lin_intervals,
+		total_duration=lin_duration,
+		samples_per_interval=samples_per_interval,
+	)
+
+	lin_metrics = {
+		"cRMSE_mm": lin_curve_metrics["cRMSE_mm"],
+		"NRMSE_range": lin_curve_metrics["NRMSE_range"],
+		"MAE_mm": lin_scatter_metrics["MAE_mm"],
+		"P95AE_mm": lin_scatter_metrics["P95AE_mm"],
+		"MaxAE_mm": lin_scatter_metrics["MaxAE_mm"],
+		"RTE_percent": lin_scatter_metrics["RTE_percent"],
+		"Jitter_10mps3": lin_scatter_metrics["Jitter_10mps3"],
+		"Jitter_mps3": lin_scatter_metrics["Jitter_mps3"],
+		"MPJPE_upsampled_mm": lin_scatter_metrics["MPJPE_upsampled_mm"],
+		"upsample_fps": float(upsample_fps),
+		"duration_sec": lin_curve_metrics["duration_sec"],
+		"channel_count": lin_scatter_metrics.get("channel_count", float("nan")),
+	}
+
+	t_dense_lin = lin_curve_metrics["t_dense"]
+	gt_dense_lin = lin_curve_metrics["gt_dense"]
+	pred_dense_lin = lin_curve_metrics["pred_dense"]
+	gt_vel_lin = lin_curve_metrics["gt_vel_dense"]
+	pred_vel_lin = lin_curve_metrics["pred_vel_dense"]
+
+	lin_abs_err = np.abs(pred_lin[:, kpt, dim] - gt_lin[:, kpt, dim])
+	lin_mpjpe = np.linalg.norm(pred_lin - gt_lin, axis=2).mean(axis=1)
+
+	lin_title = (
+		f"Linear Interp Baseline | id={spline_id} / total={total} "
+		f"(keypoint={kpt}, axis={axis_name(dim)})"
+	)
+	plot_two_splines(
+		output_path=linear_output_path,
+		title=lin_title,
+		metrics=lin_metrics,
+		t_dense=t_dense_lin,
+		gt_dense=gt_dense_lin,
+		pred_dense=pred_dense_lin,
+		gt_vel_dense=gt_vel_lin,
+		pred_vel_dense=pred_vel_lin,
+		upsample_time_sec=ts_lin,
+		upsample_abs_err=lin_abs_err,
+		upsample_mpjpe_series=lin_mpjpe,
+		pose_time_sec=ts_lin,
+		pose_values=gt_lin[:, kpt, dim],
+		frame_marker_times=collect_overlap_frame_markers(gt_t, lin_curve_t, lin_intervals),
+		plot_dpi=plot_dpi,
+	)
+
 	print(f"Total spline dimensions: {total} ({gt_coeffs.shape[0]} * {gt_coeffs.shape[1]})")
 	print(f"Selected spline id: {spline_id} -> keypoint={kpt}, axis={axis_name(dim)}")
 	print(f"Saved plot: {output_path}")
 	if pose_file:
 		print(f"Pose overlay: {pose_file} | pose_fps={pose_fps}")
+	print(f"Linear interpolation plot: {linear_output_path} | downsample_fps={linear_downsample_fps}")
 	print(
 		"Metrics: "
 		f"cRMSE={metrics['cRMSE_mm']:.6f} mm, "
 		f"NRMSE(range)={metrics['NRMSE_range']:.6f}, "
-		f"GT_range={metrics['GT_range_mm']:.6f} mm, "
 		f"MAE={metrics['MAE_mm']:.6f} mm, "
 		f"P95AE={metrics['P95AE_mm']:.6f} mm, "
 		f"MaxAE={metrics['MaxAE_mm']:.6f} mm, "
-		f"VelRMSE={metrics['VelRMSE_mmps']:.6f} mm/s, "
-		f"AccRMSE={metrics['AccRMSE_mmps2']:.6f} mm/s^2, "
+		f"Channels={metrics.get('channel_count', float('nan'))}, "
+		f"RTE={metrics.get('RTE_percent', float('nan')):.6f} %, "
+		f"Jitter={metrics.get('Jitter_10mps3', float('nan')):.6f} (10 m/s^3), "
 		f"MPJPE@{metrics.get('upsample_fps', float('nan')):.1f}Hz={metrics.get('MPJPE_upsampled_mm', float('nan')):.6f} mm"
 	)
+	print(
+		"LinearMetrics: "
+		f"cRMSE={lin_metrics['cRMSE_mm']:.6f} mm, "
+		f"NRMSE(range)={lin_metrics['NRMSE_range']:.6f}, "
+		f"MAE={lin_metrics['MAE_mm']:.6f} mm, "
+		f"P95AE={lin_metrics['P95AE_mm']:.6f} mm, "
+		f"MaxAE={lin_metrics['MaxAE_mm']:.6f} mm, "
+		f"Channels={lin_metrics.get('channel_count', float('nan'))}, "
+		f"RTE={lin_metrics.get('RTE_percent', float('nan')):.6f} %, "
+		f"Jitter={lin_metrics.get('Jitter_10mps3', float('nan')):.6f} (10 m/s^3), "
+		f"MPJPE@{lin_metrics.get('upsample_fps', float('nan')):.1f}Hz={lin_metrics.get('MPJPE_upsampled_mm', float('nan')):.6f} mm"
+	)
+	print("LinearMetricsNote: cRMSE/NRMSE use gt_spline curves; MAE/P95/MaxAE/RTE/Jitter/MPJPE use 120fps gt_pose sample points.")
 
 
 def build_argparser():
@@ -702,7 +1005,7 @@ def build_argparser():
 	parser.add_argument(
 		"--upsample-fps",
 		type=float,
-		default=90.0,
+		default=120.0,
 		help="Uniform resampling FPS for spline MPJPE metric and abs-error plotting.",
 	)
 	parser.add_argument(
@@ -715,7 +1018,19 @@ def build_argparser():
 		"--pose-fps",
 		type=float,
 		default=30.0,
-		help="FPS for pose-file timestamps alignment. Used only for visualization.",
+		help="FPS for pose-file timestamps alignment. Used by all-channel metrics and pose overlay.",
+	)
+	parser.add_argument(
+		"--linear-downsample-fps",
+		type=float,
+		default=30.0,
+		help="Downsample FPS for linear interpolation baseline built from GT pose points.",
+	)
+	parser.add_argument(
+		"--linear-output-path",
+		type=str,
+		default=None,
+		help="Output path for linear interpolation baseline plot. Default: <output_dir>/downsample_linear.png",
 	)
 	return parser
 
@@ -739,16 +1054,20 @@ if __name__ == "__main__":
 			upsample_fps=args.upsample_fps,
 			pose_file=args.pose_file,
 			pose_fps=args.pose_fps,
+			linear_downsample_fps=args.linear_downsample_fps,
+			linear_output_path=args.linear_output_path,
 		)
 	else:
 		gt_file = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps_notaknot_splines/Running_37_cam_1_h36m_notaknot_spline.npz"
-		pred_file = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps_notaknot_splines/Running_37_cam_1_h36m_30fps_notaknot_spline.npz"
+		pred_file = "/home/ztw/HVCCS/res/splines_fit_abg/Running_37_cam_1_h36m_30fps_abg_realtime_spline.npz"
 		gt_pose_file = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps/Running_37_cam_1_h36m.npy"
-		gt_pose_fps = 120.0
+		gt_pose_fps = 120.0 # 120.0. or 60.0 depending on the source of the pose file and its timestamp alignment with the splines.
 		spline_id = 0               # valid range: 0..50 for 17x3
 		samples_per_interval = 40   # dense sampling for MAE/P95/Max approximation
 		upsample_fps = 120.0        # uniform spline resampling FPS for MPJPE/abs-error points
-		output_path = "/home/ztw/HVCCS/res/splines_metrics/downsample.png"
+		output_path = "/home/ztw/HVCCS/res/splines_metrics/downsample_abg.png"
+		linear_downsample_fps = 30.0
+		linear_output_path = "/home/ztw/HVCCS/res/splines_metrics/downsample_linear.png"
 		plot_dpi = 640              # increase saved plot resolution
 		run_compare(
 			gt_file=gt_file,
@@ -760,4 +1079,6 @@ if __name__ == "__main__":
 			upsample_fps=upsample_fps,
 			pose_file=gt_pose_file,
 			pose_fps=gt_pose_fps,
+			linear_downsample_fps=linear_downsample_fps,
+			linear_output_path=linear_output_path,
 		)
