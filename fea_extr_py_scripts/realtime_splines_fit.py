@@ -12,8 +12,6 @@ def collect_h36m_npy_files(input_dir):
 		full_path = os.path.join(input_dir, name)
 		if not os.path.isfile(full_path):
 			continue
-		if not name.lower().endswith("h36m.npy"):
-			continue
 		files.append(name)
 	files.sort()
 	return files
@@ -557,6 +555,7 @@ def fit_realtime_segments_with_predictor(pose_data, fps, predictor, velocity_mod
 	coeffs = np.empty((num_frames - 1, channels, 4), dtype=np.float64)
 	pred_x_next = np.empty((num_frames - 1, channels), dtype=np.float64)
 	pred_v_next = np.empty((num_frames - 1, channels), dtype=np.float64)
+	prev_seg_right_v = None
 
 	for frame_idx in range(1, num_frames):
 		predictor.update(z[frame_idx], dt)
@@ -571,17 +570,29 @@ def fit_realtime_segments_with_predictor(pose_data, fps, predictor, velocity_mod
 			v_prev_seg = v_prev
 			v_curr_seg = v_curr_state
 		elif velocity_mode == "history_accel_extrapolation":
-			# Align v_{k-1} with clamped-style centered difference whenever available:
-			# v_{k-1} = (x_k - x_{k-2}) / (2*dt).
-			if frame_idx >= 2:
-				v_prev_seg = (z[frame_idx] - z[frame_idx - 2]) / (2.0 * dt)
-				# Use second-order history acceleration at frame k-1.
-				a_prev_hist = (z[frame_idx] - 2.0 * z[frame_idx - 1] + z[frame_idx - 2]) / (dt ** 2)
-			else:
-				# Boundary fallback to one-sided estimate for the first segment.
+			# Enforce C1 continuity in streaming mode:
+			# left endpoint velocity of current segment equals right endpoint velocity
+			# of the previous segment.
+			if prev_seg_right_v is None:
+				# Boundary bootstrap for the first segment [0, 1].
 				v_prev_seg = (z[1] - z[0]) / dt
-				a_prev_hist = np.zeros(channels, dtype=np.float64)
-			v_curr_seg = v_prev_seg + dt * a_prev_hist
+			else:
+				v_prev_seg = prev_seg_right_v
+
+			# Right endpoint velocity for segment [k-1, k]:
+			# v_k_seg = (x_k - x_{k-2})/(2*dt) + (x_k - 2*x_{k-1} + x_{k-2})/dt
+			#         = (3*x_k - 4*x_{k-1} + x_{k-2})/(2*dt)
+			if frame_idx >= 2:
+				v_curr_seg = (
+					3.0 * z[frame_idx]
+					- 4.0 * z[frame_idx - 1]
+					+ z[frame_idx - 2]
+				) / (2.0 * dt)
+			else:
+				# First segment fallback: zero-acceleration extrapolation.
+				v_curr_seg = v_prev_seg
+
+			prev_seg_right_v = v_curr_seg.copy()
 		else:
 			raise ValueError(f"Unsupported velocity_mode: {velocity_mode}")
 
@@ -757,29 +768,29 @@ def process_folder(
 
 if __name__ == "__main__":
 	# Predictor type: "kalman", "abg" (or alias "aby"), "mamba", "baseline".
-	predictor_type = "baseline"
+	predictor_type = "abg"
 	# Input folder containing files that end with "h36m.npy".
-	input_dir = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps"
+	input_dir = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps"
 	# Output folder for saved spline files. Set to None to use auto default by predictor type.
 	output_dir = None
 	# Source frame rate in Hz used to build the time axis and dt.
-	fps = 120.0
+	fps = 30.0
 
 	# Kalman process noise variance (acceleration model). Larger value tracks motion changes faster.
-	process_acc_var = 3e5
+	process_acc_var = 3e9
 	# Kalman measurement noise variance. Larger value trusts observations less.
-	measurement_var = 9.0
+	measurement_var = 20.0
 	# Initial variance of position state in Kalman filter.
-	init_pos_var = 1.0
+	init_pos_var = 1e6
 	# Initial variance of velocity state in Kalman filter.
-	init_vel_var = 1e4
+	init_vel_var = 1e8
 
 	# ABG gain for position correction.
-	alpha = 0.65
+	alpha = 1.0
 	# ABG gain for velocity correction.
-	beta = 0.08
+	beta = 0.79
 	# ABG gain for acceleration correction.
-	gamma = 0.005
+	gamma = 0.05
 
 	# Mamba checkpoint for sequence prediction (required when predictor_type == "mamba").
 	mamba_checkpoint_path = "/home/ztw/HVCCS/checkpoints/splines_mamba_runs/train_gpu0_e1000/ckpt/best.pt"

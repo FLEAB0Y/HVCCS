@@ -12,8 +12,6 @@ def collect_h36m_npy_files(input_dir):
 		full_path = os.path.join(input_dir, name)
 		if not os.path.isfile(full_path):
 			continue
-		if not name.lower().endswith("h36m.npy"):
-			continue
 		files.append(name)
 	files.sort()
 	return files
@@ -44,6 +42,11 @@ def cubic_hermite_coefficients(x0, v0, x1, v1, dt):
 	a = (2.0 * (x0 - x1) + dt * (v0 + v1)) / (dt ** 3)
 	b = (3.0 * (x1 - x0) - dt * (2.0 * v0 + v1)) / (dt ** 2)
 	return np.stack([a, b, c, d], axis=0)
+
+
+def fit_hermite_segment_from_endpoint_states(x_prev, x_curr, v_prev, v_curr, dt):
+	"""Fit one segment [k, k+1] from endpoint states only."""
+	return cubic_hermite_coefficients(x_prev, v_prev, x_curr, v_curr, dt).T
 
 
 class KalmanCVPredictor:
@@ -135,6 +138,49 @@ class ABGPredictor:
 		self.x = x_pred + self.alpha * residual
 		self.v = v_pred + (self.beta / dt) * residual
 		self.a = a_pred + (2.0 * self.gamma / (dt ** 2)) * residual
+
+	def get_state(self):
+		return self.x, self.v, self.a
+
+
+class BaselineTruthHistoryPredictor:
+	has_acceleration = True
+	has_jerk = True
+
+	def __init__(self, channels):
+		self.channels = int(channels)
+		self._initialized = False
+
+	def initialize(self, measurement0):
+		self.x = measurement0.copy()
+		self.v = np.zeros(self.channels, dtype=np.float64)
+		self.a = np.zeros(self.channels, dtype=np.float64)
+		self.j = np.zeros(self.channels, dtype=np.float64)
+		self._prev_x = self.x.copy()
+		self._prev_v_half = self.v.copy()
+		self._prev_a = self.a.copy()
+		self._initialized = True
+
+	def update(self, measurement_k, dt):
+		if not self._initialized:
+			raise RuntimeError("Baseline predictor is not initialized")
+
+		x_new = measurement_k.copy()
+		# Instantaneous finite-difference states from truth coordinates:
+		# v_{k-0.5} = (x_k - x_{k-1}) / dt
+		# a_{k-1}   = (v_{k-0.5} - v_{k-1.5}) / dt
+		# j_{k-1.5} = (a_{k-1} - a_{k-2}) / dt
+		v_half = (x_new - self._prev_x) / dt
+		a_new = (v_half - self._prev_v_half) / dt
+		j_new = (a_new - self._prev_a) / dt
+
+		self.x = x_new
+		self.v = v_half
+		self.a = a_new
+		self.j = j_new
+		self._prev_x = x_new
+		self._prev_v_half = v_half
+		self._prev_a = a_new
 
 	def get_state(self):
 		return self.x, self.v, self.a
@@ -418,6 +464,8 @@ def create_predictor(
 			history_len=mamba_history_len,
 			cuda_device=mamba_cuda_device,
 		)
+	if predictor_type == "baseline":
+		return BaselineTruthHistoryPredictor(channels=channels)
 	raise ValueError(f"Unsupported predictor_type: {predictor_type}")
 
 
@@ -451,68 +499,161 @@ def run_predictor_states(pose_data, fps, predictor):
 		if a_est is not None:
 			a_est[k] = ak
 
-	return time_sec, dt, x_est, v_est, a_est, z
+	return time_sec, dt, x_est, v_est, a_est
 
 
-def build_realtime_hermite_segments(x_est, v_est, a_est, z, dt, boundary_correction_gain=1.0):
+def truth_acc_k_minus_1_from_positions(x_est, dt, k):
+	"""Compute a_{k-1} from truth positions via finite differences."""
+	channels = x_est.shape[1]
+	if k < 2:
+		return np.zeros(channels, dtype=np.float64)
+	v_k_m05 = (x_est[k] - x_est[k - 1]) / dt
+	v_k_m15 = (x_est[k - 1] - x_est[k - 2]) / dt
+	return (v_k_m05 - v_k_m15) / dt
+
+
+def truth_jerk_k_minus_1p5_from_positions(x_est, dt, k):
+	"""Compute j_{k-1.5} from truth positions via finite differences."""
+	channels = x_est.shape[1]
+	if k < 3:
+		return np.zeros(channels, dtype=np.float64)
+	a_k_m1 = truth_acc_k_minus_1_from_positions(x_est, dt, k)
+	a_k_m2 = truth_acc_k_minus_1_from_positions(x_est, dt, k - 1)
+	return (a_k_m1 - a_k_m2) / dt
+
+
+def build_realtime_hermite_segments(
+	x_est,
+	v_est,
+	a_est,
+	dt,
+	velocity_mode="endpoint",
+	enforce_position_continuity=True,
+	baseline_anchor_with_truth=True,
+):
 	num_frames, channels = x_est.shape
 	coeffs = np.empty((num_frames - 1, channels, 4), dtype=np.float64)
 	pred_x_next = np.empty((num_frames - 1, channels), dtype=np.float64)
 	pred_v_next = np.empty((num_frames - 1, channels), dtype=np.float64)
-	residuals = np.zeros((num_frames, channels), dtype=np.float64)
-
-	for k in range(1, num_frames):
-		if a_est is None:
-			x_pred_k = x_est[k - 1] + dt * v_est[k - 1]
-		else:
-			x_pred_k = x_est[k - 1] + dt * v_est[k - 1] + 0.5 * a_est[k - 1] * (dt ** 2)
-		residuals[k] = z[k] - x_pred_k
+	prev_seg_right_x = None
+	prev_seg_right_v = None
+	prev_seg_right_a = None
 
 	for k in range(num_frames - 1):
-		# Zero-latency stitching: force current segment start to equal previous segment end.
-		if k == 0:
-			xk = x_est[k]
-			vk = v_est[k]
+		# Strict 0-latency: when frame k is available, fit segment [k, k+1]
+		# using current state at k and one-step predictor extrapolation.
+		xk = x_est[k]
+		vk = v_est[k]
+
+		if velocity_mode == "endpoint":
+			if a_est is None:
+				x1_pred = xk + dt * vk
+				v1_pred = vk
+			else:
+				ak = a_est[k]
+				x1_pred = xk + vk * dt + 0.5 * ak * (dt ** 2)
+				v1_pred = vk + ak * dt
+		elif velocity_mode == "history_accel_extrapolation":
+			if a_est is None:
+				raise ValueError("a_est is required for history_accel_extrapolation mode")
+			j_truth = truth_jerk_k_minus_1p5_from_positions(x_est, dt, k)
+			a_truth = truth_acc_k_minus_1_from_positions(x_est, dt, k)
+
+			if baseline_anchor_with_truth:
+				# Re-anchor left endpoint to current truth-derived state to prevent drift accumulation.
+				x_left = xk
+				v_left = vk
+				a_left = a_truth
+			else:
+				if (
+					enforce_position_continuity
+					and prev_seg_right_x is not None
+					and prev_seg_right_v is not None
+					and prev_seg_right_a is not None
+				):
+					x_left = prev_seg_right_x
+					v_left = prev_seg_right_v
+					a_left = prev_seg_right_a
+				else:
+					x_left = xk
+					v_left = vk
+					a_left = a_truth
+
+			# Integrate truth-derived jerk over one frame to obtain predicted right endpoint.
+			x_right = (
+				x_left
+				+ v_left * dt
+				+ 0.5 * a_left * (dt ** 2)
+				+ (1.0 / 6.0) * j_truth * (dt ** 3)
+			)
+			v_right = v_left + a_left * dt + 0.5 * j_truth * (dt ** 2)
+			a_right = a_left + j_truth * dt
 		else:
-			xk = pred_x_next[k - 1]
-			vk = pred_v_next[k - 1]
+			raise ValueError(f"Unsupported velocity_mode: {velocity_mode}")
 
-		if a_est is None:
-			x1_pred = xk + dt * vk
-			v1_pred = vk
+		if velocity_mode == "history_accel_extrapolation":
+			pred_x_next[k] = x_right
+			pred_v_next[k] = v_right
+			coeffs[k] = fit_hermite_segment_from_endpoint_states(
+				x_prev=x_left,
+				x_curr=x_right,
+				v_prev=v_left,
+				v_curr=v_right,
+				dt=dt,
+			)
+			if enforce_position_continuity:
+				prev_seg_right_x = x_right.copy()
+				prev_seg_right_v = v_right.copy()
+				prev_seg_right_a = a_right.copy()
 		else:
-			ak = a_est[k]
-			x1_pred = xk + vk * dt + 0.5 * ak * (dt ** 2)
-			v1_pred = vk + ak * dt
+			if enforce_position_continuity:
+				if prev_seg_right_x is None:
+					x_left = xk
+				else:
+					x_left = prev_seg_right_x
+				x_right = x1_pred
+			else:
+				x_left = xk
+				x_right = x1_pred
 
-		# Use r_k to correct x_{k+1} prediction endpoint.
-		x1_pred = x1_pred + boundary_correction_gain * residuals[k]
+			pred_x_next[k] = x_right
+			pred_v_next[k] = v1_pred
+			coeffs[k] = fit_hermite_segment_from_endpoint_states(
+				x_prev=x_left,
+				x_curr=x_right,
+				v_prev=vk,
+				v_curr=v1_pred,
+				dt=dt,
+			)
 
-		pred_x_next[k] = x1_pred
-		pred_v_next[k] = v1_pred
-		coeffs[k] = cubic_hermite_coefficients(xk, vk, x1_pred, v1_pred, dt).T
+			if enforce_position_continuity:
+				prev_seg_right_x = x_right.copy()
 
-	return coeffs, pred_x_next, pred_v_next, residuals
+	return coeffs, pred_x_next, pred_v_next
 
 
-def fit_realtime_segments_with_predictor(pose_data, fps, predictor):
+def fit_realtime_segments_with_predictor(
+	pose_data,
+	fps,
+	predictor,
+	velocity_mode="endpoint",
+	enforce_position_continuity=True,
+	baseline_anchor_with_truth=True,
+):
+	if fps <= 0:
+		raise ValueError(f"fps must be > 0, got {fps}")
+
 	num_frames, num_keypoints, num_dims = pose_data.shape
-	time_sec, dt, x_est, v_est, a_est, z = run_predictor_states(pose_data, fps, predictor)
+	time_sec, dt, x_est, v_est, a_est = run_predictor_states(pose_data, fps, predictor)
 
-	if isinstance(predictor, ABGPredictor):
-		boundary_correction_gain = float(predictor.alpha)
-	elif isinstance(predictor, KalmanCVPredictor):
-		boundary_correction_gain = 0.5
-	else:
-		boundary_correction_gain = 0.0
-
-	coeffs, pred_x_next, pred_v_next, residuals = build_realtime_hermite_segments(
+	coeffs, pred_x_next, pred_v_next = build_realtime_hermite_segments(
 		x_est,
 		v_est,
 		a_est,
-		z,
 		dt,
-		boundary_correction_gain=boundary_correction_gain,
+		velocity_mode=velocity_mode,
+		enforce_position_continuity=enforce_position_continuity,
+		baseline_anchor_with_truth=baseline_anchor_with_truth,
 	)
 
 	coeffs = coeffs.transpose(1, 2, 0).reshape(num_keypoints, num_dims, 4, num_frames - 1)
@@ -520,6 +661,10 @@ def fit_realtime_segments_with_predictor(pose_data, fps, predictor):
 	v_est = v_est.reshape(num_frames, num_keypoints, num_dims)
 	pred_x_next = pred_x_next.reshape(num_frames - 1, num_keypoints, num_dims)
 	pred_v_next = pred_v_next.reshape(num_frames - 1, num_keypoints, num_dims)
+
+	bc_type = "hermite_zero_latency_predictive_c0" if enforce_position_continuity else "hermite_zero_latency_predictive"
+	if velocity_mode == "history_accel_extrapolation" and baseline_anchor_with_truth:
+		bc_type = "hermite_zero_latency_predictive_truth_anchor"
 
 	result = {
 		"time_sec": time_sec,
@@ -530,10 +675,11 @@ def fit_realtime_segments_with_predictor(pose_data, fps, predictor):
 		"pred_v_next": pred_v_next,
 		"fps": float(fps),
 		"dt": float(dt),
-		"boundary_correction_gain": float(boundary_correction_gain),
-		"boundary_residual": residuals.reshape(num_frames, num_keypoints, num_dims),
-		"bc_type": "hermite_zero_latency_boundary_corrected",
+		"bc_type": bc_type,
 	}
+	if velocity_mode == "history_accel_extrapolation":
+		result["velocity_mode"] = "history_accel_extrapolation"
+		result["baseline_anchor_with_truth"] = bool(baseline_anchor_with_truth)
 	if a_est is not None:
 		result["a_est"] = a_est.reshape(num_frames, num_keypoints, num_dims)
 
@@ -546,6 +692,7 @@ def save_result(save_path, source_shape, result, predictor_name):
 		"kalman": "kalman_cv",
 		"abg": "alpha_beta_gamma",
 		"mamba": "mamba",
+		"baseline": "truth_history_baseline",
 	}
 	predictor_label = predictor_label_map.get(predictor_name, predictor_name)
 	np.savez_compressed(
@@ -561,13 +708,13 @@ def save_result(save_path, source_shape, result, predictor_name):
 		v_est=result["v_est"],
 		pred_x_next=result["pred_x_next"],
 		pred_v_next=result["pred_v_next"],
-		boundary_correction_gain=np.asarray([result["boundary_correction_gain"]], dtype=np.float64)
-		if "boundary_correction_gain" in result
-		else np.asarray([], dtype=np.float64),
-		boundary_residual=result["boundary_residual"]
-		if "boundary_residual" in result
-		else np.asarray([], dtype=np.float64),
 		a_est=result["a_est"] if "a_est" in result else np.asarray([], dtype=np.float64),
+		velocity_mode=np.asarray([result["velocity_mode"]], dtype="U64")
+		if "velocity_mode" in result
+		else np.asarray([], dtype="U64"),
+		baseline_anchor_with_truth=np.asarray([result["baseline_anchor_with_truth"]], dtype=np.bool_)
+		if "baseline_anchor_with_truth" in result
+		else np.asarray([], dtype=np.bool_),
 		alpha=np.asarray([result["alpha"]], dtype=np.float64) if "alpha" in result else np.asarray([], dtype=np.float64),
 		beta=np.asarray([result["beta"]], dtype=np.float64) if "beta" in result else np.asarray([], dtype=np.float64),
 		gamma=np.asarray([result["gamma"]], dtype=np.float64) if "gamma" in result else np.asarray([], dtype=np.float64),
@@ -596,9 +743,9 @@ def process_folder(
 	predictor_type = predictor_type.lower().strip()
 	if predictor_type == "aby":
 		predictor_type = "abg"
-	if predictor_type not in {"kalman", "abg", "mamba"}:
+	if predictor_type not in {"kalman", "abg", "mamba", "baseline"}:
 		raise ValueError(
-			f"predictor_type must be one of ['kalman', 'abg', 'aby', 'mamba'], got: {predictor_type}"
+			f"predictor_type must be one of ['kalman', 'abg', 'aby', 'mamba', 'baseline'], got: {predictor_type}"
 		)
 
 	files = collect_h36m_npy_files(input_dir)
@@ -615,6 +762,7 @@ def process_folder(
 			"kalman": "kalman_realtime_spline",
 			"abg": "abg_realtime_spline",
 			"mamba": "mamba_realtime_spline",
+			"baseline": "baseline_realtime_spline",
 		}
 		suffix = suffix_map[predictor_type]
 		output_path = os.path.join(output_dir, f"{stem}_{suffix}.npz")
@@ -651,6 +799,8 @@ def process_folder(
 				pose_data=pose_data,
 				fps=fps,
 				predictor=predictor,
+				velocity_mode="history_accel_extrapolation" if predictor_type == "baseline" else "endpoint",
+				baseline_anchor_with_truth=(predictor_type == "baseline"),
 			)
 			if predictor_type == "abg":
 				result["alpha"] = float(alpha)
@@ -670,14 +820,14 @@ def process_folder(
 
 
 if __name__ == "__main__":
-	# Predictor type: "kalman", "abg" (or alias "aby"), "mamba".
-	predictor_type = "abg"
-	# Input folder containing files that end with "h36m.npy".
-	input_dir = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps"
+	# Predictor type: "kalman", "abg" (or alias "aby"), "mamba", "baseline".
+	predictor_type = "baseline"
+	# Input folder containing source pose files.
+	input_dir = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps"
 	# Output folder for saved spline files. Set to None to use auto default by predictor type.
 	output_dir = None
 	# Source frame rate in Hz used to build the time axis and dt.
-	fps = 120.0
+	fps = 30.0
 
 	# Kalman process noise variance (acceleration model). Larger value tracks motion changes faster.
 	process_acc_var = 3e5
@@ -704,11 +854,13 @@ if __name__ == "__main__":
 
 	if output_dir is None:
 		if predictor_type == "kalman":
-			output_dir = "/home/ztw/HVCCS/res/splines_fit_kalman_0latency"
+			output_dir = "/home/ztw/HVCCS/res/splines_fit_kalman_0latency3"
 		elif predictor_type in {"abg", "aby"}:
-			output_dir = "/home/ztw/HVCCS/res/splines_fit_abg_0latency"
+			output_dir = "/home/ztw/HVCCS/res/splines_fit_abg_0latency3"
+		elif predictor_type == "baseline":
+			output_dir = "/home/ztw/HVCCS/res/splines_fit_baseline_0latency4"
 		else:
-			output_dir = "/home/ztw/HVCCS/res/splines_fit_mamba"
+			output_dir = "/home/ztw/HVCCS/res/splines_fit_mamba_0latency"
 
 	process_folder(
 		input_dir=input_dir,
