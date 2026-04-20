@@ -138,6 +138,100 @@ def resample_pose_at_times(pose_time_sec, pose_data, ts):
 	return out, valid
 
 
+def downsample_pose_linear(pose_time_sec, pose_data, target_fps):
+	if target_fps <= 0:
+		raise ValueError(f"target_fps must be > 0, got {target_fps}")
+	ts_ds = build_uniform_sample_times(float(pose_time_sec[0]), float(pose_time_sec[-1]), target_fps)
+	pose_ds, valid = resample_pose_at_times(pose_time_sec, pose_data, ts_ds)
+	if not np.any(valid):
+		raise ValueError("No valid samples produced while downsampling pose")
+	return ts_ds[valid], pose_ds[valid]
+
+
+def eval_pose_linear_from_controls(control_ts, control_pose, eval_ts):
+	out = np.full((len(eval_ts), control_pose.shape[1], control_pose.shape[2]), np.nan, dtype=np.float64)
+	for j in range(control_pose.shape[1]):
+		for d in range(control_pose.shape[2]):
+			out[:, j, d] = np.interp(
+				eval_ts,
+				control_ts,
+				control_pose[:, j, d],
+				left=np.nan,
+				right=np.nan,
+			)
+	valid = np.isfinite(out).all(axis=(1, 2))
+	return out, valid
+
+
+def rigid_align_points_3d(src_points, dst_points):
+	if src_points.ndim != 2 or dst_points.ndim != 2:
+		raise ValueError("src_points and dst_points must be 2D arrays")
+	if src_points.shape != dst_points.shape:
+		raise ValueError(f"shape mismatch: src={src_points.shape}, dst={dst_points.shape}")
+	if src_points.shape[1] != 3:
+		raise ValueError("rigid alignment requires 3D points")
+
+	mu_src = np.mean(src_points, axis=0)
+	mu_dst = np.mean(dst_points, axis=0)
+	src_c = src_points - mu_src
+	dst_c = dst_points - mu_dst
+
+	H = src_c.T @ dst_c
+	U, _, Vt = np.linalg.svd(H)
+	R = Vt.T @ U.T
+	if np.linalg.det(R) < 0:
+		Vt[-1, :] *= -1.0
+		R = Vt.T @ U.T
+	t = mu_dst - (R @ mu_src)
+	aligned = src_points @ R.T + t
+	return aligned, R, t
+
+
+def compute_wham_rte_jitter(gt_pose_mm, pred_pose_mm, fps, root_kpt_idx=0):
+	if gt_pose_mm.shape != pred_pose_mm.shape:
+		raise ValueError(f"pose shape mismatch: gt={gt_pose_mm.shape}, pred={pred_pose_mm.shape}")
+	if gt_pose_mm.ndim != 3 or gt_pose_mm.shape[2] != 3:
+		raise ValueError(f"unexpected pose shape: {gt_pose_mm.shape}")
+	if fps <= 0:
+		raise ValueError(f"fps must be > 0, got {fps}")
+	if root_kpt_idx < 0 or root_kpt_idx >= gt_pose_mm.shape[1]:
+		raise ValueError(f"root_kpt_idx={root_kpt_idx} out of range")
+
+	gt_root = gt_pose_mm[:, root_kpt_idx, :]
+	pred_root = pred_pose_mm[:, root_kpt_idx, :]
+	pred_root_aligned, _, _ = rigid_align_points_3d(pred_root, gt_root)
+
+	if gt_root.shape[0] >= 2:
+		disp = float(np.sum(np.linalg.norm(np.diff(gt_root, axis=0), axis=1)))
+	else:
+		disp = 0.0
+	if disp > 1e-9:
+		rte = np.linalg.norm(gt_root - pred_root_aligned, axis=1)
+		rte_percent = float(np.mean(rte / disp) * 100.0)
+	else:
+		rte_percent = float("nan")
+
+	if pred_pose_mm.shape[0] >= 4:
+		jerk_mmps3 = (
+			pred_pose_mm[3:]
+			- 3.0 * pred_pose_mm[2:-1]
+			+ 3.0 * pred_pose_mm[1:-2]
+			- pred_pose_mm[:-3]
+		) * (float(fps) ** 3)
+		jitter_frame_mmps3 = np.linalg.norm(jerk_mmps3, axis=2).mean(axis=1)
+		jitter_mps3 = float(np.mean(jitter_frame_mmps3) / 1000.0)
+		jitter_10mps3 = float(jitter_mps3 / 10.0)
+	else:
+		jitter_mps3 = float("nan")
+		jitter_10mps3 = float("nan")
+
+	return {
+		"rte_percent_pose_upsampled": rte_percent,
+		"jitter_10mps3_pose_upsampled": jitter_10mps3,
+		"jitter_mps3_pose_upsampled": jitter_mps3,
+	}
+
+
 def build_overlap_intervals(gt_time_sec, pred_time_sec, eps=1e-12):
 	gt_seg = len(gt_time_sec) - 1
 	pred_seg = len(pred_time_sec) - 1
@@ -298,6 +392,8 @@ def compute_sampled_metrics(
 
 	mpjpe_integral = 0.0
 	all_joint_errors = []
+	all_abs_xyz_errors = []
+	total_dense_time_samples = 0
 
 	gt_pos_min = np.inf
 	gt_pos_max = -np.inf
@@ -326,14 +422,17 @@ def compute_sampled_metrics(
 		diff = pred_values - gt_values
 		joint_err = np.linalg.norm(diff, axis=2)  # (M, K)
 		mpjpe_t = joint_err.mean(axis=1)
+		total_dense_time_samples += int(ts.size)
 
 		mpjpe_integral += float(np.trapz(mpjpe_t, ts))
 		all_joint_errors.append(joint_err.reshape(-1))
+		all_abs_xyz_errors.append(np.abs(diff).reshape(-1))
 
 	if len(all_joint_errors) == 0:
 		raise ValueError("No sampled points generated for sampled metrics")
 
 	joint_errors = np.concatenate(all_joint_errors, axis=0)
+	abs_xyz_errors = np.concatenate(all_abs_xyz_errors, axis=0)
 	mpjpe_cont = mpjpe_integral / total_duration
 
 	gt_pos_range = float(gt_pos_max - gt_pos_min)
@@ -342,8 +441,12 @@ def compute_sampled_metrics(
 
 	return {
 		"mpjpe_cont_mm": float(mpjpe_cont),
+		"mpjpe_integral_mm_sec": float(mpjpe_integral),
+		"mae_dense_xyz_mm": float(np.mean(abs_xyz_errors)),
 		"p95_joint_err_mm": float(np.percentile(joint_errors, 95.0)),
 		"max_joint_err_mm": float(np.max(joint_errors)),
+		"num_dense_time_samples": int(total_dense_time_samples),
+		"num_dense_joint_samples": int(joint_errors.size),
 		"gt_pos_range_mm": gt_pos_range,
 		"gt_vel_range_mmps": gt_vel_range,
 		"gt_acc_range_mmps2": gt_acc_range,
@@ -374,17 +477,123 @@ def compute_pose_upsampled_metrics(
 	if not np.any(valid_mask):
 		raise ValueError("No valid overlap timestamps with gt pose for upsampled MPJPE")
 
+	target_ts_valid = target_ts[valid_mask]
 	pred_valid = pred_pose_up[valid_mask]
 	gt_valid = gt_pose_up[valid_mask]
+	diff = pred_valid - gt_valid
+	abs_err = np.abs(diff)
 	joint_err = np.linalg.norm(pred_valid - gt_valid, axis=2)
 	mpjpe_series = joint_err.mean(axis=1)
+
+	pose_crmse = float(np.sqrt(np.mean(diff ** 2)))
+	gt_range = float(np.max(gt_valid) - np.min(gt_valid)) if gt_valid.size > 0 else float("nan")
+	if np.isfinite(gt_range) and gt_range > 1e-12:
+		pose_nrmse = float(pose_crmse / gt_range)
+	else:
+		pose_nrmse = float("nan")
+
+	wham = compute_wham_rte_jitter(gt_valid, pred_valid, float(upsample_fps), root_kpt_idx=0)
 
 	return {
 		"upsample_fps": float(upsample_fps),
 		"num_upsample_points": int(pred_valid.shape[0]),
+		"target_ts_valid": target_ts_valid,
+		"pose_crmse_upsampled_mm": pose_crmse,
+		"pose_nrmse_range_upsampled": pose_nrmse,
+		"pose_mae_upsampled_mm": float(np.mean(abs_err)),
+		"pose_p95ae_upsampled_mm": float(np.percentile(abs_err, 95.0)),
+		"pose_maxae_upsampled_mm": float(np.max(abs_err)),
+		"pose_abs_err_sum_mm": float(np.sum(abs_err)),
+		"pose_joint_err_sum_mm": float(np.sum(joint_err)),
 		"mpjpe_pose_upsampled_mm": float(np.mean(mpjpe_series)),
 		"p95_joint_err_pose_upsampled_mm": float(np.percentile(joint_err, 95.0)),
 		"max_joint_err_pose_upsampled_mm": float(np.max(joint_err)),
+		"rte_percent_pose_upsampled": wham["rte_percent_pose_upsampled"],
+		"jitter_10mps3_pose_upsampled": wham["jitter_10mps3_pose_upsampled"],
+		"jitter_mps3_pose_upsampled": wham["jitter_mps3_pose_upsampled"],
+	}
+
+
+def compute_linear_interp_reference_metrics(pose_time_sec, pose_data, eval_ts, downsample_fps):
+	ctrl_ts, ctrl_pose = downsample_pose_linear(pose_time_sec, pose_data, downsample_fps)
+	lin_pred_all, lin_valid = eval_pose_linear_from_controls(ctrl_ts, ctrl_pose, eval_ts)
+	gt_eval, gt_valid = resample_pose_at_times(pose_time_sec, pose_data, eval_ts)
+	valid = lin_valid & gt_valid
+	if not np.any(valid):
+		raise ValueError("No valid samples for linear interpolation reference metrics")
+
+	pred_valid = lin_pred_all[valid]
+	gt_valid_pose = gt_eval[valid]
+	diff = pred_valid - gt_valid_pose
+	abs_err = np.abs(diff)
+	joint_err = np.linalg.norm(diff, axis=2)
+	mpjpe_series = joint_err.mean(axis=1)
+
+	return {
+		"linear_downsample_fps": float(downsample_fps),
+		"linear_num_upsample_points": int(pred_valid.shape[0]),
+		"linear_mpjpe_pose_upsampled_mm": float(np.mean(mpjpe_series)),
+		"linear_p95_joint_err_pose_upsampled_mm": float(np.percentile(joint_err, 95.0)),
+		"linear_max_joint_err_pose_upsampled_mm": float(np.max(joint_err)),
+		"linear_pose_mae_upsampled_mm": float(np.mean(abs_err)),
+		"linear_pose_abs_err_sum_mm": float(np.sum(abs_err)),
+	}
+
+
+def build_metric_definitions():
+	return {
+		"curve_error_metrics": [
+			"crmse_mm",
+			"vel_rmse_mmps",
+			"acc_rmse_mmps2",
+			"ncrmse_by_pos_range",
+			"nvel_rmse_by_vel_range",
+			"nacc_rmse_by_acc_range",
+		],
+		"sampled_curve_point_metrics": [
+			"mae_dense_xyz_mm",
+			"mpjpe_cont_mm",
+			"p95_joint_err_mm",
+			"max_joint_err_mm",
+		],
+		"sampled_pose_point_metrics": [
+			"pose_crmse_upsampled_mm",
+			"pose_nrmse_range_upsampled",
+			"pose_mae_upsampled_mm",
+			"pose_p95ae_upsampled_mm",
+			"pose_maxae_upsampled_mm",
+			"mpjpe_pose_upsampled_mm",
+			"p95_joint_err_pose_upsampled_mm",
+			"max_joint_err_pose_upsampled_mm",
+			"rte_percent_pose_upsampled",
+			"jitter_10mps3_pose_upsampled",
+		],
+		"linear_interpolation_reference_metrics": [
+			"linear_mpjpe_pose_upsampled_mm",
+			"linear_p95_joint_err_pose_upsampled_mm",
+			"linear_max_joint_err_pose_upsampled_mm",
+			"linear_pose_mae_upsampled_mm",
+		],
+		"per_point_average_metrics": [
+			"crmse_mm",
+			"vel_rmse_mmps",
+			"acc_rmse_mmps2",
+			"mae_dense_xyz_mm",
+			"mpjpe_cont_mm",
+			"pose_crmse_upsampled_mm",
+			"pose_mae_upsampled_mm",
+			"mpjpe_pose_upsampled_mm",
+			"linear_mpjpe_pose_upsampled_mm",
+		],
+		"accumulative_metrics": [
+			"pos_sq_integral",
+			"vel_sq_integral",
+			"acc_sq_integral",
+			"mpjpe_integral_mm_sec",
+			"pose_abs_err_sum_mm",
+			"pose_joint_err_sum_mm",
+			"linear_pose_abs_err_sum_mm",
+		],
 	}
 
 
@@ -392,6 +601,7 @@ def summarize_results(rows, analytic_global):
 	summary = {
 		"num_files": len(rows),
 		"analytic_global": analytic_global,
+		"metric_definitions": build_metric_definitions(),
 	}
 	if len(rows) == 0:
 		return summary
@@ -403,10 +613,28 @@ def summarize_results(rows, analytic_global):
 		"nvel_rmse_by_vel_range",
 		"acc_rmse_mmps2",
 		"nacc_rmse_by_acc_range",
+		"mae_dense_xyz_mm",
 		"mpjpe_cont_mm",
+		"mpjpe_integral_mm_sec",
 		"nmpjpe_by_pos_range",
+		"pose_crmse_upsampled_mm",
+		"pose_nrmse_range_upsampled",
+		"pose_mae_upsampled_mm",
+		"pose_p95ae_upsampled_mm",
+		"pose_maxae_upsampled_mm",
+		"pose_abs_err_sum_mm",
+		"pose_joint_err_sum_mm",
+		"rte_percent_pose_upsampled",
+		"jitter_10mps3_pose_upsampled",
+		"jitter_mps3_pose_upsampled",
 		"mpjpe_pose_upsampled_mm",
 		"nmpjpe_pose_upsampled_by_pos_range",
+		"linear_mpjpe_pose_upsampled_mm",
+		"linear_p95_joint_err_pose_upsampled_mm",
+		"linear_max_joint_err_pose_upsampled_mm",
+		"linear_pose_mae_upsampled_mm",
+		"linear_pose_abs_err_sum_mm",
+		"mpjpe_pose_minus_linear_mm",
 		"p95_joint_err_mm",
 		"np95_joint_err_by_pos_range",
 		"p95_joint_err_pose_upsampled_mm",
@@ -415,6 +643,10 @@ def summarize_results(rows, analytic_global):
 		"nmax_joint_err_by_pos_range",
 		"max_joint_err_pose_upsampled_mm",
 		"nmax_joint_err_pose_upsampled_by_pos_range",
+		"num_dense_time_samples",
+		"num_dense_joint_samples",
+		"num_upsample_points",
+		"linear_num_upsample_points",
 		"gt_pos_range_mm",
 		"gt_vel_range_mmps",
 		"gt_acc_range_mmps2",
@@ -466,6 +698,7 @@ def run_metrics(
 	gt_pose_fps,
 	samples_per_interval,
 	upsample_fps,
+	linear_downsample_fps,
 	max_files,
 ):
 	gt_map = build_id_to_path_map(gt_dir, gt_suffix)
@@ -532,21 +765,53 @@ def run_metrics(
 				intervals=intervals,
 				upsample_fps=upsample_fps,
 			)
+			linear_ref = compute_linear_interp_reference_metrics(
+				pose_time_sec=pose_time_sec,
+				pose_data=pose_data,
+				eval_ts=pose_up["target_ts_valid"],
+				downsample_fps=linear_downsample_fps,
+			)
 
 			row = {
 				"sample_id": sample_id,
 				"duration_sec": analytic["duration_sec"],
+				"duration_channels": analytic["duration_sec"] * analytic["channels"],
+				"pos_sq_integral": analytic["pos_sq_integral"],
+				"vel_sq_integral": analytic["vel_sq_integral"],
+				"acc_sq_integral": analytic["acc_sq_integral"],
 				"crmse_mm": analytic["crmse_mm"],
 				"ncrmse_by_pos_range": safe_div(analytic["crmse_mm"], sampled["gt_pos_range_mm"]),
 				"vel_rmse_mmps": analytic["vel_rmse_mmps"],
 				"nvel_rmse_by_vel_range": safe_div(analytic["vel_rmse_mmps"], sampled["gt_vel_range_mmps"]),
 				"acc_rmse_mmps2": analytic["acc_rmse_mmps2"],
 				"nacc_rmse_by_acc_range": safe_div(analytic["acc_rmse_mmps2"], sampled["gt_acc_range_mmps2"]),
+				"mae_dense_xyz_mm": sampled["mae_dense_xyz_mm"],
 				"mpjpe_cont_mm": sampled["mpjpe_cont_mm"],
+				"mpjpe_integral_mm_sec": sampled["mpjpe_integral_mm_sec"],
 				"nmpjpe_by_pos_range": safe_div(sampled["mpjpe_cont_mm"], sampled["gt_pos_range_mm"]),
+				"pose_crmse_upsampled_mm": pose_up["pose_crmse_upsampled_mm"],
+				"pose_nrmse_range_upsampled": pose_up["pose_nrmse_range_upsampled"],
+				"pose_mae_upsampled_mm": pose_up["pose_mae_upsampled_mm"],
+				"pose_p95ae_upsampled_mm": pose_up["pose_p95ae_upsampled_mm"],
+				"pose_maxae_upsampled_mm": pose_up["pose_maxae_upsampled_mm"],
+				"pose_abs_err_sum_mm": pose_up["pose_abs_err_sum_mm"],
+				"pose_joint_err_sum_mm": pose_up["pose_joint_err_sum_mm"],
+				"rte_percent_pose_upsampled": pose_up["rte_percent_pose_upsampled"],
+				"jitter_10mps3_pose_upsampled": pose_up["jitter_10mps3_pose_upsampled"],
+				"jitter_mps3_pose_upsampled": pose_up["jitter_mps3_pose_upsampled"],
 				"mpjpe_pose_upsampled_mm": pose_up["mpjpe_pose_upsampled_mm"],
 				"nmpjpe_pose_upsampled_by_pos_range": safe_div(
 					pose_up["mpjpe_pose_upsampled_mm"], sampled["gt_pos_range_mm"]
+				),
+				"linear_downsample_fps": linear_ref["linear_downsample_fps"],
+				"linear_num_upsample_points": linear_ref["linear_num_upsample_points"],
+				"linear_mpjpe_pose_upsampled_mm": linear_ref["linear_mpjpe_pose_upsampled_mm"],
+				"linear_p95_joint_err_pose_upsampled_mm": linear_ref["linear_p95_joint_err_pose_upsampled_mm"],
+				"linear_max_joint_err_pose_upsampled_mm": linear_ref["linear_max_joint_err_pose_upsampled_mm"],
+				"linear_pose_mae_upsampled_mm": linear_ref["linear_pose_mae_upsampled_mm"],
+				"linear_pose_abs_err_sum_mm": linear_ref["linear_pose_abs_err_sum_mm"],
+				"mpjpe_pose_minus_linear_mm": (
+					pose_up["mpjpe_pose_upsampled_mm"] - linear_ref["linear_mpjpe_pose_upsampled_mm"]
 				),
 				"p95_joint_err_mm": sampled["p95_joint_err_mm"],
 				"np95_joint_err_by_pos_range": safe_div(sampled["p95_joint_err_mm"], sampled["gt_pos_range_mm"]),
@@ -562,6 +827,8 @@ def run_metrics(
 				),
 				"upsample_fps": pose_up["upsample_fps"],
 				"num_upsample_points": pose_up["num_upsample_points"],
+				"num_dense_time_samples": sampled["num_dense_time_samples"],
+				"num_dense_joint_samples": sampled["num_dense_joint_samples"],
 				"gt_pos_range_mm": sampled["gt_pos_range_mm"],
 				"gt_vel_range_mmps": sampled["gt_vel_range_mmps"],
 				"gt_acc_range_mmps2": sampled["gt_acc_range_mmps2"],
@@ -580,8 +847,11 @@ def run_metrics(
 				f"[{idx}/{len(matched_ids)}] {sample_id}: "
 				f"cRMSE={analytic['crmse_mm']:.4f} mm, "
 				f"ncRMSE={safe_div(analytic['crmse_mm'], sampled['gt_pos_range_mm']):.6f}, "
+				f"MAE_pose={pose_up['pose_mae_upsampled_mm']:.4f} mm, "
+				f"RTE={pose_up['rte_percent_pose_upsampled']:.4f}%, "
 				f"MPJPE_cont={sampled['mpjpe_cont_mm']:.4f} mm, "
-				f"MPJPE_pose_up={pose_up['mpjpe_pose_upsampled_mm']:.4f} mm"
+				f"MPJPE_pose_up={pose_up['mpjpe_pose_upsampled_mm']:.4f} mm, "
+				f"LinearMPJPE={linear_ref['linear_mpjpe_pose_upsampled_mm']:.4f} mm"
 			)
 		except Exception as exc:
 			failed += 1
@@ -607,6 +877,7 @@ def run_metrics(
 	summary["gt_pose_suffix"] = gt_pose_suffix
 	summary["gt_pose_fps"] = float(gt_pose_fps)
 	summary["upsample_fps"] = float(upsample_fps)
+	summary["linear_downsample_fps"] = float(linear_downsample_fps)
 	summary["samples_per_interval"] = int(samples_per_interval)
 
 	os.makedirs(output_dir, exist_ok=True)
@@ -697,6 +968,12 @@ def build_argparser():
 		help="Uniform resampling FPS for pred_spline-vs-gt_pose MPJPE metrics.",
 	)
 	parser.add_argument(
+		"--linear-downsample-fps",
+		type=float,
+		default=30.0,
+		help="Downsample FPS for linear interpolation MPJPE reference from GT pose.",
+	)
+	parser.add_argument(
 		"--max-files",
 		type=int,
 		default=None,
@@ -725,6 +1002,7 @@ if __name__ == "__main__":
 			gt_pose_fps=args.gt_pose_fps,
 			samples_per_interval=args.samples_per_interval,
 			upsample_fps=args.upsample_fps,
+			linear_downsample_fps=args.linear_downsample_fps,
 			max_files=args.max_files,
 		)
 	else:
@@ -738,6 +1016,7 @@ if __name__ == "__main__":
 		gt_pose_fps = 120.0
 		samples_per_interval = 40
 		upsample_fps = 120.0
+		linear_downsample_fps = 30.0
 		max_files = None
 
 		run_metrics(
@@ -751,5 +1030,6 @@ if __name__ == "__main__":
 			gt_pose_fps=gt_pose_fps,
 			samples_per_interval=samples_per_interval,
 			upsample_fps=upsample_fps,
+			linear_downsample_fps=linear_downsample_fps,
 			max_files=max_files,
 		)
