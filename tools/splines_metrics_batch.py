@@ -232,6 +232,226 @@ def compute_wham_rte_jitter(gt_pose_mm, pred_pose_mm, fps, root_kpt_idx=0):
 	}
 
 
+def similarity_align_points_3d(src_points, dst_points):
+	if src_points.ndim != 2 or dst_points.ndim != 2:
+		raise ValueError("src_points and dst_points must be 2D arrays")
+	if src_points.shape != dst_points.shape:
+		raise ValueError(f"shape mismatch: src={src_points.shape}, dst={dst_points.shape}")
+	if src_points.shape[1] != 3:
+		raise ValueError("similarity alignment requires 3D points")
+
+	mu_src = np.mean(src_points, axis=0)
+	mu_dst = np.mean(dst_points, axis=0)
+	src_c = src_points - mu_src
+	dst_c = dst_points - mu_dst
+
+	H = src_c.T @ dst_c
+	U, S, Vt = np.linalg.svd(H)
+	R = Vt.T @ U.T
+	if np.linalg.det(R) < 0:
+		Vt[-1, :] *= -1.0
+		R = Vt.T @ U.T
+
+	var_src = float(np.sum(src_c ** 2))
+	if var_src > 1e-12:
+		scale = float(np.sum(S) / var_src)
+	else:
+		scale = 1.0
+
+	t = mu_dst - scale * (R @ mu_src)
+	aligned = scale * (src_points @ R.T) + t
+	return aligned, scale, R, t
+
+
+def compute_pose_alignment_metrics(gt_pose_mm, pred_pose_mm, fps, time_sec=None, eps=1e-12):
+	if gt_pose_mm.shape != pred_pose_mm.shape:
+		raise ValueError(f"pose shape mismatch: gt={gt_pose_mm.shape}, pred={pred_pose_mm.shape}")
+	if gt_pose_mm.ndim != 3 or gt_pose_mm.shape[2] != 3:
+		raise ValueError(f"unexpected pose shape: {gt_pose_mm.shape}")
+	if fps <= 0:
+		raise ValueError(f"fps must be > 0, got {fps}")
+
+	parent = get_default_parent_indices(gt_pose_mm.shape[1])
+	nm_list = []
+	for fidx in range(gt_pose_mm.shape[0]):
+		gt_frame = gt_pose_mm[fidx]
+		pred_frame = pred_pose_mm[fidx]
+
+		sum_gt_bone = 0.0
+		sum_pred_bone = 0.0
+		for j in range(gt_frame.shape[0]):
+			p = int(parent[j])
+			if p < 0 or p >= gt_frame.shape[0]:
+				continue
+			sum_gt_bone += float(np.linalg.norm(gt_frame[j] - gt_frame[p]))
+			sum_pred_bone += float(np.linalg.norm(pred_frame[j] - pred_frame[p]))
+		if sum_pred_bone > 1e-12:
+			s = float(sum_gt_bone / sum_pred_bone)
+		else:
+			s = 1.0
+		pred_nm = s * pred_frame
+		nm_list.append(float(np.linalg.norm(pred_nm - gt_frame, axis=1).mean()))
+
+	if gt_pose_mm.shape[0] >= 2:
+		if time_sec is not None and len(time_sec) == gt_pose_mm.shape[0]:
+			dt = np.diff(np.asarray(time_sec, dtype=np.float64))
+			valid = dt > float(eps)
+			if np.any(valid):
+				vel_gt = np.diff(gt_pose_mm, axis=0)[valid] / dt[valid, None, None]
+				vel_pred = np.diff(pred_pose_mm, axis=0)[valid] / dt[valid, None, None]
+				vel_diff = vel_pred - vel_gt
+				mpjve_series = np.linalg.norm(vel_diff, axis=2).mean(axis=1)
+				mpjve = float(np.mean(mpjve_series))
+			else:
+				mpjve_series = np.asarray([], dtype=np.float64)
+				mpjve = float("nan")
+		else:
+			vel_gt = np.diff(gt_pose_mm, axis=0) * float(fps)
+			vel_pred = np.diff(pred_pose_mm, axis=0) * float(fps)
+			vel_diff = vel_pred - vel_gt
+			mpjve_series = np.linalg.norm(vel_diff, axis=2).mean(axis=1)
+			mpjve = float(np.mean(mpjve_series))
+	else:
+		mpjve_series = np.asarray([], dtype=np.float64)
+		mpjve = float("nan")
+
+	nm_arr = np.asarray(nm_list, dtype=np.float64)
+	nm_p95 = float(np.percentile(nm_arr, 95.0)) if nm_arr.size > 0 else float("nan")
+	nm_max = float(np.max(nm_arr)) if nm_arr.size > 0 else float("nan")
+	mpjve_p95 = float(np.percentile(mpjve_series, 95.0)) if mpjve_series.size > 0 else float("nan")
+	mpjve_max = float(np.max(mpjve_series)) if mpjve_series.size > 0 else float("nan")
+
+	return {
+		"nmpjpe_pose_upsampled_mm": float(np.mean(nm_list)) if nm_list else float("nan"),
+		"nmpjpe_pose_upsampled_p95_mm": nm_p95,
+		"nmpjpe_pose_upsampled_max_mm": nm_max,
+		"mpjve_pose_upsampled_mmps": mpjve,
+		"mpjve_pose_upsampled_p95_mmps": mpjve_p95,
+		"mpjve_pose_upsampled_max_mmps": mpjve_max,
+	}
+
+
+H36M17_PARENT_INDICES = np.array(
+	[-1, 0, 1, 2, 0, 4, 5, 0, 7, 8, 9, 8, 11, 12, 8, 14, 15],
+	dtype=np.int64,
+)
+
+
+def get_default_parent_indices(num_joints):
+	if num_joints == 17:
+		return H36M17_PARENT_INDICES.copy()
+
+	parent = np.full(num_joints, -1, dtype=np.int64)
+	if num_joints >= 2:
+		parent[1:] = np.arange(0, num_joints - 1, dtype=np.int64)
+	return parent
+
+
+def get_joint_edge_pairs(parent_indices, joint_idx):
+	"""Get available edges around joint_idx for robust bone normalization."""
+	parent = np.asarray(parent_indices, dtype=np.int64)
+	num_joints = int(parent.shape[0])
+	edges = []
+	p = int(parent[joint_idx])
+	if p >= 0 and p < num_joints:
+		edges.append((joint_idx, p))
+	else:
+		children = np.where(parent == int(joint_idx))[0]
+		for c in children:
+			edges.append((int(c), int(joint_idx)))
+	return edges
+
+
+def compute_bone_length_normalized_mpjpe_percent(gt_pose_mm, pred_pose_mm, parent_indices=None, eps=1e-12):
+	if gt_pose_mm.shape != pred_pose_mm.shape:
+		raise ValueError(f"pose shape mismatch: gt={gt_pose_mm.shape}, pred={pred_pose_mm.shape}")
+	if gt_pose_mm.ndim != 3 or gt_pose_mm.shape[2] != 3:
+		raise ValueError(f"unexpected pose shape: {gt_pose_mm.shape}")
+
+	num_joints = gt_pose_mm.shape[1]
+	if parent_indices is None:
+		parent = get_default_parent_indices(num_joints)
+	else:
+		parent = np.asarray(parent_indices, dtype=np.int64)
+		if parent.shape[0] != num_joints:
+			raise ValueError(f"parent_indices length {parent.shape[0]} mismatch num_joints {num_joints}")
+
+	joint_err = np.linalg.norm(pred_pose_mm - gt_pose_mm, axis=2)
+	rel_err_bone = np.full_like(joint_err, np.nan, dtype=np.float64)
+	rel_err_disp = np.full_like(joint_err, np.nan, dtype=np.float64)
+	bone_len_mean = np.full(num_joints, np.nan, dtype=np.float64)
+	disp_range = np.full(num_joints, np.nan, dtype=np.float64)
+
+	for j in range(num_joints):
+		edges = get_joint_edge_pairs(parent, j)
+		if len(edges) == 0:
+			continue
+
+		bone_series = []
+		for a, b in edges:
+			bone_series.append(np.linalg.norm(gt_pose_mm[:, a, :] - gt_pose_mm[:, b, :], axis=1))
+		bone_len_t = np.mean(np.stack(bone_series, axis=0), axis=0)
+		valid_bone = bone_len_t > float(eps)
+		if not np.any(valid_bone):
+			continue
+
+		bone_len_mean[j] = float(np.mean(bone_len_t[valid_bone]))
+		rel_err_bone[:, j] = joint_err[:, j] / bone_len_mean[j]
+
+		joint_min = np.min(gt_pose_mm[:, j, :], axis=0)
+		joint_max = np.max(gt_pose_mm[:, j, :], axis=0)
+		rng = float(np.linalg.norm(joint_max - joint_min))
+		if rng > float(eps):
+			disp_range[j] = rng
+			rel_err_disp[:, j] = joint_err[:, j] / rng
+
+	per_joint_percent = np.full(num_joints, np.nan, dtype=np.float64)
+	per_joint_disp_percent = np.full(num_joints, np.nan, dtype=np.float64)
+	for j in range(num_joints):
+		v = np.isfinite(rel_err_bone[:, j])
+		if np.any(v):
+			per_joint_percent[j] = float(np.mean(rel_err_bone[v, j]) * 100.0)
+
+		vd = np.isfinite(rel_err_disp[:, j])
+		if np.any(vd):
+			per_joint_disp_percent[j] = float(np.mean(rel_err_disp[vd, j]) * 100.0)
+
+	v_global = np.isfinite(rel_err_bone)
+	if np.any(v_global):
+		global_percent = float(np.mean(rel_err_bone[v_global]) * 100.0)
+		global_p95 = float(np.percentile(rel_err_bone[v_global] * 100.0, 95.0))
+		global_max = float(np.max(rel_err_bone[v_global] * 100.0))
+	else:
+		global_percent = float("nan")
+		global_p95 = float("nan")
+		global_max = float("nan")
+
+	v_global_disp = np.isfinite(rel_err_disp)
+	if np.any(v_global_disp):
+		global_disp_percent = float(np.mean(rel_err_disp[v_global_disp]) * 100.0)
+		global_disp_p95 = float(np.percentile(rel_err_disp[v_global_disp] * 100.0, 95.0))
+		global_disp_max = float(np.max(rel_err_disp[v_global_disp] * 100.0))
+	else:
+		global_disp_percent = float("nan")
+		global_disp_p95 = float("nan")
+		global_disp_max = float("nan")
+
+	return {
+		"bl_mpjpe_percent_pose_upsampled": global_percent,
+		"bl_mpjpe_p95_percent_pose_upsampled": global_p95,
+		"bl_mpjpe_max_percent_pose_upsampled": global_max,
+		"bl_per_joint_percent_pose_upsampled": per_joint_percent,
+		"bone_length_per_joint_mm": bone_len_mean,
+		"bl_valid_joint_count_pose_upsampled": int(np.sum(np.isfinite(per_joint_percent))),
+		"disp_range_mpjpe_percent_pose_upsampled": global_disp_percent,
+		"disp_range_mpjpe_p95_percent_pose_upsampled": global_disp_p95,
+		"disp_range_mpjpe_max_percent_pose_upsampled": global_disp_max,
+		"disp_range_per_joint_percent_pose_upsampled": per_joint_disp_percent,
+		"disp_range_per_joint_mm": disp_range,
+		"disp_range_valid_joint_count_pose_upsampled": int(np.sum(np.isfinite(per_joint_disp_percent))),
+	}
+
+
 def build_overlap_intervals(gt_time_sec, pred_time_sec, eps=1e-12):
 	gt_seg = len(gt_time_sec) - 1
 	pred_seg = len(pred_time_sec) - 1
@@ -392,7 +612,6 @@ def compute_sampled_metrics(
 
 	mpjpe_integral = 0.0
 	all_joint_errors = []
-	all_abs_xyz_errors = []
 	total_dense_time_samples = 0
 
 	gt_pos_min = np.inf
@@ -426,13 +645,11 @@ def compute_sampled_metrics(
 
 		mpjpe_integral += float(np.trapz(mpjpe_t, ts))
 		all_joint_errors.append(joint_err.reshape(-1))
-		all_abs_xyz_errors.append(np.abs(diff).reshape(-1))
 
 	if len(all_joint_errors) == 0:
 		raise ValueError("No sampled points generated for sampled metrics")
 
 	joint_errors = np.concatenate(all_joint_errors, axis=0)
-	abs_xyz_errors = np.concatenate(all_abs_xyz_errors, axis=0)
 	mpjpe_cont = mpjpe_integral / total_duration
 
 	gt_pos_range = float(gt_pos_max - gt_pos_min)
@@ -442,7 +659,6 @@ def compute_sampled_metrics(
 	return {
 		"mpjpe_cont_mm": float(mpjpe_cont),
 		"mpjpe_integral_mm_sec": float(mpjpe_integral),
-		"mae_dense_xyz_mm": float(np.mean(abs_xyz_errors)),
 		"p95_joint_err_mm": float(np.percentile(joint_errors, 95.0)),
 		"max_joint_err_mm": float(np.max(joint_errors)),
 		"num_dense_time_samples": int(total_dense_time_samples),
@@ -481,7 +697,6 @@ def compute_pose_upsampled_metrics(
 	pred_valid = pred_pose_up[valid_mask]
 	gt_valid = gt_pose_up[valid_mask]
 	diff = pred_valid - gt_valid
-	abs_err = np.abs(diff)
 	joint_err = np.linalg.norm(pred_valid - gt_valid, axis=2)
 	mpjpe_series = joint_err.mean(axis=1)
 
@@ -493,28 +708,44 @@ def compute_pose_upsampled_metrics(
 		pose_nrmse = float("nan")
 
 	wham = compute_wham_rte_jitter(gt_valid, pred_valid, float(upsample_fps), root_kpt_idx=0)
+	align = compute_pose_alignment_metrics(
+		gt_valid,
+		pred_valid,
+		float(upsample_fps),
+		time_sec=target_ts_valid,
+	)
+	bone_norm = compute_bone_length_normalized_mpjpe_percent(gt_valid, pred_valid)
 
-	return {
+	ret = {
 		"upsample_fps": float(upsample_fps),
 		"num_upsample_points": int(pred_valid.shape[0]),
 		"target_ts_valid": target_ts_valid,
 		"pose_crmse_upsampled_mm": pose_crmse,
 		"pose_nrmse_range_upsampled": pose_nrmse,
-		"pose_mae_upsampled_mm": float(np.mean(abs_err)),
-		"pose_p95ae_upsampled_mm": float(np.percentile(abs_err, 95.0)),
-		"pose_maxae_upsampled_mm": float(np.max(abs_err)),
-		"pose_abs_err_sum_mm": float(np.sum(abs_err)),
 		"pose_joint_err_sum_mm": float(np.sum(joint_err)),
 		"mpjpe_pose_upsampled_mm": float(np.mean(mpjpe_series)),
+		"mpjpe_pose_upsampled_p95_mm": float(np.percentile(mpjpe_series, 95.0)),
+		"mpjpe_pose_upsampled_max_mm": float(np.max(mpjpe_series)),
 		"p95_joint_err_pose_upsampled_mm": float(np.percentile(joint_err, 95.0)),
 		"max_joint_err_pose_upsampled_mm": float(np.max(joint_err)),
 		"rte_percent_pose_upsampled": wham["rte_percent_pose_upsampled"],
 		"jitter_10mps3_pose_upsampled": wham["jitter_10mps3_pose_upsampled"],
 		"jitter_mps3_pose_upsampled": wham["jitter_mps3_pose_upsampled"],
 	}
+	ret.update(align)
+	ret.update(bone_norm)
+	ret.update(
+		compute_channelwise_pose_metrics(
+			gt_pose_mm=gt_valid,
+			pred_pose_mm=pred_valid,
+			time_sec=target_ts_valid,
+			fps=float(upsample_fps),
+		)
+	)
+	return ret
 
 
-def compute_linear_interp_reference_metrics(pose_time_sec, pose_data, eval_ts, downsample_fps):
+def compute_linear_interp_reference_metrics(pose_time_sec, pose_data, eval_ts, downsample_fps, eval_fps):
 	ctrl_ts, ctrl_pose = downsample_pose_linear(pose_time_sec, pose_data, downsample_fps)
 	lin_pred_all, lin_valid = eval_pose_linear_from_controls(ctrl_ts, ctrl_pose, eval_ts)
 	gt_eval, gt_valid = resample_pose_at_times(pose_time_sec, pose_data, eval_ts)
@@ -525,83 +756,153 @@ def compute_linear_interp_reference_metrics(pose_time_sec, pose_data, eval_ts, d
 	pred_valid = lin_pred_all[valid]
 	gt_valid_pose = gt_eval[valid]
 	diff = pred_valid - gt_valid_pose
-	abs_err = np.abs(diff)
 	joint_err = np.linalg.norm(diff, axis=2)
 	mpjpe_series = joint_err.mean(axis=1)
+	eval_ts_valid = np.asarray(eval_ts, dtype=np.float64)[valid]
+	align = compute_pose_alignment_metrics(
+		gt_valid_pose,
+		pred_valid,
+		fps=float(eval_fps),
+		time_sec=eval_ts_valid,
+	)
+	bone_norm = compute_bone_length_normalized_mpjpe_percent(gt_valid_pose, pred_valid)
 
-	return {
+	ret = {
 		"linear_downsample_fps": float(downsample_fps),
 		"linear_num_upsample_points": int(pred_valid.shape[0]),
 		"linear_mpjpe_pose_upsampled_mm": float(np.mean(mpjpe_series)),
+		"linear_mpjpe_pose_upsampled_p95_mm": float(np.percentile(mpjpe_series, 95.0)),
+		"linear_mpjpe_pose_upsampled_max_mm": float(np.max(mpjpe_series)),
 		"linear_p95_joint_err_pose_upsampled_mm": float(np.percentile(joint_err, 95.0)),
 		"linear_max_joint_err_pose_upsampled_mm": float(np.max(joint_err)),
-		"linear_pose_mae_upsampled_mm": float(np.mean(abs_err)),
-		"linear_pose_abs_err_sum_mm": float(np.sum(abs_err)),
 	}
+	ret["linear_nmpjpe_pose_upsampled_mm"] = align["nmpjpe_pose_upsampled_mm"]
+	ret["linear_nmpjpe_pose_upsampled_p95_mm"] = align["nmpjpe_pose_upsampled_p95_mm"]
+	ret["linear_nmpjpe_pose_upsampled_max_mm"] = align["nmpjpe_pose_upsampled_max_mm"]
+	ret["linear_mpjve_pose_upsampled_mmps"] = align["mpjve_pose_upsampled_mmps"]
+	ret["linear_mpjve_pose_upsampled_p95_mmps"] = align["mpjve_pose_upsampled_p95_mmps"]
+	ret["linear_mpjve_pose_upsampled_max_mmps"] = align["mpjve_pose_upsampled_max_mmps"]
+	ret["linear_bl_mpjpe_percent_pose_upsampled"] = bone_norm["bl_mpjpe_percent_pose_upsampled"]
+	ret["linear_bl_mpjpe_p95_percent_pose_upsampled"] = bone_norm["bl_mpjpe_p95_percent_pose_upsampled"]
+	ret["linear_bl_mpjpe_max_percent_pose_upsampled"] = bone_norm["bl_mpjpe_max_percent_pose_upsampled"]
+	ret["linear_disp_range_mpjpe_percent_pose_upsampled"] = bone_norm["disp_range_mpjpe_percent_pose_upsampled"]
+	ret["linear_disp_range_mpjpe_p95_percent_pose_upsampled"] = bone_norm["disp_range_mpjpe_p95_percent_pose_upsampled"]
+	ret["linear_disp_range_mpjpe_max_percent_pose_upsampled"] = bone_norm["disp_range_mpjpe_max_percent_pose_upsampled"]
+	ret["linear_bl_per_joint_percent_pose_upsampled"] = bone_norm["bl_per_joint_percent_pose_upsampled"]
+	ret["linear_bone_length_per_joint_mm"] = bone_norm["bone_length_per_joint_mm"]
+	ret["linear_disp_range_per_joint_percent_pose_upsampled"] = bone_norm["disp_range_per_joint_percent_pose_upsampled"]
+	ret["linear_disp_range_per_joint_mm"] = bone_norm["disp_range_per_joint_mm"]
+	ch_stats = compute_channelwise_pose_metrics(
+		gt_pose_mm=gt_valid_pose,
+		pred_pose_mm=pred_valid,
+		time_sec=eval_ts_valid,
+		fps=float(eval_fps),
+	)
+	for k, v in ch_stats.items():
+		ret[f"linear_{k}"] = v
+	return ret
 
 
-def build_metric_definitions():
-	return {
-		"curve_error_metrics": [
-			"crmse_mm",
-			"vel_rmse_mmps",
-			"acc_rmse_mmps2",
-			"ncrmse_by_pos_range",
-			"nvel_rmse_by_vel_range",
-			"nacc_rmse_by_acc_range",
-		],
-		"sampled_curve_point_metrics": [
-			"mae_dense_xyz_mm",
-			"mpjpe_cont_mm",
-			"p95_joint_err_mm",
-			"max_joint_err_mm",
-		],
-		"sampled_pose_point_metrics": [
-			"pose_crmse_upsampled_mm",
-			"pose_nrmse_range_upsampled",
-			"pose_mae_upsampled_mm",
-			"pose_p95ae_upsampled_mm",
-			"pose_maxae_upsampled_mm",
-			"mpjpe_pose_upsampled_mm",
-			"p95_joint_err_pose_upsampled_mm",
-			"max_joint_err_pose_upsampled_mm",
-			"rte_percent_pose_upsampled",
-			"jitter_10mps3_pose_upsampled",
-		],
-		"linear_interpolation_reference_metrics": [
-			"linear_mpjpe_pose_upsampled_mm",
-			"linear_p95_joint_err_pose_upsampled_mm",
-			"linear_max_joint_err_pose_upsampled_mm",
-			"linear_pose_mae_upsampled_mm",
-		],
-		"per_point_average_metrics": [
-			"crmse_mm",
-			"vel_rmse_mmps",
-			"acc_rmse_mmps2",
-			"mae_dense_xyz_mm",
-			"mpjpe_cont_mm",
-			"pose_crmse_upsampled_mm",
-			"pose_mae_upsampled_mm",
-			"mpjpe_pose_upsampled_mm",
-			"linear_mpjpe_pose_upsampled_mm",
-		],
-		"accumulative_metrics": [
-			"pos_sq_integral",
-			"vel_sq_integral",
-			"acc_sq_integral",
-			"mpjpe_integral_mm_sec",
-			"pose_abs_err_sum_mm",
-			"pose_joint_err_sum_mm",
-			"linear_pose_abs_err_sum_mm",
-		],
+def compute_channelwise_pose_metrics(gt_pose_mm, pred_pose_mm, time_sec=None, fps=120.0, eps=1e-12):
+	"""Compute per-channel metrics for all 51 channels and aggregate mean/max/p95."""
+	if gt_pose_mm.shape != pred_pose_mm.shape:
+		raise ValueError(f"pose shape mismatch: gt={gt_pose_mm.shape}, pred={pred_pose_mm.shape}")
+	if gt_pose_mm.ndim != 3 or gt_pose_mm.shape[2] != 3:
+		raise ValueError(f"unexpected pose shape: {gt_pose_mm.shape}")
+
+	parent = get_default_parent_indices(gt_pose_mm.shape[1])
+	metric_lists = {
+		"mpjpe_mm": [],
+		"nmpjpe_mm": [],
+		"mpjve_mmps": [],
+		"bl_mpjpe_percent": [],
+		"disp_range_mpjpe_percent": [],
 	}
+
+	for j in range(gt_pose_mm.shape[1]):
+		p = int(parent[j])
+		if p >= 0 and p < gt_pose_mm.shape[1]:
+			bone_gt_t = np.linalg.norm(gt_pose_mm[:, j, :] - gt_pose_mm[:, p, :], axis=1)
+			bone_pred_t = np.linalg.norm(pred_pose_mm[:, j, :] - pred_pose_mm[:, p, :], axis=1)
+			bone_mean = float(np.mean(bone_gt_t)) if bone_gt_t.size > 0 else float("nan")
+			sum_pred_bone = float(np.sum(bone_pred_t)) if bone_pred_t.size > 0 else 0.0
+			if sum_pred_bone > eps:
+				s_nm = float(np.sum(bone_gt_t) / sum_pred_bone)
+			else:
+				s_nm = 1.0
+		else:
+			bone_mean = float("nan")
+			s_nm = 1.0
+
+		joint_min = np.min(gt_pose_mm[:, j, :], axis=0)
+		joint_max = np.max(gt_pose_mm[:, j, :], axis=0)
+		disp_range = float(np.linalg.norm(joint_max - joint_min))
+
+		for d in range(gt_pose_mm.shape[2]):
+			gt = gt_pose_mm[:, j, d]
+			pred = pred_pose_mm[:, j, d]
+			diff = pred - gt
+			abs_err = np.abs(diff)
+
+			mpjpe = float(np.mean(abs_err)) if abs_err.size > 0 else float("nan")
+
+			nmp = float(np.mean(np.abs(s_nm * pred - gt)))
+
+			if gt.shape[0] >= 2:
+				if time_sec is not None and len(time_sec) == len(gt):
+					dt = np.diff(np.asarray(time_sec, dtype=np.float64))
+					valid_dt = dt > eps
+					if np.any(valid_dt):
+						vel_gt = np.diff(gt)[valid_dt] / dt[valid_dt]
+						vel_pred = np.diff(pred)[valid_dt] / dt[valid_dt]
+						mpjve = float(np.mean(np.abs(vel_pred - vel_gt)))
+					else:
+						mpjve = float("nan")
+				else:
+					vel_gt = np.diff(gt) * float(fps)
+					vel_pred = np.diff(pred) * float(fps)
+					mpjve = float(np.mean(np.abs(vel_pred - vel_gt)))
+			else:
+				mpjve = float("nan")
+
+			if np.isfinite(bone_mean) and bone_mean > eps:
+				bl = float(np.mean(abs_err / bone_mean) * 100.0)
+			else:
+				bl = float("nan")
+
+			if np.isfinite(disp_range) and disp_range > eps:
+				drp = float(np.mean(abs_err / disp_range) * 100.0)
+			else:
+				drp = float("nan")
+
+			metric_lists["mpjpe_mm"].append(mpjpe)
+			metric_lists["nmpjpe_mm"].append(nmp)
+			metric_lists["mpjve_mmps"].append(mpjve)
+			metric_lists["bl_mpjpe_percent"].append(bl)
+			metric_lists["disp_range_mpjpe_percent"].append(drp)
+
+	out = {}
+	for name, vals in metric_lists.items():
+		arr = np.asarray(vals, dtype=np.float64)
+		valid = arr[np.isfinite(arr)]
+		if valid.size > 0:
+			out[f"ch_mean_{name}"] = float(np.mean(valid))
+			out[f"ch_max_{name}"] = float(np.max(valid))
+			out[f"ch_p95_{name}"] = float(np.percentile(valid, 95.0))
+			out[f"ch_valid_count_{name}"] = int(valid.size)
+		else:
+			out[f"ch_mean_{name}"] = float("nan")
+			out[f"ch_max_{name}"] = float("nan")
+			out[f"ch_p95_{name}"] = float("nan")
+			out[f"ch_valid_count_{name}"] = 0
+
+	return out
 
 
 def summarize_results(rows, analytic_global):
 	summary = {
 		"num_files": len(rows),
 		"analytic_global": analytic_global,
-		"metric_definitions": build_metric_definitions(),
 	}
 	if len(rows) == 0:
 		return summary
@@ -613,27 +914,50 @@ def summarize_results(rows, analytic_global):
 		"nvel_rmse_by_vel_range",
 		"acc_rmse_mmps2",
 		"nacc_rmse_by_acc_range",
-		"mae_dense_xyz_mm",
 		"mpjpe_cont_mm",
 		"mpjpe_integral_mm_sec",
 		"nmpjpe_by_pos_range",
 		"pose_crmse_upsampled_mm",
 		"pose_nrmse_range_upsampled",
-		"pose_mae_upsampled_mm",
-		"pose_p95ae_upsampled_mm",
-		"pose_maxae_upsampled_mm",
-		"pose_abs_err_sum_mm",
 		"pose_joint_err_sum_mm",
 		"rte_percent_pose_upsampled",
 		"jitter_10mps3_pose_upsampled",
 		"jitter_mps3_pose_upsampled",
 		"mpjpe_pose_upsampled_mm",
+		"mpjpe_pose_upsampled_p95_mm",
+		"mpjpe_pose_upsampled_max_mm",
+		"nmpjpe_pose_upsampled_mm",
+		"nmpjpe_pose_upsampled_p95_mm",
+		"nmpjpe_pose_upsampled_max_mm",
+		"mpjve_pose_upsampled_mmps",
+		"mpjve_pose_upsampled_p95_mmps",
+		"mpjve_pose_upsampled_max_mmps",
+		"bl_mpjpe_percent_pose_upsampled",
+		"bl_mpjpe_p95_percent_pose_upsampled",
+		"bl_mpjpe_max_percent_pose_upsampled",
+		"disp_range_mpjpe_percent_pose_upsampled",
+		"disp_range_mpjpe_p95_percent_pose_upsampled",
+		"disp_range_mpjpe_max_percent_pose_upsampled",
+		"bl_valid_joint_count_pose_upsampled",
+		"disp_range_valid_joint_count_pose_upsampled",
 		"nmpjpe_pose_upsampled_by_pos_range",
 		"linear_mpjpe_pose_upsampled_mm",
+		"linear_mpjpe_pose_upsampled_p95_mm",
+		"linear_mpjpe_pose_upsampled_max_mm",
+		"linear_nmpjpe_pose_upsampled_mm",
+		"linear_nmpjpe_pose_upsampled_p95_mm",
+		"linear_nmpjpe_pose_upsampled_max_mm",
+		"linear_mpjve_pose_upsampled_mmps",
+		"linear_mpjve_pose_upsampled_p95_mmps",
+		"linear_mpjve_pose_upsampled_max_mmps",
+		"linear_bl_mpjpe_percent_pose_upsampled",
+		"linear_bl_mpjpe_p95_percent_pose_upsampled",
+		"linear_bl_mpjpe_max_percent_pose_upsampled",
+		"linear_disp_range_mpjpe_percent_pose_upsampled",
+		"linear_disp_range_mpjpe_p95_percent_pose_upsampled",
+		"linear_disp_range_mpjpe_max_percent_pose_upsampled",
 		"linear_p95_joint_err_pose_upsampled_mm",
 		"linear_max_joint_err_pose_upsampled_mm",
-		"linear_pose_mae_upsampled_mm",
-		"linear_pose_abs_err_sum_mm",
 		"mpjpe_pose_minus_linear_mm",
 		"p95_joint_err_mm",
 		"np95_joint_err_by_pos_range",
@@ -651,6 +975,21 @@ def summarize_results(rows, analytic_global):
 		"gt_vel_range_mmps",
 		"gt_acc_range_mmps2",
 	]
+
+	prefixed_keys = []
+	for row in rows:
+		for key in row.keys():
+			if key.startswith("ch_") or key.startswith("linear_ch_"):
+				prefixed_keys.append(key)
+			if key.startswith("bl_mpjpe_joint") or key.startswith("bone_length_joint"):
+				prefixed_keys.append(key)
+			if key.startswith("disp_range_mpjpe_joint") or key.startswith("disp_range_joint"):
+				prefixed_keys.append(key)
+			if key.startswith("linear_bl_mpjpe_joint") or key.startswith("linear_bone_length_joint"):
+				prefixed_keys.append(key)
+			if key.startswith("linear_disp_range_mpjpe_joint") or key.startswith("linear_disp_range_joint"):
+				prefixed_keys.append(key)
+	numeric_keys.extend(sorted(set(prefixed_keys)))
 	per_file_stats = {}
 	for key in numeric_keys:
 		values = [r[key] for r in rows if key in r and r[key] is not None]
@@ -770,6 +1109,7 @@ def run_metrics(
 				pose_data=pose_data,
 				eval_ts=pose_up["target_ts_valid"],
 				downsample_fps=linear_downsample_fps,
+				eval_fps=upsample_fps,
 			)
 
 			row = {
@@ -785,31 +1125,54 @@ def run_metrics(
 				"nvel_rmse_by_vel_range": safe_div(analytic["vel_rmse_mmps"], sampled["gt_vel_range_mmps"]),
 				"acc_rmse_mmps2": analytic["acc_rmse_mmps2"],
 				"nacc_rmse_by_acc_range": safe_div(analytic["acc_rmse_mmps2"], sampled["gt_acc_range_mmps2"]),
-				"mae_dense_xyz_mm": sampled["mae_dense_xyz_mm"],
 				"mpjpe_cont_mm": sampled["mpjpe_cont_mm"],
 				"mpjpe_integral_mm_sec": sampled["mpjpe_integral_mm_sec"],
 				"nmpjpe_by_pos_range": safe_div(sampled["mpjpe_cont_mm"], sampled["gt_pos_range_mm"]),
 				"pose_crmse_upsampled_mm": pose_up["pose_crmse_upsampled_mm"],
 				"pose_nrmse_range_upsampled": pose_up["pose_nrmse_range_upsampled"],
-				"pose_mae_upsampled_mm": pose_up["pose_mae_upsampled_mm"],
-				"pose_p95ae_upsampled_mm": pose_up["pose_p95ae_upsampled_mm"],
-				"pose_maxae_upsampled_mm": pose_up["pose_maxae_upsampled_mm"],
-				"pose_abs_err_sum_mm": pose_up["pose_abs_err_sum_mm"],
 				"pose_joint_err_sum_mm": pose_up["pose_joint_err_sum_mm"],
 				"rte_percent_pose_upsampled": pose_up["rte_percent_pose_upsampled"],
 				"jitter_10mps3_pose_upsampled": pose_up["jitter_10mps3_pose_upsampled"],
 				"jitter_mps3_pose_upsampled": pose_up["jitter_mps3_pose_upsampled"],
 				"mpjpe_pose_upsampled_mm": pose_up["mpjpe_pose_upsampled_mm"],
+				"mpjpe_pose_upsampled_p95_mm": pose_up["mpjpe_pose_upsampled_p95_mm"],
+				"mpjpe_pose_upsampled_max_mm": pose_up["mpjpe_pose_upsampled_max_mm"],
+				"nmpjpe_pose_upsampled_mm": pose_up["nmpjpe_pose_upsampled_mm"],
+				"nmpjpe_pose_upsampled_p95_mm": pose_up["nmpjpe_pose_upsampled_p95_mm"],
+				"nmpjpe_pose_upsampled_max_mm": pose_up["nmpjpe_pose_upsampled_max_mm"],
+				"mpjve_pose_upsampled_mmps": pose_up["mpjve_pose_upsampled_mmps"],
+				"mpjve_pose_upsampled_p95_mmps": pose_up["mpjve_pose_upsampled_p95_mmps"],
+				"mpjve_pose_upsampled_max_mmps": pose_up["mpjve_pose_upsampled_max_mmps"],
+				"bl_mpjpe_percent_pose_upsampled": pose_up["bl_mpjpe_percent_pose_upsampled"],
+				"bl_mpjpe_p95_percent_pose_upsampled": pose_up["bl_mpjpe_p95_percent_pose_upsampled"],
+				"bl_mpjpe_max_percent_pose_upsampled": pose_up["bl_mpjpe_max_percent_pose_upsampled"],
+				"bl_valid_joint_count_pose_upsampled": pose_up["bl_valid_joint_count_pose_upsampled"],
+				"disp_range_mpjpe_percent_pose_upsampled": pose_up["disp_range_mpjpe_percent_pose_upsampled"],
+				"disp_range_mpjpe_p95_percent_pose_upsampled": pose_up["disp_range_mpjpe_p95_percent_pose_upsampled"],
+				"disp_range_mpjpe_max_percent_pose_upsampled": pose_up["disp_range_mpjpe_max_percent_pose_upsampled"],
+				"disp_range_valid_joint_count_pose_upsampled": pose_up["disp_range_valid_joint_count_pose_upsampled"],
 				"nmpjpe_pose_upsampled_by_pos_range": safe_div(
-					pose_up["mpjpe_pose_upsampled_mm"], sampled["gt_pos_range_mm"]
+					pose_up["nmpjpe_pose_upsampled_mm"], sampled["gt_pos_range_mm"]
 				),
 				"linear_downsample_fps": linear_ref["linear_downsample_fps"],
 				"linear_num_upsample_points": linear_ref["linear_num_upsample_points"],
 				"linear_mpjpe_pose_upsampled_mm": linear_ref["linear_mpjpe_pose_upsampled_mm"],
+				"linear_mpjpe_pose_upsampled_p95_mm": linear_ref["linear_mpjpe_pose_upsampled_p95_mm"],
+				"linear_mpjpe_pose_upsampled_max_mm": linear_ref["linear_mpjpe_pose_upsampled_max_mm"],
+				"linear_nmpjpe_pose_upsampled_mm": linear_ref["linear_nmpjpe_pose_upsampled_mm"],
+				"linear_nmpjpe_pose_upsampled_p95_mm": linear_ref["linear_nmpjpe_pose_upsampled_p95_mm"],
+				"linear_nmpjpe_pose_upsampled_max_mm": linear_ref["linear_nmpjpe_pose_upsampled_max_mm"],
+				"linear_mpjve_pose_upsampled_mmps": linear_ref["linear_mpjve_pose_upsampled_mmps"],
+				"linear_mpjve_pose_upsampled_p95_mmps": linear_ref["linear_mpjve_pose_upsampled_p95_mmps"],
+				"linear_mpjve_pose_upsampled_max_mmps": linear_ref["linear_mpjve_pose_upsampled_max_mmps"],
+				"linear_bl_mpjpe_percent_pose_upsampled": linear_ref["linear_bl_mpjpe_percent_pose_upsampled"],
+				"linear_bl_mpjpe_p95_percent_pose_upsampled": linear_ref["linear_bl_mpjpe_p95_percent_pose_upsampled"],
+				"linear_bl_mpjpe_max_percent_pose_upsampled": linear_ref["linear_bl_mpjpe_max_percent_pose_upsampled"],
+				"linear_disp_range_mpjpe_percent_pose_upsampled": linear_ref["linear_disp_range_mpjpe_percent_pose_upsampled"],
+				"linear_disp_range_mpjpe_p95_percent_pose_upsampled": linear_ref["linear_disp_range_mpjpe_p95_percent_pose_upsampled"],
+				"linear_disp_range_mpjpe_max_percent_pose_upsampled": linear_ref["linear_disp_range_mpjpe_max_percent_pose_upsampled"],
 				"linear_p95_joint_err_pose_upsampled_mm": linear_ref["linear_p95_joint_err_pose_upsampled_mm"],
 				"linear_max_joint_err_pose_upsampled_mm": linear_ref["linear_max_joint_err_pose_upsampled_mm"],
-				"linear_pose_mae_upsampled_mm": linear_ref["linear_pose_mae_upsampled_mm"],
-				"linear_pose_abs_err_sum_mm": linear_ref["linear_pose_abs_err_sum_mm"],
 				"mpjpe_pose_minus_linear_mm": (
 					pose_up["mpjpe_pose_upsampled_mm"] - linear_ref["linear_mpjpe_pose_upsampled_mm"]
 				),
@@ -836,6 +1199,37 @@ def run_metrics(
 				"pred_path": pred_path,
 				"gt_pose_path": pose_path,
 			}
+
+			for j, val in enumerate(pose_up["bl_per_joint_percent_pose_upsampled"]):
+				row[f"bl_mpjpe_joint{j}_percent"] = float(val)
+			for j, val in enumerate(pose_up["bone_length_per_joint_mm"]):
+				row[f"bone_length_joint{j}_mm"] = float(val)
+			for j, val in enumerate(pose_up["disp_range_per_joint_percent_pose_upsampled"]):
+				row[f"disp_range_mpjpe_joint{j}_percent"] = float(val)
+			for j, val in enumerate(pose_up["disp_range_per_joint_mm"]):
+				row[f"disp_range_joint{j}_mm"] = float(val)
+
+			for j, val in enumerate(linear_ref["linear_bl_per_joint_percent_pose_upsampled"]):
+				row[f"linear_bl_mpjpe_joint{j}_percent"] = float(val)
+			for j, val in enumerate(linear_ref["linear_bone_length_per_joint_mm"]):
+				row[f"linear_bone_length_joint{j}_mm"] = float(val)
+			for j, val in enumerate(linear_ref["linear_disp_range_per_joint_percent_pose_upsampled"]):
+				row[f"linear_disp_range_mpjpe_joint{j}_percent"] = float(val)
+			for j, val in enumerate(linear_ref["linear_disp_range_per_joint_mm"]):
+				row[f"linear_disp_range_joint{j}_mm"] = float(val)
+
+			for key, val in pose_up.items():
+				if key.startswith("ch_"):
+					if isinstance(val, (np.floating, np.integer, float, int, bool)):
+						row[key] = float(val)
+					else:
+						row[key] = val
+			for key, val in linear_ref.items():
+				if key.startswith("linear_ch_"):
+					if isinstance(val, (np.floating, np.integer, float, int, bool)):
+						row[key] = float(val)
+					else:
+						row[key] = val
 			rows.append(row)
 
 			total_pos_sq += analytic["pos_sq_integral"]
@@ -847,10 +1241,24 @@ def run_metrics(
 				f"[{idx}/{len(matched_ids)}] {sample_id}: "
 				f"cRMSE={analytic['crmse_mm']:.4f} mm, "
 				f"ncRMSE={safe_div(analytic['crmse_mm'], sampled['gt_pos_range_mm']):.6f}, "
-				f"MAE_pose={pose_up['pose_mae_upsampled_mm']:.4f} mm, "
 				f"RTE={pose_up['rte_percent_pose_upsampled']:.4f}%, "
 				f"MPJPE_cont={sampled['mpjpe_cont_mm']:.4f} mm, "
-				f"MPJPE_pose_up={pose_up['mpjpe_pose_upsampled_mm']:.4f} mm, "
+				f"MPJPE_pose_up(mean/p95/max)={pose_up['mpjpe_pose_upsampled_mm']:.4f}/"
+				f"{pose_up['mpjpe_pose_upsampled_p95_mm']:.4f}/"
+				f"{pose_up['mpjpe_pose_upsampled_max_mm']:.4f} mm, "
+				f"NMPJPE(mean/p95/max)={pose_up['nmpjpe_pose_upsampled_mm']:.4f}/"
+				f"{pose_up['nmpjpe_pose_upsampled_p95_mm']:.4f}/"
+				f"{pose_up['nmpjpe_pose_upsampled_max_mm']:.4f} mm, "
+				f"MPJVE(mean/p95/max)={pose_up['mpjve_pose_upsampled_mmps']:.4f}/"
+				f"{pose_up['mpjve_pose_upsampled_p95_mmps']:.4f}/"
+				f"{pose_up['mpjve_pose_upsampled_max_mmps']:.4f} mm/s, "
+				f"BL-MPJPE(mean/p95/max)={pose_up['bl_mpjpe_percent_pose_upsampled']:.4f}/"
+				f"{pose_up['bl_mpjpe_p95_percent_pose_upsampled']:.4f}/"
+				f"{pose_up['bl_mpjpe_max_percent_pose_upsampled']:.4f}%, "
+				f"DispRange-MPJPE(mean/p95/max)={pose_up['disp_range_mpjpe_percent_pose_upsampled']:.4f}/"
+				f"{pose_up['disp_range_mpjpe_p95_percent_pose_upsampled']:.4f}/"
+				f"{pose_up['disp_range_mpjpe_max_percent_pose_upsampled']:.4f}%, "
+				f"chMeanMPJPE={pose_up.get('ch_mean_mpjpe_mm', float('nan')):.4f} mm, "
 				f"LinearMPJPE={linear_ref['linear_mpjpe_pose_upsampled_mm']:.4f} mm"
 			)
 		except Exception as exc:

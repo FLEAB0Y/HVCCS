@@ -201,7 +201,222 @@ def rigid_align_points_3d(src_points, dst_points):
 	return aligned, R, t
 
 
-def compute_pose_all_channel_metrics(gt_pose_mm, pred_pose_mm, fps):
+def similarity_align_points_3d(src_points, dst_points):
+	"""Similarity-align src to dst with Umeyama (scale + rotation + translation)."""
+	if src_points.ndim != 2 or dst_points.ndim != 2:
+		raise ValueError("src_points and dst_points must be 2D arrays")
+	if src_points.shape != dst_points.shape:
+		raise ValueError(f"shape mismatch: src={src_points.shape}, dst={dst_points.shape}")
+	if src_points.shape[1] != 3:
+		raise ValueError("similarity alignment requires 3D points")
+
+	mu_src = np.mean(src_points, axis=0)
+	mu_dst = np.mean(dst_points, axis=0)
+	src_c = src_points - mu_src
+	dst_c = dst_points - mu_dst
+
+	H = src_c.T @ dst_c
+	U, S, Vt = np.linalg.svd(H)
+	R = Vt.T @ U.T
+	if np.linalg.det(R) < 0:
+		Vt[-1, :] *= -1.0
+		R = Vt.T @ U.T
+
+	var_src = float(np.sum(src_c ** 2))
+	if var_src > 1e-12:
+		scale = float(np.sum(S) / var_src)
+	else:
+		scale = 1.0
+
+	t = mu_dst - scale * (R @ mu_src)
+	aligned = scale * (src_points @ R.T) + t
+	return aligned, scale, R, t
+
+
+def compute_pose_alignment_metrics(gt_pose_mm, pred_pose_mm, fps, time_sec=None, eps=1e-12):
+	"""Compute N-MPJPE/MPJVE on synchronized pose samples."""
+	if gt_pose_mm.shape != pred_pose_mm.shape:
+		raise ValueError(f"pose shape mismatch: gt={gt_pose_mm.shape}, pred={pred_pose_mm.shape}")
+	if gt_pose_mm.ndim != 3 or gt_pose_mm.shape[2] != 3:
+		raise ValueError(f"unexpected pose shape: {gt_pose_mm.shape}")
+	if fps <= 0:
+		raise ValueError(f"fps must be > 0, got {fps}")
+
+	parent = get_default_parent_indices(gt_pose_mm.shape[1])
+	nm_list = []
+	for fidx in range(gt_pose_mm.shape[0]):
+		gt_frame = gt_pose_mm[fidx]
+		pred_frame = pred_pose_mm[fidx]
+
+		sum_gt_bone = 0.0
+		sum_pred_bone = 0.0
+		for j in range(gt_frame.shape[0]):
+			p = int(parent[j])
+			if p < 0 or p >= gt_frame.shape[0]:
+				continue
+			sum_gt_bone += float(np.linalg.norm(gt_frame[j] - gt_frame[p]))
+			sum_pred_bone += float(np.linalg.norm(pred_frame[j] - pred_frame[p]))
+		if sum_pred_bone > 1e-12:
+			s = float(sum_gt_bone / sum_pred_bone)
+		else:
+			s = 1.0
+		pred_nm = s * pred_frame
+		nm_list.append(float(np.linalg.norm(pred_nm - gt_frame, axis=1).mean()))
+
+	if gt_pose_mm.shape[0] >= 2:
+		if time_sec is not None and len(time_sec) == gt_pose_mm.shape[0]:
+			dt = np.diff(np.asarray(time_sec, dtype=np.float64))
+			valid_dt = dt > eps
+			if np.any(valid_dt):
+				vel_gt = np.diff(gt_pose_mm, axis=0)[valid_dt] / dt[valid_dt, None, None]
+				vel_pred = np.diff(pred_pose_mm, axis=0)[valid_dt] / dt[valid_dt, None, None]
+				vel_diff = vel_pred - vel_gt
+				mpjve = float(np.linalg.norm(vel_diff, axis=2).mean())
+			else:
+				mpjve = float("nan")
+		else:
+			vel_gt = np.diff(gt_pose_mm, axis=0) * float(fps)
+			vel_pred = np.diff(pred_pose_mm, axis=0) * float(fps)
+			vel_diff = vel_pred - vel_gt
+			mpjve = float(np.linalg.norm(vel_diff, axis=2).mean())
+	else:
+		mpjve = float("nan")
+
+	return {
+		"NMPJPE_upsampled_mm": float(np.mean(nm_list)) if nm_list else float("nan"),
+		"MPJVE_upsampled_mmps": mpjve,
+	}
+
+
+H36M17_PARENT_INDICES = np.array(
+	[-1, 0, 1, 2, 0, 4, 5, 0, 7, 8, 9, 8, 11, 12, 8, 14, 15],
+	dtype=np.int64,
+)
+
+
+def get_default_parent_indices(num_joints):
+	if num_joints == 17:
+		return H36M17_PARENT_INDICES.copy()
+
+	# Fallback: simple chain for unknown layouts.
+	parent = np.full(num_joints, -1, dtype=np.int64)
+	if num_joints >= 2:
+		parent[1:] = np.arange(0, num_joints - 1, dtype=np.int64)
+	return parent
+
+
+def get_joint_edge_pairs(parent_indices, joint_idx):
+	"""Get available bone edges touching joint_idx.
+
+	Preferred edge is (joint_idx -> parent). If parent is absent (e.g., root),
+	fall back to child edges to avoid NaN bone-normalized metrics.
+	"""
+	parent = np.asarray(parent_indices, dtype=np.int64)
+	num_joints = int(parent.shape[0])
+	edges = []
+	p = int(parent[joint_idx])
+	if p >= 0 and p < num_joints:
+		edges.append((joint_idx, p))
+	else:
+		children = np.where(parent == int(joint_idx))[0]
+		for c in children:
+			edges.append((int(c), int(joint_idx)))
+	return edges
+
+
+def compute_joint_bone_proxy_series(pose_mm, parent_indices, joint_idx, eps=1e-12):
+	"""Return per-frame bone-length proxy for one joint using available adjacent bones."""
+	edges = get_joint_edge_pairs(parent_indices, joint_idx)
+	if len(edges) == 0:
+		return np.asarray([], dtype=np.float64)
+
+	series = []
+	for a, b in edges:
+		edge_len = np.linalg.norm(pose_mm[:, a, :] - pose_mm[:, b, :], axis=1)
+		series.append(edge_len)
+	stacked = np.stack(series, axis=0)
+	bone_t = np.mean(stacked, axis=0)
+	valid = bone_t > float(eps)
+	return bone_t[valid]
+
+
+def compute_bone_length_normalized_mpjpe_percent(gt_pose_mm, pred_pose_mm, parent_indices=None, eps=1e-12):
+	"""Compute relative MPJPE (%): normalized by per-joint bone length and displacement range."""
+	if gt_pose_mm.shape != pred_pose_mm.shape:
+		raise ValueError(f"pose shape mismatch: gt={gt_pose_mm.shape}, pred={pred_pose_mm.shape}")
+	if gt_pose_mm.ndim != 3 or gt_pose_mm.shape[2] != 3:
+		raise ValueError(f"unexpected pose shape: {gt_pose_mm.shape}")
+
+	num_joints = gt_pose_mm.shape[1]
+	if parent_indices is None:
+		parent = get_default_parent_indices(num_joints)
+	else:
+		parent = np.asarray(parent_indices, dtype=np.int64)
+		if parent.shape[0] != num_joints:
+			raise ValueError(f"parent_indices length {parent.shape[0]} mismatch num_joints {num_joints}")
+
+	joint_err = np.linalg.norm(pred_pose_mm - gt_pose_mm, axis=2)
+	rel_err_bone = np.full_like(joint_err, np.nan, dtype=np.float64)
+	rel_err_disp = np.full_like(joint_err, np.nan, dtype=np.float64)
+	bone_len_mean = np.full(num_joints, np.nan, dtype=np.float64)
+	disp_range = np.full(num_joints, np.nan, dtype=np.float64)
+
+	for j in range(num_joints):
+		p = int(parent[j])
+		if p < 0 or p >= num_joints:
+			continue
+
+		bone_len_t = np.linalg.norm(gt_pose_mm[:, j, :] - gt_pose_mm[:, p, :], axis=1)
+		valid_bone = bone_len_t > float(eps)
+		if not np.any(valid_bone):
+			continue
+
+		bone_len_mean[j] = float(np.mean(bone_len_t[valid_bone]))
+		rel_err_bone[:, j] = joint_err[:, j] / bone_len_mean[j]
+
+		joint_min = np.min(gt_pose_mm[:, j, :], axis=0)
+		joint_max = np.max(gt_pose_mm[:, j, :], axis=0)
+		rng = float(np.linalg.norm(joint_max - joint_min))
+		if rng > float(eps):
+			disp_range[j] = rng
+			rel_err_disp[:, j] = joint_err[:, j] / rng
+
+	per_joint_percent = np.full(num_joints, np.nan, dtype=np.float64)
+	per_joint_disp_percent = np.full(num_joints, np.nan, dtype=np.float64)
+	for j in range(num_joints):
+		v = np.isfinite(rel_err_bone[:, j])
+		if np.any(v):
+			per_joint_percent[j] = float(np.mean(rel_err_bone[v, j]) * 100.0)
+
+		vd = np.isfinite(rel_err_disp[:, j])
+		if np.any(vd):
+			per_joint_disp_percent[j] = float(np.mean(rel_err_disp[vd, j]) * 100.0)
+
+	v_global = np.isfinite(rel_err_bone)
+	if np.any(v_global):
+		global_percent = float(np.mean(rel_err_bone[v_global]) * 100.0)
+	else:
+		global_percent = float("nan")
+
+	v_global_disp = np.isfinite(rel_err_disp)
+	if np.any(v_global_disp):
+		global_disp_percent = float(np.mean(rel_err_disp[v_global_disp]) * 100.0)
+	else:
+		global_disp_percent = float("nan")
+
+	return {
+		"BL_MPJPE_percent": global_percent,
+		"BL_per_joint_percent": per_joint_percent.tolist(),
+		"BL_bone_length_per_joint_mm": bone_len_mean.tolist(),
+		"BL_valid_joint_count": int(np.sum(np.isfinite(per_joint_percent))),
+		"DispRange_MPJPE_percent": global_disp_percent,
+		"DispRange_per_joint_percent": per_joint_disp_percent.tolist(),
+		"DispRange_per_joint_mm": disp_range.tolist(),
+		"DispRange_valid_joint_count": int(np.sum(np.isfinite(per_joint_disp_percent))),
+	}
+
+
+def compute_pose_all_channel_metrics(gt_pose_mm, pred_pose_mm, fps, time_sec=None):
 	"""Compute all-channel (17x3) metrics from pose samples at the same timestamps."""
 	if gt_pose_mm.shape != pred_pose_mm.shape:
 		raise ValueError(f"pose shape mismatch: gt={gt_pose_mm.shape}, pred={pred_pose_mm.shape}")
@@ -220,10 +435,6 @@ def compute_pose_all_channel_metrics(gt_pose_mm, pred_pose_mm, fps):
 	else:
 		nrmse = float("nan")
 
-	mae = float(np.mean(abs_err)) if abs_err.size > 0 else float("nan")
-	p95 = float(np.percentile(abs_err, 95.0)) if abs_err.size > 0 else float("nan")
-	maxae = float(np.max(abs_err)) if abs_err.size > 0 else float("nan")
-
 	if gt_pose_mm.shape[0] >= 2:
 		vel_gt = np.diff(gt_pose_mm, axis=0) * float(fps)
 		vel_pred = np.diff(pred_pose_mm, axis=0) * float(fps)
@@ -240,18 +451,146 @@ def compute_pose_all_channel_metrics(gt_pose_mm, pred_pose_mm, fps):
 
 	joint_err = np.linalg.norm(diff, axis=2)
 	mpjpe = float(np.mean(joint_err)) if joint_err.size > 0 else float("nan")
+	align_metrics = compute_pose_alignment_metrics(gt_pose_mm, pred_pose_mm, fps, time_sec=time_sec)
+	bone_norm = compute_bone_length_normalized_mpjpe_percent(gt_pose_mm, pred_pose_mm)
+
+	ret = {
+		"cRMSE_mm": crmse,
+		"NRMSE_range": nrmse,
+		"GT_range_mm": gt_range,
+		"VelRMSE_mmps": vel_rmse,
+		"AccRMSE_mmps2": acc_rmse,
+		"MPJPE_upsampled_mm": mpjpe,
+		"channel_count": int(gt_pose_mm.shape[1] * gt_pose_mm.shape[2]),
+	}
+	ret.update(align_metrics)
+	ret.update(bone_norm)
+	return ret
+
+
+def compute_pose_selected_channel_metrics(
+	gt_pose_mm,
+	pred_pose_mm,
+	keypoint_idx,
+	axis_idx,
+	fps,
+	time_sec=None,
+	eps=1e-12,
+):
+	"""Compute point metrics only for one selected spline channel (kpt, axis)."""
+	if gt_pose_mm.shape != pred_pose_mm.shape:
+		raise ValueError(f"pose shape mismatch: gt={gt_pose_mm.shape}, pred={pred_pose_mm.shape}")
+	if gt_pose_mm.ndim != 3 or gt_pose_mm.shape[2] != 3:
+		raise ValueError(f"unexpected pose shape: {gt_pose_mm.shape}")
+	if fps <= 0:
+		raise ValueError(f"fps must be > 0, got {fps}")
+	if keypoint_idx < 0 or keypoint_idx >= gt_pose_mm.shape[1]:
+		raise ValueError(f"keypoint_idx={keypoint_idx} out of range")
+	if axis_idx < 0 or axis_idx >= gt_pose_mm.shape[2]:
+		raise ValueError(f"axis_idx={axis_idx} out of range")
+
+	gt = gt_pose_mm[:, keypoint_idx, axis_idx]
+	pred = pred_pose_mm[:, keypoint_idx, axis_idx]
+	diff = pred - gt
+	abs_err = np.abs(diff)
+
+	crmse = float(np.sqrt(np.mean(diff ** 2))) if diff.size > 0 else float("nan")
+	gt_range = float(np.max(gt) - np.min(gt)) if gt.size > 0 else float("nan")
+	if np.isfinite(gt_range) and gt_range > 1e-12:
+		nrmse = float(crmse / gt_range)
+	else:
+		nrmse = float("nan")
+
+	# N-MPJPE: scale by summed bone-length ratio for available adjacent edge(s).
+	parent = get_default_parent_indices(gt_pose_mm.shape[1])
+	edges = get_joint_edge_pairs(parent, keypoint_idx)
+	if len(edges) > 0:
+		bone_gt_list = []
+		bone_pred_list = []
+		for a, b in edges:
+			bone_gt_list.append(np.linalg.norm(gt_pose_mm[:, a, :] - gt_pose_mm[:, b, :], axis=1))
+			bone_pred_list.append(np.linalg.norm(pred_pose_mm[:, a, :] - pred_pose_mm[:, b, :], axis=1))
+		bone_gt_t = np.mean(np.stack(bone_gt_list, axis=0), axis=0)
+		bone_pred_t = np.mean(np.stack(bone_pred_list, axis=0), axis=0)
+		sum_pred_bone = float(np.sum(bone_pred_t))
+		s_nm = float(np.sum(bone_gt_t) / sum_pred_bone) if sum_pred_bone > eps else 1.0
+		bone_valid = bone_gt_t > eps
+		bone_mean = float(np.mean(bone_gt_t[bone_valid])) if np.any(bone_valid) else float("nan")
+	else:
+		s_nm = 1.0
+		bone_mean = float("nan")
+	nmpjpe_series = np.abs(s_nm * pred - gt)
+	nmpjpe = float(np.mean(nmpjpe_series)) if nmpjpe_series.size > 0 else float("nan")
+	nmpjpe_p95 = float(np.percentile(nmpjpe_series, 95.0)) if nmpjpe_series.size > 0 else float("nan")
+	nmpjpe_max = float(np.max(nmpjpe_series)) if nmpjpe_series.size > 0 else float("nan")
+
+	# MPJVE in mm/s: when fps mismatches, use actual timestamp dt.
+	if gt.shape[0] >= 2:
+		if time_sec is not None and len(time_sec) == len(gt):
+			dt = np.diff(np.asarray(time_sec, dtype=np.float64))
+			valid_dt = dt > eps
+			if np.any(valid_dt):
+				vel_gt = np.diff(gt)[valid_dt] / dt[valid_dt]
+				vel_pred = np.diff(pred)[valid_dt] / dt[valid_dt]
+				mpjve_series = np.abs(vel_pred - vel_gt)
+				mpjve = float(np.mean(mpjve_series))
+			else:
+				mpjve_series = np.asarray([], dtype=np.float64)
+				mpjve = float("nan")
+		else:
+			vel_gt = np.diff(gt) * float(fps)
+			vel_pred = np.diff(pred) * float(fps)
+			mpjve_series = np.abs(vel_pred - vel_gt)
+			mpjve = float(np.mean(mpjve_series))
+	else:
+		mpjve_series = np.asarray([], dtype=np.float64)
+		mpjve = float("nan")
+	mpjve_p95 = float(np.percentile(mpjve_series, 95.0)) if mpjve_series.size > 0 else float("nan")
+	mpjve_max = float(np.max(mpjve_series)) if mpjve_series.size > 0 else float("nan")
+
+	if np.isfinite(bone_mean) and bone_mean > eps:
+		bl_series = abs_err / bone_mean * 100.0
+		bl_percent = float(np.mean(bl_series))
+		bl_p95 = float(np.percentile(bl_series, 95.0))
+		bl_max = float(np.max(bl_series))
+	else:
+		bl_series = np.asarray([], dtype=np.float64)
+		bl_percent = float("nan")
+		bl_p95 = float("nan")
+		bl_max = float("nan")
+
+	# Use the same GT range denominator for NRMSE and DispRange-MPJPE in selected-channel mode.
+	disp_range = gt_range
+	if disp_range > eps:
+		disp_series = abs_err / disp_range * 100.0
+		disp_percent = float(np.mean(disp_series))
+		disp_p95 = float(np.percentile(disp_series, 95.0))
+		disp_max = float(np.max(disp_series))
+	else:
+		disp_series = np.asarray([], dtype=np.float64)
+		disp_percent = float("nan")
+		disp_p95 = float("nan")
+		disp_max = float("nan")
 
 	return {
 		"cRMSE_mm": crmse,
 		"NRMSE_range": nrmse,
 		"GT_range_mm": gt_range,
-		"MAE_mm": mae,
-		"P95AE_mm": p95,
-		"MaxAE_mm": maxae,
-		"VelRMSE_mmps": vel_rmse,
-		"AccRMSE_mmps2": acc_rmse,
-		"MPJPE_upsampled_mm": mpjpe,
-		"channel_count": int(gt_pose_mm.shape[1] * gt_pose_mm.shape[2]),
+		"DispRange_denom_mm": disp_range,
+		"MPJPE_upsampled_mm": float(np.mean(abs_err)) if abs_err.size > 0 else float("nan"),
+		"NMPJPE_upsampled_mm": nmpjpe,
+		"NMPJPE_P95_upsampled_mm": nmpjpe_p95,
+		"NMPJPE_Max_upsampled_mm": nmpjpe_max,
+		"MPJVE_upsampled_mmps": mpjve,
+		"MPJVE_P95_upsampled_mmps": mpjve_p95,
+		"MPJVE_Max_upsampled_mmps": mpjve_max,
+		"BL_MPJPE_percent": bl_percent,
+		"BL_MPJPE_P95_percent": bl_p95,
+		"BL_MPJPE_Max_percent": bl_max,
+		"DispRange_MPJPE_percent": disp_percent,
+		"DispRange_MPJPE_P95_percent": disp_p95,
+		"DispRange_MPJPE_Max_percent": disp_max,
+		"channel_count": 1,
 	}
 
 
@@ -507,17 +846,10 @@ def compute_channel_metrics(
 	else:
 		nrmse = float("nan")
 
-	mae = float(abs_err.mean()) if abs_err.size > 0 else float("nan")
-	p95 = float(np.percentile(abs_err, 95.0)) if abs_err.size > 0 else float("nan")
-	maxae = float(abs_err.max()) if abs_err.size > 0 else float("nan")
-
 	return {
 		"cRMSE_mm": crmse,
 		"NRMSE_range": nrmse,
 		"GT_range_mm": gt_range,
-		"MAE_mm": mae,
-		"P95AE_mm": p95,
-		"MaxAE_mm": maxae,
 		"VelRMSE_mmps": vel_rmse,
 		"AccRMSE_mmps2": acc_rmse,
 		"duration_sec": float(total_duration),
@@ -546,7 +878,6 @@ def plot_two_splines(
 	gt_vel_dense,
 	pred_vel_dense,
 	upsample_time_sec=None,
-	upsample_abs_err=None,
 	upsample_mpjpe_series=None,
 	pose_time_sec=None,
 	pose_values=None,
@@ -639,23 +970,12 @@ def plot_two_splines(
 		labels.append("Pose Points")
 	ax.legend(lines, labels, loc="upper right", fontsize=9)
 
-	# Upsampled absolute error and MPJPE series.
+	# Upsampled MPJPE series.
 	if (
 		upsample_time_sec is not None
-		and upsample_abs_err is not None
 		and upsample_mpjpe_series is not None
 		and len(upsample_time_sec) > 0
 	):
-		err_line, = ax_err.plot(
-			upsample_time_sec * 1000.0,
-			upsample_abs_err,
-			color="tab:brown",
-			linewidth=0.9,
-			marker="o",
-			markersize=2.8,
-			alpha=0.85,
-			label="Abs Error (resampled)",
-		)
 		mpjpe_line, = ax_err.plot(
 			upsample_time_sec * 1000.0,
 			upsample_mpjpe_series,
@@ -665,20 +985,7 @@ def plot_two_splines(
 			label="MPJPE (resampled)",
 		)
 
-		imax = int(np.argmax(upsample_abs_err))
-		t_max = float(upsample_time_sec[imax] * 1000.0)
-		e_max = float(upsample_abs_err[imax])
-		ax_err.scatter([t_max], [e_max], color="red", s=20, zorder=4, label="Max Abs Error")
-		ax_err.annotate(
-			f"max={e_max:.3f} mm",
-			xy=(t_max, e_max),
-			xytext=(8, 6),
-			textcoords="offset points",
-			fontsize=8,
-			color="red",
-		)
-
-		ax_err.legend([err_line, mpjpe_line], ["Abs Error (resampled)", "MPJPE (resampled)"], loc="upper right", fontsize=9)
+		ax_err.legend([mpjpe_line], ["MPJPE (resampled)"], loc="upper right", fontsize=9)
 
 	ax_err.minorticks_on()
 	ax_err.grid(which="major", linestyle="-", linewidth=0.45, alpha=0.45)
@@ -689,9 +996,19 @@ def plot_two_splines(
 	metric_text = (
 		f"cRMSE: {metrics['cRMSE_mm']:.4f} mm\n"
 		f"NRMSE(range): {metrics['NRMSE_range']:.4f}\n"
-		f"MAE: {metrics['MAE_mm']:.4f} mm\n"
-		f"P95AE: {metrics['P95AE_mm']:.4f} mm\n"
-		f"MaxAE: {metrics['MaxAE_mm']:.4f} mm\n"
+		f"GT-Range (NRMSE/DispRange): {metrics.get('GT_range_mm', float('nan')):.4f} mm\n"
+		f"BL-MPJPE mean/p95/max: {metrics.get('BL_MPJPE_percent', float('nan')):.4f} / "
+		f"{metrics.get('BL_MPJPE_P95_percent', float('nan')):.4f} / "
+		f"{metrics.get('BL_MPJPE_Max_percent', float('nan')):.4f} %\n"
+		f"DispRange-MPJPE mean/p95/max: {metrics.get('DispRange_MPJPE_percent', float('nan')):.4f} / "
+		f"{metrics.get('DispRange_MPJPE_P95_percent', float('nan')):.4f} / "
+		f"{metrics.get('DispRange_MPJPE_Max_percent', float('nan')):.4f} %\n"
+		f"NMPJPE mean/p95/max: {metrics.get('NMPJPE_upsampled_mm', float('nan')):.4f} / "
+		f"{metrics.get('NMPJPE_P95_upsampled_mm', float('nan')):.4f} / "
+		f"{metrics.get('NMPJPE_Max_upsampled_mm', float('nan')):.4f} mm\n"
+		f"MPJVE mean/p95/max: {metrics.get('MPJVE_upsampled_mmps', float('nan')):.4f} / "
+		f"{metrics.get('MPJVE_P95_upsampled_mmps', float('nan')):.4f} / "
+		f"{metrics.get('MPJVE_Max_upsampled_mmps', float('nan')):.4f} mm/s\n"
 		f"RTE: {metrics.get('RTE_percent', float('nan')):.4f} %\n"
 		f"Jitter: {metrics.get('Jitter_10mps3', float('nan')):.4f} (10 m/s^3)\n"
 		f"MPJPE@{metrics.get('upsample_fps', float('nan')):.1f}Hz: {metrics.get('MPJPE_upsampled_mm', float('nan')):.4f} mm\n"
@@ -776,10 +1093,9 @@ def run_compare(
 	frame_marker_times = collect_overlap_frame_markers(gt_t, pred_t, intervals)
 
 	upsample_time_sec = None
-	upsample_abs_err = None
 	upsample_mpjpe_series = None
 	if upsample_fps is None or upsample_fps <= 0:
-		raise ValueError(f"upsample_fps must be > 0 for all-channel metrics, got {upsample_fps}")
+		raise ValueError(f"upsample_fps must be > 0 for selected-channel metrics, got {upsample_fps}")
 
 	overlap_start = max(float(pred_t[0]), float(pose_time_sec[0]))
 	overlap_end = min(float(pred_t[-1]), float(pose_time_sec[-1]))
@@ -798,16 +1114,16 @@ def run_compare(
 
 			joint_err = np.linalg.norm(pred_valid - gt_valid, axis=2)
 			upsample_mpjpe_series = joint_err.mean(axis=1)
-			upsample_abs_err = np.abs(
-				pred_valid[:, kpt, dim] - gt_valid[:, kpt, dim]
-			).astype(np.float64, copy=False)
 			upsample_time_sec = valid_times
 
 			metrics.update(
-				compute_pose_all_channel_metrics(
+				compute_pose_selected_channel_metrics(
 					gt_pose_mm=gt_valid,
 					pred_pose_mm=pred_valid,
+					keypoint_idx=kpt,
+					axis_idx=dim,
 					fps=float(upsample_fps),
+					time_sec=valid_times,
 				)
 			)
 			metrics.update(
@@ -834,7 +1150,6 @@ def run_compare(
 		gt_vel_dense=metrics["gt_vel_dense"],
 		pred_vel_dense=metrics["pred_vel_dense"],
 		upsample_time_sec=upsample_time_sec,
-		upsample_abs_err=upsample_abs_err,
 		upsample_mpjpe_series=upsample_mpjpe_series,
 		pose_time_sec=pose_time_sec,
 		pose_values=pose_values,
@@ -848,7 +1163,7 @@ def run_compare(
 	# Linear interpolation baseline:
 	# 1) downsample GT pose to target FPS
 	# 2) connect points with piecewise linear interpolation
-	# 3) compare this linear curve to GT pose curve on all 17x3 channels
+	# 3) compare on selected spline channel (kpt, axis)
 	ctrl_ts, ctrl_pose = downsample_pose_linear(pose_time_sec, pose_data, linear_downsample_fps)
 	lin_pred_all, lin_valid = eval_pose_linear_from_controls(ctrl_ts, ctrl_pose, upsample_time_all)
 	gt_all, gt_valid = resample_pose_at_times(pose_time_sec, pose_data, upsample_time_all)
@@ -860,10 +1175,13 @@ def run_compare(
 	gt_lin = gt_all[valid_lin]
 	pred_lin = lin_pred_all[valid_lin]
 
-	lin_scatter_metrics = compute_pose_all_channel_metrics(
+	lin_scatter_metrics = compute_pose_selected_channel_metrics(
 		gt_pose_mm=gt_lin,
 		pred_pose_mm=pred_lin,
+		keypoint_idx=kpt,
+		axis_idx=dim,
 		fps=float(upsample_fps),
+		time_sec=ts_lin,
 	)
 	lin_scatter_metrics.update(
 		compute_wham_rte_jitter(
@@ -893,9 +1211,19 @@ def run_compare(
 	lin_metrics = {
 		"cRMSE_mm": lin_curve_metrics["cRMSE_mm"],
 		"NRMSE_range": lin_curve_metrics["NRMSE_range"],
-		"MAE_mm": lin_scatter_metrics["MAE_mm"],
-		"P95AE_mm": lin_scatter_metrics["P95AE_mm"],
-		"MaxAE_mm": lin_scatter_metrics["MaxAE_mm"],
+		"BL_MPJPE_percent": lin_scatter_metrics.get("BL_MPJPE_percent", float("nan")),
+		"BL_MPJPE_P95_percent": lin_scatter_metrics.get("BL_MPJPE_P95_percent", float("nan")),
+		"BL_MPJPE_Max_percent": lin_scatter_metrics.get("BL_MPJPE_Max_percent", float("nan")),
+		"DispRange_MPJPE_percent": lin_scatter_metrics.get("DispRange_MPJPE_percent", float("nan")),
+		"DispRange_MPJPE_P95_percent": lin_scatter_metrics.get("DispRange_MPJPE_P95_percent", float("nan")),
+		"DispRange_MPJPE_Max_percent": lin_scatter_metrics.get("DispRange_MPJPE_Max_percent", float("nan")),
+		"NMPJPE_upsampled_mm": lin_scatter_metrics.get("NMPJPE_upsampled_mm", float("nan")),
+		"NMPJPE_P95_upsampled_mm": lin_scatter_metrics.get("NMPJPE_P95_upsampled_mm", float("nan")),
+		"NMPJPE_Max_upsampled_mm": lin_scatter_metrics.get("NMPJPE_Max_upsampled_mm", float("nan")),
+		"MPJVE_upsampled_mmps": lin_scatter_metrics.get("MPJVE_upsampled_mmps", float("nan")),
+		"MPJVE_P95_upsampled_mmps": lin_scatter_metrics.get("MPJVE_P95_upsampled_mmps", float("nan")),
+		"MPJVE_Max_upsampled_mmps": lin_scatter_metrics.get("MPJVE_Max_upsampled_mmps", float("nan")),
+		"GT_range_mm": lin_scatter_metrics.get("GT_range_mm", float("nan")),
 		"RTE_percent": lin_scatter_metrics["RTE_percent"],
 		"Jitter_10mps3": lin_scatter_metrics["Jitter_10mps3"],
 		"Jitter_mps3": lin_scatter_metrics["Jitter_mps3"],
@@ -910,8 +1238,6 @@ def run_compare(
 	pred_dense_lin = lin_curve_metrics["pred_dense"]
 	gt_vel_lin = lin_curve_metrics["gt_vel_dense"]
 	pred_vel_lin = lin_curve_metrics["pred_vel_dense"]
-
-	lin_abs_err = np.abs(pred_lin[:, kpt, dim] - gt_lin[:, kpt, dim])
 	lin_mpjpe = np.linalg.norm(pred_lin - gt_lin, axis=2).mean(axis=1)
 
 	lin_title = (
@@ -928,7 +1254,6 @@ def run_compare(
 		gt_vel_dense=gt_vel_lin,
 		pred_vel_dense=pred_vel_lin,
 		upsample_time_sec=ts_lin,
-		upsample_abs_err=lin_abs_err,
 		upsample_mpjpe_series=lin_mpjpe,
 		pose_time_sec=ts_lin,
 		pose_values=gt_lin[:, kpt, dim],
@@ -946,27 +1271,47 @@ def run_compare(
 		"Metrics: "
 		f"cRMSE={metrics['cRMSE_mm']:.6f} mm, "
 		f"NRMSE(range)={metrics['NRMSE_range']:.6f}, "
-		f"MAE={metrics['MAE_mm']:.6f} mm, "
-		f"P95AE={metrics['P95AE_mm']:.6f} mm, "
-		f"MaxAE={metrics['MaxAE_mm']:.6f} mm, "
+		f"GT-Range={metrics.get('GT_range_mm', float('nan')):.6f} mm, "
+		f"BL-MPJPE(mean/p95/max)={metrics.get('BL_MPJPE_percent', float('nan')):.6f}/"
+		f"{metrics.get('BL_MPJPE_P95_percent', float('nan')):.6f}/"
+		f"{metrics.get('BL_MPJPE_Max_percent', float('nan')):.6f} %, "
+		f"DispRange-MPJPE(mean/p95/max)={metrics.get('DispRange_MPJPE_percent', float('nan')):.6f}/"
+		f"{metrics.get('DispRange_MPJPE_P95_percent', float('nan')):.6f}/"
+		f"{metrics.get('DispRange_MPJPE_Max_percent', float('nan')):.6f} %, "
 		f"Channels={metrics.get('channel_count', float('nan'))}, "
 		f"RTE={metrics.get('RTE_percent', float('nan')):.6f} %, "
 		f"Jitter={metrics.get('Jitter_10mps3', float('nan')):.6f} (10 m/s^3), "
-		f"MPJPE@{metrics.get('upsample_fps', float('nan')):.1f}Hz={metrics.get('MPJPE_upsampled_mm', float('nan')):.6f} mm"
+		f"MPJPE@{metrics.get('upsample_fps', float('nan')):.1f}Hz={metrics.get('MPJPE_upsampled_mm', float('nan')):.6f} mm, "
+		f"NMPJPE(mean/p95/max)={metrics.get('NMPJPE_upsampled_mm', float('nan')):.6f}/"
+		f"{metrics.get('NMPJPE_P95_upsampled_mm', float('nan')):.6f}/"
+		f"{metrics.get('NMPJPE_Max_upsampled_mm', float('nan')):.6f} mm, "
+		f"MPJVE(mean/p95/max)={metrics.get('MPJVE_upsampled_mmps', float('nan')):.6f}/"
+		f"{metrics.get('MPJVE_P95_upsampled_mmps', float('nan')):.6f}/"
+		f"{metrics.get('MPJVE_Max_upsampled_mmps', float('nan')):.6f} mm/s"
 	)
 	print(
 		"LinearMetrics: "
 		f"cRMSE={lin_metrics['cRMSE_mm']:.6f} mm, "
 		f"NRMSE(range)={lin_metrics['NRMSE_range']:.6f}, "
-		f"MAE={lin_metrics['MAE_mm']:.6f} mm, "
-		f"P95AE={lin_metrics['P95AE_mm']:.6f} mm, "
-		f"MaxAE={lin_metrics['MaxAE_mm']:.6f} mm, "
+		f"GT-Range={lin_metrics.get('GT_range_mm', float('nan')):.6f} mm, "
+		f"BL-MPJPE(mean/p95/max)={lin_metrics.get('BL_MPJPE_percent', float('nan')):.6f}/"
+		f"{lin_metrics.get('BL_MPJPE_P95_percent', float('nan')):.6f}/"
+		f"{lin_metrics.get('BL_MPJPE_Max_percent', float('nan')):.6f} %, "
+		f"DispRange-MPJPE(mean/p95/max)={lin_metrics.get('DispRange_MPJPE_percent', float('nan')):.6f}/"
+		f"{lin_metrics.get('DispRange_MPJPE_P95_percent', float('nan')):.6f}/"
+		f"{lin_metrics.get('DispRange_MPJPE_Max_percent', float('nan')):.6f} %, "
 		f"Channels={lin_metrics.get('channel_count', float('nan'))}, "
 		f"RTE={lin_metrics.get('RTE_percent', float('nan')):.6f} %, "
 		f"Jitter={lin_metrics.get('Jitter_10mps3', float('nan')):.6f} (10 m/s^3), "
-		f"MPJPE@{lin_metrics.get('upsample_fps', float('nan')):.1f}Hz={lin_metrics.get('MPJPE_upsampled_mm', float('nan')):.6f} mm"
+		f"MPJPE@{lin_metrics.get('upsample_fps', float('nan')):.1f}Hz={lin_metrics.get('MPJPE_upsampled_mm', float('nan')):.6f} mm, "
+		f"NMPJPE(mean/p95/max)={lin_metrics.get('NMPJPE_upsampled_mm', float('nan')):.6f}/"
+		f"{lin_metrics.get('NMPJPE_P95_upsampled_mm', float('nan')):.6f}/"
+		f"{lin_metrics.get('NMPJPE_Max_upsampled_mm', float('nan')):.6f} mm, "
+		f"MPJVE(mean/p95/max)={lin_metrics.get('MPJVE_upsampled_mmps', float('nan')):.6f}/"
+		f"{lin_metrics.get('MPJVE_P95_upsampled_mmps', float('nan')):.6f}/"
+		f"{lin_metrics.get('MPJVE_Max_upsampled_mmps', float('nan')):.6f} mm/s"
 	)
-	print("LinearMetricsNote: cRMSE/NRMSE use gt_spline curves; MAE/P95/MaxAE/RTE/Jitter/MPJPE use 120fps gt_pose sample points.")
+	print("LinearMetricsNote: cRMSE/NRMSE use gt_spline curves; RTE/Jitter/MPJPE/BL-MPJPE/DispRange-MPJPE/NMPJPE/MPJVE use 120fps gt_pose sample points.")
 
 
 def build_argparser():
@@ -988,7 +1333,7 @@ def build_argparser():
 		"--samples-per-interval",
 		type=int,
 		default=40,
-		help="Dense samples per overlap interval for MAE/P95/Max approximation.",
+		help="Dense samples per overlap interval for curve-domain metrics approximation.",
 	)
 	parser.add_argument(
 		"--output-path",
@@ -1006,7 +1351,7 @@ def build_argparser():
 		"--upsample-fps",
 		type=float,
 		default=120.0,
-		help="Uniform resampling FPS for spline MPJPE metric and abs-error plotting.",
+		help="Uniform resampling FPS for spline MPJPE and pose-derived metrics.",
 	)
 	parser.add_argument(
 		"--pose-file",
@@ -1059,13 +1404,13 @@ if __name__ == "__main__":
 		)
 	else:
 		gt_file = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps_notaknot_splines/Running_37_cam_1_h36m_notaknot_spline.npz"
-		pred_file = "/home/ztw/HVCCS/res/splines_fit_abg/Running_37_cam_1_h36m_30fps_abg_realtime_spline.npz"
+		pred_file = "/home/ztw/HVCCS/res/splines_fit_baseline/Running_37_cam_1_h36m_30fps_baseline_realtime_spline.npz"
 		gt_pose_file = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps/Running_37_cam_1_h36m.npy"
 		gt_pose_fps = 120.0 # 120.0. or 60.0 depending on the source of the pose file and its timestamp alignment with the splines.
 		spline_id = 0               # valid range: 0..50 for 17x3
 		samples_per_interval = 40   # dense sampling for MAE/P95/Max approximation
 		upsample_fps = 120.0        # uniform spline resampling FPS for MPJPE/abs-error points
-		output_path = "/home/ztw/HVCCS/res/splines_metrics/downsample_abg.png"
+		output_path = "/home/ztw/HVCCS/res/splines_metrics/downsample_baseline.png"
 		linear_downsample_fps = 30.0
 		linear_output_path = "/home/ztw/HVCCS/res/splines_metrics/downsample_linear.png"
 		plot_dpi = 640              # increase saved plot resolution
