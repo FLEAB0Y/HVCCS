@@ -127,6 +127,7 @@ def load_runtime_codec_config(config_path: str) -> dict:
             f"encoder_runtime missing required keys: {missing_encoder_runtime_keys}"
         )
 
+    low_latency_mode = _to_bool(config_encoder_runtime.get("low_latency_mode", False))
     encoder_runtime = {
         "feature_file": str(config_encoder_runtime["feature_file"]),
         "host": str(config_encoder_runtime["host"]),
@@ -136,6 +137,13 @@ def load_runtime_codec_config(config_path: str) -> dict:
         "max_frames": int(config_encoder_runtime["max_frames"]),
         "cuda_device": int(config_encoder_runtime["cuda_device"]),
         "debug": _to_bool(config_encoder_runtime["debug"]),
+        "low_latency_mode": low_latency_mode,
+        "max_send_buffer_size": int(
+            config_encoder_runtime.get("max_send_buffer_size", 1 if low_latency_mode else 80)
+        ),
+        "enable_frame_pacing": _to_bool(
+            config_encoder_runtime.get("enable_frame_pacing", not low_latency_mode)
+        ),
     }
 
     if encoder_runtime["fps"] <= 0:
@@ -150,6 +158,8 @@ def load_runtime_codec_config(config_path: str) -> dict:
         )
     if not encoder_runtime["feature_file"].strip():
         raise ValueError("encoder_runtime.feature_file is empty")
+    if encoder_runtime["max_send_buffer_size"] < 1:
+        raise ValueError("encoder_runtime.max_send_buffer_size must be >= 1")
 
     return {
         "checkpoint_path": checkpoint_path,
@@ -327,11 +337,18 @@ def iter_pose_frames(filepath, num_keypoints=33, coord_dims=3):
 
 
 class GRPCPoseSender:
-    def __init__(self, host="127.0.0.1", port=50051, interval=1.0 / 120.0):
+    def __init__(
+        self,
+        host="127.0.0.1",
+        port=50051,
+        interval=1.0 / 120.0,
+        max_send_buffer_size=80,
+    ):
         self.client = THStreamClient(host=host, port=port)
         self.interval = interval
         self._stop_event = threading.Event()
         self._thread = None
+        self.max_send_buffer_size = max(1, int(max_send_buffer_size))
 
     def _send_loop(self):
         while not self._stop_event.is_set():
@@ -353,8 +370,8 @@ class GRPCPoseSender:
             ext_data=PACKET_TAG,
             ext_desc=json.dumps(meta, separators=(",", ":")),
         )
-        while self.client.send_data_buffer.get_size() >= 80:
-            time.sleep(0.002)
+        while self.client.send_data_buffer.get_size() >= self.max_send_buffer_size:
+            time.sleep(0.0002)
         self.client.send_data_buffer.add_item(payload)
 
     def shutdown(self, drain_timeout=2.0):
@@ -531,6 +548,7 @@ def stream_and_encode(
     max_frames=None,
     model_hparams=None,
     device=None,
+    enable_frame_pacing=True,
 ):
     interval = 1.0 / fps
     history_buffer = []
@@ -678,10 +696,11 @@ def stream_and_encode(
                 break
                 
             # 帧率控制
-            elapsed = time.time() - start_time
-            sleep_time = interval - elapsed
-            if sleep_time > 0:
-                time.sleep(sleep_time)
+            if enable_frame_pacing:
+                elapsed = time.time() - start_time
+                sleep_time = interval - elapsed
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
 
     if total_raw_bytes > 0:
         overall_ratio = total_raw_bytes / max(total_encoded_bytes, 1)
@@ -762,6 +781,7 @@ if __name__ == "__main__":
             host=encoder_runtime["host"],
             port=encoder_runtime["port"],
             interval=1.0 / max(encoder_runtime["fps"], 1.0),
+            max_send_buffer_size=encoder_runtime["max_send_buffer_size"],
         )
         sender.start()
 
@@ -775,6 +795,7 @@ if __name__ == "__main__":
             max_frames=encoder_runtime["max_frames"],
             model_hparams=model_hparams,
             device=device,
+            enable_frame_pacing=encoder_runtime["enable_frame_pacing"],
         )
 
         sender.shutdown(drain_timeout=2.0)

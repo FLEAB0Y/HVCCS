@@ -1,0 +1,46 @@
+{
+  "checkpoint_path": "/home/ztw/HVCCS/checkpoints/pose_mamba_h1000_20260409_102338_ep150.pt",
+  "model_hparams": {
+    "num_keypoints": 17,
+    "model_in_dim": 3,
+    "history_len": 8,
+    "gnn_hidden": 128,
+    "mamba_d_state": 64,
+    "mamba_d_conv": 4,
+    "mamba_expand": 4,
+    "mamba_n_layer": 4,
+    "predictor_mode": "mamba",
+    "i_frame_interval": 8,
+    "quantize_i_frame": 0,
+    "quantize_p_frame": 0,
+    "quant_scale": 1000.0,
+    "entropy_enabled": 0,
+    "entropy_level": 6,
+    "model_seed": 2026
+  },
+  "encoder_runtime": {
+    "feature_file": "/home/data/ztw/AtheletePose3D/data/train_set/S3/Running_0_cam_1_h36m.npy",
+    "host": "127.0.0.1",
+    "port": 50051,
+    "fps": 120.0,
+    "window_size": 8,
+    "max_frames": 300,
+    "cuda_device": 0,
+    "debug": false,
+    "low_latency_mode": true,
+    "max_send_buffer_size": 1,
+    "enable_frame_pacing": true
+  },
+  "decoder_runtime": {
+    "host": "127.0.0.1",
+    "port": 50051,
+    "window_size": 8,
+    "cuda_device": 0,
+    "max_frames": 300,
+    "debug": false,
+    "output_path": "/home/ztw/HVCCS/res/decode_res/pose_recon_codec_h36m.npy",
+    "latency_save_dir": "/home/ztw/HVCCS/res/decode_res",
+    "low_latency_mode": true,
+    "poll_sleep_ms": 0.0
+  }
+}

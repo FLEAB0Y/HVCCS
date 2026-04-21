@@ -136,6 +136,7 @@ def load_runtime_codec_config(config_path: str) -> dict:
             f"decoder_runtime missing required keys: {missing_decoder_runtime_keys}"
         )
 
+    low_latency_mode = _to_bool(config_decoder_runtime.get("low_latency_mode", False))
     decoder_runtime = {
         "host": str(config_decoder_runtime["host"]),
         "port": int(config_decoder_runtime["port"]),
@@ -145,6 +146,10 @@ def load_runtime_codec_config(config_path: str) -> dict:
         "debug": _to_bool(config_decoder_runtime["debug"]),
         "output_path": str(config_decoder_runtime["output_path"]),
         "latency_save_dir": str(config_decoder_runtime.get("latency_save_dir", "")),
+        "low_latency_mode": low_latency_mode,
+        "poll_sleep_ms": float(
+            config_decoder_runtime.get("poll_sleep_ms", 0.0 if low_latency_mode else 1.0)
+        ),
     }
 
     if decoder_runtime["window_size"] < 1:
@@ -157,6 +162,8 @@ def load_runtime_codec_config(config_path: str) -> dict:
         )
     if not decoder_runtime["output_path"].strip():
         raise ValueError("decoder_runtime.output_path is empty")
+    if decoder_runtime["poll_sleep_ms"] < 0:
+        raise ValueError("decoder_runtime.poll_sleep_ms must be >= 0")
 
     if not decoder_runtime["latency_save_dir"].strip():
         output_dir = os.path.dirname(decoder_runtime["output_path"])
@@ -529,6 +536,7 @@ def run_receiver_service(
     debug: bool,
     output_path: Optional[str],
     latency_save_dir: Optional[str],
+    poll_sleep_ms: float,
 ) -> None:
     device = select_torch_device(cuda_device)
     predictor_mode = _normalize_predictor_mode(predictor_mode)
@@ -588,11 +596,13 @@ def run_receiver_service(
         "entropy_level": int(entropy_level),
         "predictor_mode": predictor_mode,
     }
+    poll_sleep_s = max(float(poll_sleep_ms), 0.0) / 1000.0
 
     try:
         while True:
             if servicer.receive_data_buffer.get_size() == 0:
-                time.sleep(0.001)
+                if poll_sleep_s > 0:
+                    time.sleep(poll_sleep_s)
                 continue
 
             req = servicer.receive_data_buffer.get_items()
@@ -729,6 +739,7 @@ def main() -> None:
         debug=decoder_runtime["debug"],
         output_path=decoder_runtime["output_path"],
         latency_save_dir=decoder_runtime.get("latency_save_dir"),
+        poll_sleep_ms=decoder_runtime.get("poll_sleep_ms", 1.0),
     )
 
 
