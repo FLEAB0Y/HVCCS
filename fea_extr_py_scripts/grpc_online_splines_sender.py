@@ -1,12 +1,35 @@
-import argparse
+import json
 import os
 import threading
 import time
+import zlib
 
 import numpy as np
 
 from client import THStreamClient
 from THStreamData import THStreamDataPayload
+
+
+DEFAULT_CODEC_CONFIG_PATH = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "checkpoints", "grpc_online_splines_codec_config.json")
+)
+
+
+def load_runtime_config(config_path: str) -> dict:
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"codec config not found: {config_path}")
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        cfg = json.load(f)
+
+    if not isinstance(cfg, dict):
+        raise ValueError("config root must be JSON object")
+
+    for key in ("common", "sender", "receiver"):
+        if key not in cfg or not isinstance(cfg[key], dict):
+            raise ValueError(f"missing required config section: {key}")
+
+    return cfg
 
 
 def to_tjc_from_npy(pose: np.ndarray, coord_dims: int = 3) -> np.ndarray:
@@ -98,10 +121,11 @@ def iter_h36m_frames(
 
 
 class GRPCPoseSender:
-    def __init__(self, host: str, port: int):
+    def __init__(self, host: str, port: int, buffer_limit: int = 80):
         self.client = THStreamClient(host=host, port=port)
         self._stop_event = threading.Event()
         self._thread = None
+        self.buffer_limit = max(int(buffer_limit), 1)
 
     def _send_loop(self):
         while not self._stop_event.is_set():
@@ -114,20 +138,19 @@ class GRPCPoseSender:
         self._thread = threading.Thread(target=self._send_loop, daemon=True)
         self._thread.start()
 
-    def send_frame(self, pose_frame: np.ndarray, timestamp_ms: int):
-        flat_pose = pose_frame.reshape(-1)
-        limb_data_bytes = ",".join(map(str, flat_pose.tolist())).encode("utf-8")
+    def send_encoded_packet(self, encoded_payload: bytes, meta: dict):
+        ext_desc = json.dumps(meta, separators=(",", ":"), ensure_ascii=False)
 
         payload = THStreamDataPayload(
             rgb_data=b"\x00",
             point_data=b"\x00",
             face_data=b"\x00",
-            limb_data=limb_data_bytes,
+            limb_data=encoded_payload,
             ext_data=b"\x00",
-            ext_desc=str(timestamp_ms),
+            ext_desc=ext_desc,
         )
 
-        while self.client.send_data_buffer.get_size() >= 80:
+        while self.client.send_data_buffer.get_size() >= self.buffer_limit:
             time.sleep(0.002)
         self.client.send_data_buffer.add_item(payload)
 
@@ -146,12 +169,58 @@ class GRPCPoseSender:
             pass
 
 
+def encode_payload(values: np.ndarray, quantize: bool, quant_scale: float, entropy_enabled: bool, entropy_level: int):
+    if quantize:
+        q_values = np.round(values * quant_scale)
+        q_values = np.clip(q_values, -32768, 32767).astype(np.int16)
+        payload = q_values.tobytes()
+        payload_dtype = "qint16"
+    else:
+        payload = values.astype(np.float32).tobytes()
+        payload_dtype = "float32"
+
+    entropy_codec = "none"
+    if entropy_enabled:
+        payload = zlib.compress(payload, level=entropy_level)
+        entropy_codec = "zlib"
+
+    return payload, payload_dtype, entropy_codec
+
+
+def decode_payload_local(payload: bytes, payload_dtype: str, entropy_codec: str, quant_scale: float) -> np.ndarray:
+    raw = payload
+    if entropy_codec == "zlib":
+        raw = zlib.decompress(raw)
+    elif entropy_codec not in ("", "none"):
+        raise ValueError(f"unsupported entropy codec: {entropy_codec}")
+
+    if payload_dtype == "qint16":
+        if quant_scale <= 0:
+            raise ValueError(f"quant_scale must be > 0, got {quant_scale}")
+        arr = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / quant_scale
+    elif payload_dtype == "float32":
+        arr = np.frombuffer(raw, dtype=np.float32)
+    else:
+        raise ValueError(f"unsupported payload dtype: {payload_dtype}")
+    return arr.astype(np.float32, copy=False)
+
+
 def stream_pose_frames(
     feature_file: str,
     sender: GRPCPoseSender,
     fps: float,
     max_frames: int,
     start_col: int,
+    i_frame_interval: int,
+    quantize_i_frame: bool,
+    quantize_p_frame: bool,
+    quant_scale: float,
+    entropy_enabled: bool,
+    entropy_level: int,
+    packet_tag: str,
+    channel: int,
+    num_keypoints: int,
+    coord_dims: int,
     debug: bool,
 ):
     if fps <= 0:
@@ -159,77 +228,146 @@ def stream_pose_frames(
 
     interval = 1.0 / fps
     sent_count = 0
+    prev_recon: np.ndarray | None = None
+    next_input_time = time.perf_counter()
 
     for frame_idx, pose_frame in enumerate(
         iter_h36m_frames(
             feature_file,
-            num_keypoints=17,
-            coord_dims=3,
+            num_keypoints=num_keypoints,
+            coord_dims=coord_dims,
             start_col=start_col,
         )
     ):
-        tick = time.time()
+        # 在进入残差编码前进行节拍控制，确保数据输入残差编码模块的速率受 fps 控制。
+        now_perf = time.perf_counter()
+        if now_perf < next_input_time:
+            time.sleep(next_input_time - now_perf)
+        next_input_time += interval
+
+        t0_ms = int(time.time() * 1000)
+
+        current_flat = pose_frame.reshape(-1).astype(np.float32, copy=False)
+        is_i_frame = prev_recon is None or (i_frame_interval > 0 and sent_count % i_frame_interval == 0)
+
+        if is_i_frame:
+            packet_kind = "I"
+            payload_values = current_flat
+            use_quantize = quantize_i_frame
+        else:
+            packet_kind = "P"
+            if prev_recon is None:
+                payload_values = current_flat
+                packet_kind = "I"
+                use_quantize = quantize_i_frame
+            else:
+                payload_values = (current_flat - prev_recon).astype(np.float32, copy=False)
+                use_quantize = quantize_p_frame
+
+        encoded_payload, payload_dtype, entropy_codec = encode_payload(
+            payload_values,
+            quantize=use_quantize,
+            quant_scale=quant_scale,
+            entropy_enabled=entropy_enabled,
+            entropy_level=entropy_level,
+        )
+
+        # 使用本地解码结果更新历史重建帧，保证与接收端重建基准一致。
+        decoded_values = decode_payload_local(
+            encoded_payload,
+            payload_dtype=payload_dtype,
+            entropy_codec=entropy_codec,
+            quant_scale=quant_scale,
+        )
+        if packet_kind == "P" and prev_recon is not None:
+            recon_flat = (prev_recon + decoded_values).astype(np.float32, copy=False)
+        else:
+            recon_flat = decoded_values.astype(np.float32, copy=False)
+
         timestamp_ms = int(time.time() * 1000)
 
-        sender.send_frame(pose_frame, timestamp_ms)
+        meta = {
+            "tag": packet_tag,
+            "kind": packet_kind,
+            "frame_idx": int(frame_idx),
+            "timestamp_ms": int(timestamp_ms),
+            "t0_ms": int(t0_ms),
+            "channel": int(channel),
+            "num_keypoints": int(num_keypoints),
+            "coord_dims": int(coord_dims),
+            "pose_dims": int(num_keypoints * coord_dims),
+            "payload_dtype": payload_dtype,
+            "entropy_codec": entropy_codec,
+            "quantize": int(use_quantize),
+            "quantize_i_frame": int(quantize_i_frame),
+            "quantize_p_frame": int(quantize_p_frame),
+            "quant_scale": float(quant_scale),
+        }
+        sender.send_encoded_packet(encoded_payload, meta)
         sent_count += 1
+        prev_recon = recon_flat
 
         if debug:
             print(
-                f"sent frame={frame_idx}, dims={pose_frame.shape[0]}x{pose_frame.shape[1]}, "
-                f"timestamp_ms={timestamp_ms}"
+                f"sent frame={frame_idx}, kind={packet_kind}, channel={channel}, "
+                f"t0_ms={t0_ms}, timestamp_ms={timestamp_ms}, bytes={len(encoded_payload)}"
             )
 
         if max_frames > 0 and sent_count >= max_frames:
             break
 
-        elapsed = time.time() - tick
-        sleep_time = interval - elapsed
-        if sleep_time > 0:
-            time.sleep(sleep_time)
-
     return sent_count
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Send Human3.6M 17x3 pose frames via gRPC at target fps"
-    )
-    parser.add_argument("--feature_file", type=str, default="/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_37_cam_1_h36m_30fps.npy", help="input .npy or text file")
-    parser.add_argument("--server_addr", type=str, default="127.0.0.1", help="server address")
-    parser.add_argument("--port_num", type=int, default=50051, help="server port")
-    parser.add_argument("--fps", type=float, default=30.0, help="send fps")
-    parser.add_argument(
-        "--max_frames",
-        type=int,
-        default=0,
-        help="max frames to send, <=0 means all frames",
-    )
-    parser.add_argument(
-        "--start_col",
-        type=int,
-        default=0,
-        help="start column for text feature parsing",
-    )
-    parser.add_argument("--debug", action="store_true", help="enable debug logs")
-    args = parser.parse_args()
+    cfg = load_runtime_config(DEFAULT_CODEC_CONFIG_PATH)
+    common_cfg = cfg["common"]
+    sender_cfg = cfg["sender"]
 
-    if not os.path.exists(args.feature_file):
-        raise FileNotFoundError(f"feature_file not found: {args.feature_file}")
+    feature_file = str(sender_cfg["feature_file"])
+    if not os.path.isabs(feature_file):
+        feature_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", feature_file))
 
-    sender = GRPCPoseSender(host=args.server_addr, port=args.port_num)
+    if not os.path.exists(feature_file):
+        raise FileNotFoundError(f"feature_file not found: {feature_file}")
+
+    channel = int(sender_cfg.get("channel", 0))
+    if channel < 0 or channel > 50:
+        raise ValueError(f"sender.channel must be in [0, 50], got {channel}")
+
+    sender = GRPCPoseSender(
+        host=str(sender_cfg["server_addr"]),
+        port=int(sender_cfg["port_num"]),
+        buffer_limit=int(sender_cfg.get("buffer_limit", 80)),
+    )
     sender.start()
 
     try:
         sent = stream_pose_frames(
-            feature_file=args.feature_file,
+            feature_file=feature_file,
             sender=sender,
-            fps=args.fps,
-            max_frames=args.max_frames,
-            start_col=args.start_col,
-            debug=args.debug,
+            fps=float(sender_cfg["fps"]),
+            max_frames=int(sender_cfg.get("max_frames", 0)),
+            start_col=int(sender_cfg.get("start_col", 0)),
+            i_frame_interval=int(common_cfg.get("i_frame_interval", 30)),
+            quantize_i_frame=bool(common_cfg.get("quantize_i_frame", common_cfg.get("quantize", True))),
+            quantize_p_frame=bool(common_cfg.get("quantize_p_frame", common_cfg.get("quantize", True))),
+            quant_scale=float(common_cfg.get("quant_scale", 1000.0)),
+            entropy_enabled=bool(common_cfg.get("entropy_enabled", True)),
+            entropy_level=int(common_cfg.get("entropy_level", 6)),
+            packet_tag=str(common_cfg.get("packet_tag", "POSE_RES_V1")),
+            channel=channel,
+            num_keypoints=int(common_cfg.get("num_keypoints", 17)),
+            coord_dims=int(common_cfg.get("coord_dims", 3)),
+            debug=bool(sender_cfg.get("debug", False)),
         )
-        print(f"sender_done: sent_frames={sent}, fps={args.fps}, file={args.feature_file}")
+        print(
+            "sender_done: "
+            f"sent_frames={sent}, "
+            f"fps={float(sender_cfg['fps'])}, "
+            f"channel={channel}, "
+            f"file={feature_file}"
+        )
     finally:
         sender.shutdown(drain_timeout=2.0)
 

@@ -767,10 +767,11 @@ def process_folder(
 
 
 if __name__ == "__main__":
+	base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 	# Predictor type: "kalman", "abg" (or alias "aby"), "mamba", "baseline".
-	predictor_type = "abg"
+	predictor_type = "baseline"
 	# Input folder containing files that end with "h36m.npy".
-	input_dir = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps"
+	input_dir = "/Users/twz/demo_sys_user/HVCCS/res/decode_res"
 	# Output folder for saved spline files. Set to None to use auto default by predictor type.
 	output_dir = None
 	# Source frame rate in Hz used to build the time axis and dt.
@@ -793,7 +794,14 @@ if __name__ == "__main__":
 	gamma = 0.05
 
 	# Mamba checkpoint for sequence prediction (required when predictor_type == "mamba").
-	mamba_checkpoint_path = "/home/ztw/HVCCS/checkpoints/splines_mamba_runs/train_gpu0_e1000/ckpt/best.pt"
+	mamba_checkpoint_path = os.path.join(
+		base_dir,
+		"checkpoints",
+		"splines_mamba_runs",
+		"train_gpu0_e1000",
+		"ckpt",
+		"best.pt",
+	)
 	# History window length used by mamba predictor.
 	mamba_history_len = 8
 	# CUDA device for mamba predictor. Set to -1 for CPU.
@@ -801,13 +809,13 @@ if __name__ == "__main__":
 
 	if output_dir is None:
 		if predictor_type == "kalman":
-			output_dir = "/home/ztw/HVCCS/res/splines_fit_kalman"
+			output_dir = os.path.join(base_dir, "res", "splines_fit_kalman")
 		elif predictor_type in {"abg", "aby"}:
-			output_dir = "/home/ztw/HVCCS/res/splines_fit_abg"
+			output_dir = os.path.join(base_dir, "res", "splines_fit_abg")
 		elif predictor_type == "baseline":
-			output_dir = "/home/ztw/HVCCS/res/splines_fit_baseline"
+			output_dir = os.path.join(base_dir, "res", "splines_fit_baseline")
 		else:
-			output_dir = "/home/ztw/HVCCS/res/splines_fit_mamba"
+			output_dir = os.path.join(base_dir, "res", "splines_fit_mamba")
 
 	process_folder(
 		input_dir=input_dir,
