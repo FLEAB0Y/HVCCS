@@ -186,3 +186,111 @@ npm install
 - 运行后，请确保身体距离Sender三米左右以确保整个身体进入画面。当看到`fea_extr_py_scripts/grpc_avatar_fea_sender.py`不断打印发送信息说明运行正常
 - 在Server中弹出用户网络参数监控画面，Sender对应用户的统计表中不断更新折线图。
 - unity中对应数字人做出相应动作。如果画面中未找到数字人，可以切换Scend窗口，双击左侧Hierarchy窗口的Avatar对象，视角会自动追踪到该数字人，通过修改偏移量可以调整位置（而不是数字人本身的位置和旋转）。
+
+### 3 splines codec
+
+本节对应脚本：
+- `fea_extr_py_scripts/grpc_online_splines_sender.py`
+- `fea_extr_py_scripts/grpc_online_splines_receiver.py`
+- `checkpoints/grpc_online_splines_codec_config.json`
+
+#### 3.1 发送端模块组成与工作顺序
+
+`grpc_online_splines_sender.py`内部模块及执行顺序如下：
+
+1. 配置加载模块
+- 读取 `checkpoints/grpc_online_splines_codec_config.json`。
+- 校验 `common/sender/receiver` 三个 section 是否存在。
+
+2. 数据读取模块
+- `iter_h36m_frames()` 支持 `.npy` 与文本输入。
+- 输出统一为每帧 `num_keypoints x coord_dims`，默认 `17 x 3`。
+- 在“数据输入残差编码模块之前”按 `fps` 做节拍控制（不是在编码结束后再 sleep），用于稳定统计编码/量化时延。
+
+3. 输入打点模块（t0）
+- 每帧进入残差编码前记录时间戳 `t0_ms`。
+- `t0_ms` 会写入数据包元数据 `ext_desc`。
+
+4. 残差编码模块
+- 第1帧或满足 `i_frame_interval` 的帧作为 I 帧，直接发送当前姿态。
+- 其余为 P 帧，发送 `当前帧 - 上一重建帧` 的残差。
+
+5. 量化与熵编码模块
+- 支持 I/P 帧独立量化开关：`quantize_i_frame`、`quantize_p_frame`。
+- 量化：`float32 -> int16`（对应帧类型量化开关为 `true` 时）。
+- 熵编码：可选 `zlib` 压缩（`entropy_enabled=true` 时）。
+- 发送端会对“已编码载荷”做一次本地解码，再更新历史重建帧，保证与接收端重建基准一致。
+
+6. 打包发送模块
+- 将编码后的字节放入 gRPC 的 `limb_data`。
+- 将 `kind/channel/timestamp/payload_dtype/entropy_codec/quant_scale/t0_ms` 等元数据写入 `ext_desc`（JSON）。
+
+7. 发送缓存模块
+- 发送缓存达到 `buffer_limit` 时等待，防止缓存爆满。
+
+#### 3.2 接收端工作顺序
+
+`grpc_online_splines_receiver.py`执行顺序：
+
+1. 读取同一份 JSON 配置并启动 gRPC 服务。
+2. 从接收缓冲区取包，统计时延与带宽。
+3. 从 `ext_desc` 解析编码元数据。
+4. 对 `limb_data` 进行反熵编码（若有）与反量化。
+5. 若为 P 帧则执行残差解码：`重建帧 = 上一重建帧 + 当前残差`。
+6. 残差解码完成后立即记录 `t1_ms`，并统计时延 `t1_ms - t0_ms`（包含编码、量化、解码路径）。
+7. 将重建结果 reshape 为 `(num_keypoints, coord_dims)`。
+8. 不区分通道，所有可解码帧统一追加保存，最终落盘为 `.npy`，形状为 `(T, num_keypoints, coord_dims)`。
+
+#### 3.3 JSON 参数说明（含单位与取值范围）
+
+配置文件：`checkpoints/grpc_online_splines_codec_config.json`
+
+`common`：
+- `packet_tag`：数据包标签；类型 `string`；建议固定为 `POSE_RES_V1`。
+- `num_keypoints`：关键点数；类型 `int`；单位 `个`；范围 `>0`，当前任务为 `17`。
+- `coord_dims`：每个关键点坐标维度；类型 `int`；单位 `维`；范围 `>0`，当前任务为 `3`。
+- `i_frame_interval`：I 帧间隔；类型 `int`；单位 `帧`；范围 `>=1`（建议 10-120）。
+- `quantize`：是否量化；类型 `bool`；取值 `true/false`。
+- `quantize_i_frame`：I 帧是否量化；类型 `bool`；取值 `true/false`。
+- `quantize_p_frame`：P 帧是否量化；类型 `bool`；取值 `true/false`。
+- `quant_scale`：量化缩放系数；类型 `float`；单位 `无`；范围 `>0`（建议 100-5000）。
+- `entropy_enabled`：是否启用 zlib 压缩；类型 `bool`；取值 `true/false`。
+- `entropy_level`：zlib 压缩等级；类型 `int`；范围 `0-9`，值越大压缩率通常越高、CPU开销越大。
+
+量化与包大小说明：
+- 当 `entropy_enabled=false` 且数据类型固定为 `int16` 时，单帧字节数主要由“维度数量”决定，与 `quant_scale` 取值基本无关。
+- `quant_scale` 主要影响量化误差，不直接改变定长 `int16` 载荷字节数。
+- 若希望码率随数据分布变化，通常需要启用熵编码（如 `zlib`）或可变长编码策略。
+
+`sender`：
+- `feature_file`：输入特征文件路径；类型 `string`；支持 `.npy` 或文本。
+- `server_addr`：接收端地址；类型 `string`；如 `127.0.0.1`。
+- `port_num`：发送目标 gRPC 端口；类型 `int`；范围 `1-65535`。
+- `fps`：发送帧率；类型 `float`；单位 `fps`；范围 `>0`（建议 1-240）。
+- `start_col`：文本特征起始列；类型 `int`；单位 `列索引`；范围 `>=0`。
+- `max_frames`：最大发送帧数；类型 `int`；单位 `帧`；`0` 表示不限制。
+- `buffer_limit`：发送缓冲上限；类型 `int`；单位 `包`；范围 `>=1`。
+- `channel`：发送通道号；类型 `int`；范围 `0-50`。
+- `debug`：是否打印调试日志；类型 `bool`。
+
+`receiver`：
+- `grpc_port`：本地监听端口；类型 `int`；范围 `1-65535`。
+- `report_interval`：统计打印周期；类型 `float`；单位 `秒`；范围 `>0`。
+- `poll_interval`：缓冲轮询周期；类型 `float`；单位 `秒`；范围 `>0`。
+- `debug`：是否打印逐包日志；类型 `bool`。
+- `save_enabled`：是否保存解码结果；类型 `bool`。
+- `save_max_frames`：最多保存帧数；类型 `int`；单位 `帧`；`0` 表示不限制。
+- `save_dir`：解码结果目录；类型 `string`；相对路径默认相对于项目根。
+- `save_file`：解码结果文件名；类型 `string`；建议后缀 `.npy`。
+
+#### 3.4 运行方式
+
+两个脚本都不再依赖命令行参数，直接运行即可：
+
+```bash
+cd HVCCS/fea_extr_py_scripts
+python grpc_online_splines_receiver.py
+python grpc_online_splines_sender.py
+```
+
+如果需要改发送速率、端口、是否压缩、保存位置等，只修改 `checkpoints/grpc_online_splines_codec_config.json` 即可。
