@@ -1386,7 +1386,7 @@ if __name__ == "__main__":
 	# Set USE_CLI=True if you prefer passing parameters via command line.
 	# -----------------------------------------------------------------
 	USE_CLI = False
-
+	base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 	if USE_CLI:
 		args = build_argparser().parse_args()
 		run_compare(
@@ -1403,16 +1403,16 @@ if __name__ == "__main__":
 			linear_output_path=args.linear_output_path,
 		)
 	else:
-		gt_file = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps_notaknot_splines/Running_37_cam_1_h36m_notaknot_spline.npz"
-		pred_file = "/home/ztw/HVCCS/res/splines_fit_baseline/Running_37_cam_1_h36m_30fps_baseline_realtime_spline.npz"
-		gt_pose_file = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps/Running_37_cam_1_h36m.npy"
+		gt_file = "/Users/twz/demo_sys_user/h36m_pose_cam_1/test/S2_cam_1_120fps_notaknot_splines/Running_37_cam_1_h36m_notaknot_spline.npz"
+		pred_file = "/Users/twz/demo_sys_user/HVCCS/res/splines_fit_baseline/decoded_Running_37_cam_1_h36m_30fps_baseline_realtime_spline.npz"
+		gt_pose_file = "/Users/twz/demo_sys_user/h36m_pose_cam_1/test/S2_cam_1_120fps/Running_37_cam_1_h36m.npy"
 		gt_pose_fps = 120.0 # 120.0. or 60.0 depending on the source of the pose file and its timestamp alignment with the splines.
 		spline_id = 0               # valid range: 0..50 for 17x3
 		samples_per_interval = 40   # dense sampling for MAE/P95/Max approximation
 		upsample_fps = 120.0        # uniform spline resampling FPS for MPJPE/abs-error points
-		output_path = "/home/ztw/HVCCS/res/splines_metrics/downsample_baseline.png"
+		output_path = os.path.join(base_dir, "res", "splines_metrics", "splines_compare_plot.png")
 		linear_downsample_fps = 30.0
-		linear_output_path = "/home/ztw/HVCCS/res/splines_metrics/downsample_linear.png"
+		linear_output_path = os.path.join(base_dir, "res", "splines_metrics", "downsample_linear.png")
 		plot_dpi = 640              # increase saved plot resolution
 		run_compare(
 			gt_file=gt_file,
