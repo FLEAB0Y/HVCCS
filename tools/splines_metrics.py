@@ -1412,7 +1412,7 @@ if __name__ == "__main__":
 		upsample_fps = 120.0        # uniform spline resampling FPS for MPJPE/abs-error points
 		output_path = os.path.join(base_dir, "res", "splines_metrics", "splines_compare_plot.png")
 		linear_downsample_fps = 30.0
-		linear_output_path = os.path.join(base_dir, "res", "splines_metrics", "downsample_linear.png")
+		linear_output_path = os.path.join(base_dir, "res", "splines_metrics", "downsample_linear.png") 
 		plot_dpi = 640              # increase saved plot resolution
 		run_compare(
 			gt_file=gt_file,
