@@ -1,0 +1,35 @@
+{
+	"common": {
+		"packet_tag": "POSE_RES_V1",
+		"num_keypoints": 17,
+		"coord_dims": 3,
+		"i_frame_interval": 30,
+		"quantize": true,
+		"quantize_i_frame": false,
+		"quantize_p_frame": true,
+		"quant_scale":100.0,
+		"entropy_enabled": true,
+		"entropy_level": 6
+	},
+	"sender": {
+		"feature_file": "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_37_cam_1_h36m_30fps.npy",
+		"server_addr": "127.0.0.1",
+		"port_num": 50051,
+		"fps": 30.0,
+		"start_col": 0,
+		"max_frames": 0,
+		"buffer_limit": 80,
+		"channel": 0,
+		"debug": false
+	},
+	"receiver": {
+		"grpc_port": 50051,
+		"report_interval": 1.0,
+		"poll_interval": 0.01,
+		"debug": false,
+		"save_enabled": true,
+		"save_max_frames": 0,
+		"save_dir": "res/decode_res",
+		"save_file": "decoded_Running_37_cam_1_h36m_30fps.npy"
+	}
+}
