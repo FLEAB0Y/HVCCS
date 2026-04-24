@@ -813,7 +813,7 @@ if __name__ == "__main__":
 		elif predictor_type in {"abg", "aby"}:
 			output_dir = os.path.join(base_dir, "res", "splines_fit_abg")
 		elif predictor_type == "baseline":
-			output_dir = os.path.join(base_dir, "res", "splines_fit_baseline")
+			output_dir = os.path.join(base_dir, "res", "decoded_splines_fit_baseline")
 		else:
 			output_dir = os.path.join(base_dir, "res", "splines_fit_mamba")
 
