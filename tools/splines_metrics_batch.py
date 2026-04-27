@@ -6,6 +6,29 @@ import os
 import numpy as np
 
 
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def _is_within_root(path_value, root_dir):
+	path_abs = os.path.abspath(path_value)
+	root_abs = os.path.abspath(root_dir)
+	try:
+		return os.path.commonpath([path_abs, root_abs]) == root_abs
+	except ValueError:
+		return False
+
+
+def resolve_runtime_path(path_value, project_root=PROJECT_ROOT):
+	path_str = str(path_value)
+	if os.path.isabs(path_str):
+		return path_str
+
+	resolved = os.path.abspath(os.path.join(project_root, path_str))
+	if not _is_within_root(resolved, project_root):
+		raise ValueError(f"Relative path escapes project root: {path_value}")
+	return resolved
+
+
 def safe_div(numerator, denominator, eps=1e-12):
 	if denominator is None:
 		return float("nan")
@@ -32,11 +55,49 @@ def collect_npz_files_by_suffix(input_dir, suffix):
 	return files
 
 
+def extract_match_key(name, suffix):
+	if suffix and name.endswith(suffix):
+		stem = name[: -len(suffix)]
+	else:
+		stem = os.path.splitext(name)[0]
+
+	tokens = [tok for tok in stem.split("_") if tok]
+	if len(tokens) == 0:
+		return stem
+
+	running_idx = -1
+	for idx, tok in enumerate(tokens):
+		if tok.lower() == "running":
+			running_idx = idx
+			break
+
+	if running_idx < 0:
+		return stem
+
+	h36m_idx = -1
+	for idx in range(running_idx + 1, len(tokens)):
+		if tokens[idx].lower().startswith("h36m"):
+			h36m_idx = idx
+			break
+
+	if h36m_idx < 0:
+		return "_".join(tokens[running_idx:])
+
+	return "_".join(tokens[running_idx : h36m_idx + 1])
+
+
 def build_id_to_path_map(input_dir, suffix):
 	mapping = {}
 	for name in collect_npz_files_by_suffix(input_dir, suffix):
-		sample_id = name[: -len(suffix)]
-		mapping[sample_id] = os.path.join(input_dir, name)
+		sample_id = extract_match_key(name, suffix)
+		file_path = os.path.join(input_dir, name)
+		if sample_id in mapping:
+			raise ValueError(
+				f"Duplicate match key '{sample_id}' in {input_dir}:\n"
+				f"- {mapping[sample_id]}\n"
+				f"- {file_path}"
+			)
+		mapping[sample_id] = file_path
 	return mapping
 
 
@@ -187,7 +248,7 @@ def rigid_align_points_3d(src_points, dst_points):
 	return aligned, R, t
 
 
-def compute_wham_rte_jitter(gt_pose_mm, pred_pose_mm, fps, root_kpt_idx=0):
+def compute_root_trajectory_error_and_jitter(gt_pose_mm, pred_pose_mm, fps, root_kpt_idx=0):
 	if gt_pose_mm.shape != pred_pose_mm.shape:
 		raise ValueError(f"pose shape mismatch: gt={gt_pose_mm.shape}, pred={pred_pose_mm.shape}")
 	if gt_pose_mm.ndim != 3 or gt_pose_mm.shape[2] != 3:
@@ -336,6 +397,51 @@ H36M17_PARENT_INDICES = np.array(
 	dtype=np.int64,
 )
 
+# H36M-17 joint index convention used by this project:
+# 0 hip, 1 rhip, 2 rknee, 3 rfoot, 4 lhip, 5 lknee, 6 lfoot,
+# 7 spine, 8 thorax, 9 neck, 10 head,
+# 11 lshoulder, 12 lelbow, 13 lwrist,
+# 14 rshoulder, 15 relbow, 16 rwrist.
+H36M17_JOINT_NAMES = [
+	"hip",
+	"rhip",
+	"rknee",
+	"rfoot",
+	"lhip",
+	"lknee",
+	"lfoot",
+	"spine",
+	"thorax",
+	"neck",
+	"head",
+	"lshoulder",
+	"lelbow",
+	"lwrist",
+	"rshoulder",
+	"relbow",
+	"rwrist",
+]
+
+# Bone list as (child_joint_idx, parent_joint_idx). This matches the figure.
+H36M17_BONE_EDGES = [
+	(1, 0),   # rhip -> hip
+	(2, 1),   # rknee -> rhip
+	(3, 2),   # rfoot -> rknee
+	(4, 0),   # lhip -> hip
+	(5, 4),   # lknee -> lhip
+	(6, 5),   # lfoot -> lknee
+	(7, 0),   # spine -> hip
+	(8, 7),   # thorax -> spine
+	(9, 8),   # neck -> thorax
+	(10, 9),  # head -> neck
+	(11, 8),  # lshoulder -> thorax
+	(12, 11), # lelbow -> lshoulder
+	(13, 12), # lwrist -> lelbow
+	(14, 8),  # rshoulder -> thorax
+	(15, 14), # relbow -> rshoulder
+	(16, 15), # rwrist -> relbow
+]
+
 
 def get_default_parent_indices(num_joints):
 	if num_joints == 17:
@@ -363,6 +469,26 @@ def get_joint_edge_pairs(parent_indices, joint_idx):
 
 
 def compute_bone_length_normalized_mpjpe_percent(gt_pose_mm, pred_pose_mm, parent_indices=None, eps=1e-12):
+	"""Compute relative MPJPE (%) normalized by bone length and displacement range.
+
+	For each joint j with edges from get_joint_edge_pairs(parent, j):
+	1) Per-frame proxy bone length:
+	   L_j(t) = mean_{(a,b) in edges(j)} ||GT_a(t)-GT_b(t)||_2
+	2) Mean proxy length: Lbar_j = mean_t L_j(t), for L_j(t) > eps
+	3) Bone-normalized error: E_bone_j(t) = ||Pred_j(t)-GT_j(t)||_2 / Lbar_j
+	4) Disp-range normalized error: E_disp_j(t) = ||Pred_j(t)-GT_j(t)||_2 / R_j
+	   where R_j = ||max_t GT_j(t) - min_t GT_j(t)||_2
+
+	Special case - ROOT JOINT (hip, j=0):
+	- Hip has no parent (only child edges), so no bone-length normalization
+	- Only raw MPJPE is computed for hip (added to per_joint but excluded from BL aggregation)
+
+	Units: Input poses in millimeters (mm); output percentages (%).
+	NMPJPE (Normalized MPJPE): Pose error normalized by per-joint displacement range.
+	RTE (Root Trajectory Error): Rigid-aligned root trajectory error.
+
+	Connectivity follows H36M17_PARENT_INDICES / H36M17_BONE_EDGES.
+	"""
 	if gt_pose_mm.shape != pred_pose_mm.shape:
 		raise ValueError(f"pose shape mismatch: gt={gt_pose_mm.shape}, pred={pred_pose_mm.shape}")
 	if gt_pose_mm.ndim != 3 or gt_pose_mm.shape[2] != 3:
@@ -383,6 +509,12 @@ def compute_bone_length_normalized_mpjpe_percent(gt_pose_mm, pred_pose_mm, paren
 	disp_range = np.full(num_joints, np.nan, dtype=np.float64)
 
 	for j in range(num_joints):
+		# Special case: root joint (hip) has parent=-1, no bone-length normalization.
+		# Only store raw error, will skip BL aggregation for hip.
+		if j == 0:  # hip (root)
+			rel_err_bone[:, j] = np.full(gt_pose_mm.shape[0], np.nan, dtype=np.float64)
+			continue
+		
 		edges = get_joint_edge_pairs(parent, j)
 		if len(edges) == 0:
 			continue
@@ -449,6 +581,129 @@ def compute_bone_length_normalized_mpjpe_percent(gt_pose_mm, pred_pose_mm, paren
 		"disp_range_per_joint_percent_pose_upsampled": per_joint_disp_percent,
 		"disp_range_per_joint_mm": disp_range,
 		"disp_range_valid_joint_count_pose_upsampled": int(np.sum(np.isfinite(per_joint_disp_percent))),
+	}
+
+
+def compute_bone_length_normalized_mpjve_percent(gt_pose_mm, pred_pose_mm, fps, parent_indices=None, eps=1e-12):
+	"""Compute velocity error (MPJVE) normalized by bone length - BL-MPJVE.
+	
+	For each joint j with edges from get_joint_edge_pairs(parent, j):
+	1) Velocity error: vel_err_j(t) = ||vel_pred_j(t) - vel_gt_j(t)||_2 where vel = dp/dt
+	2) Per-joint mean bone length: Lbar_j = mean_t L_j(t), for L_j(t) > eps
+	3) Bone-normalized velocity error: E_vel_bone_j(t) = vel_err_j(t) / Lbar_j
+	4) Global BL-MPJVE = mean(E_vel_bone) * 100 (%)
+	
+	Special case - ROOT JOINT (hip, j=0):
+	- Hip has no parent, so no bone-length normalization for velocity
+	- Raw MPJVE is computed but excluded from BL-MPJVE aggregation
+	
+	Units: Input poses in mm, fps in frames/second; output in %/100 and mm/s units.
+	
+	Args:
+		gt_pose_mm: Ground-truth pose (T, K, 3) in mm
+		pred_pose_mm: Predicted pose (T, K, 3) in mm
+		fps: Frames per second for velocity calculation (dt = 1/fps)
+		parent_indices: Parent indices (default: H36M17_PARENT_INDICES)
+		eps: Threshold for valid bone length
+		
+	Returns:
+		Dict with BL-MPJVE metrics (mean/p95/max), raw MPJVE, per-joint values.
+	"""
+	if gt_pose_mm.shape != pred_pose_mm.shape:
+		raise ValueError(f"pose shape mismatch: gt={gt_pose_mm.shape}, pred={pred_pose_mm.shape}")
+	if gt_pose_mm.ndim != 3 or gt_pose_mm.shape[2] != 3:
+		raise ValueError(f"unexpected pose shape: {gt_pose_mm.shape}")
+	if fps <= 0:
+		raise ValueError(f"fps must be > 0, got {fps}")
+	if gt_pose_mm.shape[0] < 2:
+		num_joints = gt_pose_mm.shape[1]
+		return {
+			"bl_mpjve_percent_pose_upsampled": float("nan"),
+			"bl_mpjve_p95_percent_pose_upsampled": float("nan"),
+			"bl_mpjve_max_percent_pose_upsampled": float("nan"),
+			"bl_per_joint_percent_pose_upsampled": [float("nan")] * num_joints,
+			"bl_valid_joint_count_pose_upsampled": 0,
+			"mpjve_mmps": float("nan"),
+			"mpjve_per_joint_mmps": [float("nan")] * num_joints,
+		}
+	
+	num_joints = gt_pose_mm.shape[1]
+	if parent_indices is None:
+		parent = get_default_parent_indices(num_joints)
+	else:
+		parent = np.asarray(parent_indices, dtype=np.int64)
+		if parent.shape[0] != num_joints:
+			raise ValueError(f"parent_indices length {parent.shape[0]} mismatch num_joints {num_joints}")
+	
+	# Compute velocities: (T-1, K, 3)
+	vel_gt = np.diff(gt_pose_mm, axis=0) * float(fps)
+	vel_pred = np.diff(pred_pose_mm, axis=0) * float(fps)
+	
+	# Velocity errors: (T-1, K)
+	vel_err = np.linalg.norm(vel_pred - vel_gt, axis=2)
+	
+	# Bone-length normalized velocity error: (T-1, K)
+	rel_vel_err_bone = np.full_like(vel_err, np.nan, dtype=np.float64)
+	bone_len_mean = np.full(num_joints, np.nan, dtype=np.float64)
+	
+	for j in range(num_joints):
+		# Hip (j=0) has no parent, skip BL normalization
+		if j == 0:
+			continue
+		
+		edges = get_joint_edge_pairs(parent, j)
+		if len(edges) == 0:
+			continue
+
+		bone_series = []
+		for a, b in edges:
+			bone_series.append(np.linalg.norm(gt_pose_mm[:, a, :] - gt_pose_mm[:, b, :], axis=1))
+		bone_len_t = np.mean(np.stack(bone_series, axis=0), axis=0)
+		valid_bone = bone_len_t > float(eps)
+		if not np.any(valid_bone):
+			continue
+
+		bone_len_mean[j] = float(np.mean(bone_len_t[valid_bone]))
+		rel_vel_err_bone[:, j] = vel_err[:, j] / bone_len_mean[j]
+	
+	# Per-joint metrics
+	per_joint_percent = np.full(num_joints, np.nan, dtype=np.float64)
+	per_joint_raw_mmps = np.full(num_joints, np.nan, dtype=np.float64)
+	for j in range(num_joints):
+		v = np.isfinite(rel_vel_err_bone[:, j])
+		if np.any(v):
+			per_joint_percent[j] = float(np.mean(rel_vel_err_bone[v, j]) * 100.0)
+		
+		raw_v = np.isfinite(vel_err[:, j])
+		if np.any(raw_v):
+			per_joint_raw_mmps[j] = float(np.mean(vel_err[raw_v, j]))
+	
+	# Global metrics (exclude hip j=0)
+	v_global = np.isfinite(rel_vel_err_bone)
+	if np.any(v_global):
+		global_percent = float(np.mean(rel_vel_err_bone[v_global]) * 100.0)
+		global_p95 = float(np.percentile(rel_vel_err_bone[v_global] * 100.0, 95.0))
+		global_max = float(np.max(rel_vel_err_bone[v_global] * 100.0))
+	else:
+		global_percent = float("nan")
+		global_p95 = float("nan")
+		global_max = float("nan")
+	
+	raw_global = np.isfinite(vel_err)
+	if np.any(raw_global):
+		raw_global_mmps = float(np.mean(vel_err[raw_global]))
+	else:
+		raw_global_mmps = float("nan")
+	
+	return {
+		"bl_mpjve_percent_pose_upsampled": global_percent,
+		"bl_mpjve_p95_percent_pose_upsampled": global_p95,
+		"bl_mpjve_max_percent_pose_upsampled": global_max,
+		"bl_per_joint_percent_pose_upsampled": per_joint_percent,
+		"bone_length_per_joint_mm": bone_len_mean,
+		"bl_valid_joint_count_pose_upsampled": int(np.sum(np.isfinite(per_joint_percent))),
+		"mpjve_mmps": raw_global_mmps,
+		"mpjve_per_joint_mmps": per_joint_raw_mmps,
 	}
 
 
@@ -584,12 +839,10 @@ def compute_analytic_metrics(gt_time_sec, gt_coeffs, pred_time_sec, pred_coeffs,
 	acc_mse = clamp_small_negative(acc_mse, tol=1e-12)
 
 	return {
-		"pos_sq_integral": pos_sq_integral,
 		"vel_sq_integral": vel_sq_integral,
 		"acc_sq_integral": acc_sq_integral,
 		"channels": channels,
 		"duration_sec": total_duration,
-		"crmse_mm": float(np.sqrt(pos_mse)),
 		"vel_rmse_mmps": float(np.sqrt(vel_mse)),
 		"acc_rmse_mmps2": float(np.sqrt(acc_mse)),
 	}
@@ -700,14 +953,7 @@ def compute_pose_upsampled_metrics(
 	joint_err = np.linalg.norm(pred_valid - gt_valid, axis=2)
 	mpjpe_series = joint_err.mean(axis=1)
 
-	pose_crmse = float(np.sqrt(np.mean(diff ** 2)))
-	gt_range = float(np.max(gt_valid) - np.min(gt_valid)) if gt_valid.size > 0 else float("nan")
-	if np.isfinite(gt_range) and gt_range > 1e-12:
-		pose_nrmse = float(pose_crmse / gt_range)
-	else:
-		pose_nrmse = float("nan")
-
-	wham = compute_wham_rte_jitter(gt_valid, pred_valid, float(upsample_fps), root_kpt_idx=0)
+	rte_jitter = compute_root_trajectory_error_and_jitter(gt_valid, pred_valid, float(upsample_fps), root_kpt_idx=0)
 	align = compute_pose_alignment_metrics(
 		gt_valid,
 		pred_valid,
@@ -720,17 +966,15 @@ def compute_pose_upsampled_metrics(
 		"upsample_fps": float(upsample_fps),
 		"num_upsample_points": int(pred_valid.shape[0]),
 		"target_ts_valid": target_ts_valid,
-		"pose_crmse_upsampled_mm": pose_crmse,
-		"pose_nrmse_range_upsampled": pose_nrmse,
 		"pose_joint_err_sum_mm": float(np.sum(joint_err)),
 		"mpjpe_pose_upsampled_mm": float(np.mean(mpjpe_series)),
 		"mpjpe_pose_upsampled_p95_mm": float(np.percentile(mpjpe_series, 95.0)),
 		"mpjpe_pose_upsampled_max_mm": float(np.max(mpjpe_series)),
 		"p95_joint_err_pose_upsampled_mm": float(np.percentile(joint_err, 95.0)),
 		"max_joint_err_pose_upsampled_mm": float(np.max(joint_err)),
-		"rte_percent_pose_upsampled": wham["rte_percent_pose_upsampled"],
-		"jitter_10mps3_pose_upsampled": wham["jitter_10mps3_pose_upsampled"],
-		"jitter_mps3_pose_upsampled": wham["jitter_mps3_pose_upsampled"],
+		"rte_percent_pose_upsampled": rte_jitter["rte_percent_pose_upsampled"],
+		"jitter_10mps3_pose_upsampled": rte_jitter["jitter_10mps3_pose_upsampled"],
+		"jitter_mps3_pose_upsampled": rte_jitter["jitter_mps3_pose_upsampled"],
 	}
 	ret.update(align)
 	ret.update(bone_norm)
@@ -766,6 +1010,7 @@ def compute_linear_interp_reference_metrics(pose_time_sec, pose_data, eval_ts, d
 		time_sec=eval_ts_valid,
 	)
 	bone_norm = compute_bone_length_normalized_mpjpe_percent(gt_valid_pose, pred_valid)
+	rte_jitter = compute_root_trajectory_error_and_jitter(gt_valid_pose, pred_valid, float(eval_fps), root_kpt_idx=0)
 
 	ret = {
 		"linear_downsample_fps": float(downsample_fps),
@@ -792,6 +1037,8 @@ def compute_linear_interp_reference_metrics(pose_time_sec, pose_data, eval_ts, d
 	ret["linear_bone_length_per_joint_mm"] = bone_norm["bone_length_per_joint_mm"]
 	ret["linear_disp_range_per_joint_percent_pose_upsampled"] = bone_norm["disp_range_per_joint_percent_pose_upsampled"]
 	ret["linear_disp_range_per_joint_mm"] = bone_norm["disp_range_per_joint_mm"]
+	ret["linear_rte_percent_pose_upsampled"] = rte_jitter["rte_percent_pose_upsampled"]
+	ret["linear_jitter_10mps3_pose_upsampled"] = rte_jitter["jitter_10mps3_pose_upsampled"]
 	ch_stats = compute_channelwise_pose_metrics(
 		gt_pose_mm=gt_valid_pose,
 		pred_pose_mm=pred_valid,
@@ -902,94 +1149,41 @@ def compute_channelwise_pose_metrics(gt_pose_mm, pred_pose_mm, time_sec=None, fp
 def summarize_results(rows, analytic_global):
 	summary = {
 		"num_files": len(rows),
-		"analytic_global": analytic_global,
 	}
 	if len(rows) == 0:
 		return summary
 
+	# Only keep the required metrics in summary
 	numeric_keys = [
-		"crmse_mm",
-		"ncrmse_by_pos_range",
-		"vel_rmse_mmps",
-		"nvel_rmse_by_vel_range",
-		"acc_rmse_mmps2",
-		"nacc_rmse_by_acc_range",
-		"mpjpe_cont_mm",
-		"mpjpe_integral_mm_sec",
-		"nmpjpe_by_pos_range",
-		"pose_crmse_upsampled_mm",
-		"pose_nrmse_range_upsampled",
-		"pose_joint_err_sum_mm",
-		"rte_percent_pose_upsampled",
-		"jitter_10mps3_pose_upsampled",
-		"jitter_mps3_pose_upsampled",
+		# MPJPE
 		"mpjpe_pose_upsampled_mm",
 		"mpjpe_pose_upsampled_p95_mm",
 		"mpjpe_pose_upsampled_max_mm",
-		"nmpjpe_pose_upsampled_mm",
-		"nmpjpe_pose_upsampled_p95_mm",
-		"nmpjpe_pose_upsampled_max_mm",
+		# MPJVE
 		"mpjve_pose_upsampled_mmps",
 		"mpjve_pose_upsampled_p95_mmps",
 		"mpjve_pose_upsampled_max_mmps",
+		# MPJPE_BL
 		"bl_mpjpe_percent_pose_upsampled",
 		"bl_mpjpe_p95_percent_pose_upsampled",
 		"bl_mpjpe_max_percent_pose_upsampled",
-		"disp_range_mpjpe_percent_pose_upsampled",
-		"disp_range_mpjpe_p95_percent_pose_upsampled",
-		"disp_range_mpjpe_max_percent_pose_upsampled",
-		"bl_valid_joint_count_pose_upsampled",
-		"disp_range_valid_joint_count_pose_upsampled",
-		"nmpjpe_pose_upsampled_by_pos_range",
+		# RTE and Jitter
+		"rte_percent_pose_upsampled",
+		"jitter_10mps3_pose_upsampled",
+		# Linear MPJPE
 		"linear_mpjpe_pose_upsampled_mm",
 		"linear_mpjpe_pose_upsampled_p95_mm",
 		"linear_mpjpe_pose_upsampled_max_mm",
-		"linear_nmpjpe_pose_upsampled_mm",
-		"linear_nmpjpe_pose_upsampled_p95_mm",
-		"linear_nmpjpe_pose_upsampled_max_mm",
+		# Linear MPJVE
 		"linear_mpjve_pose_upsampled_mmps",
 		"linear_mpjve_pose_upsampled_p95_mmps",
 		"linear_mpjve_pose_upsampled_max_mmps",
+		# Linear MPJPE_BL
 		"linear_bl_mpjpe_percent_pose_upsampled",
 		"linear_bl_mpjpe_p95_percent_pose_upsampled",
 		"linear_bl_mpjpe_max_percent_pose_upsampled",
-		"linear_disp_range_mpjpe_percent_pose_upsampled",
-		"linear_disp_range_mpjpe_p95_percent_pose_upsampled",
-		"linear_disp_range_mpjpe_max_percent_pose_upsampled",
-		"linear_p95_joint_err_pose_upsampled_mm",
-		"linear_max_joint_err_pose_upsampled_mm",
-		"mpjpe_pose_minus_linear_mm",
-		"p95_joint_err_mm",
-		"np95_joint_err_by_pos_range",
-		"p95_joint_err_pose_upsampled_mm",
-		"np95_joint_err_pose_upsampled_by_pos_range",
-		"max_joint_err_mm",
-		"nmax_joint_err_by_pos_range",
-		"max_joint_err_pose_upsampled_mm",
-		"nmax_joint_err_pose_upsampled_by_pos_range",
-		"num_dense_time_samples",
-		"num_dense_joint_samples",
-		"num_upsample_points",
-		"linear_num_upsample_points",
-		"gt_pos_range_mm",
-		"gt_vel_range_mmps",
-		"gt_acc_range_mmps2",
 	]
 
-	prefixed_keys = []
-	for row in rows:
-		for key in row.keys():
-			if key.startswith("ch_") or key.startswith("linear_ch_"):
-				prefixed_keys.append(key)
-			if key.startswith("bl_mpjpe_joint") or key.startswith("bone_length_joint"):
-				prefixed_keys.append(key)
-			if key.startswith("disp_range_mpjpe_joint") or key.startswith("disp_range_joint"):
-				prefixed_keys.append(key)
-			if key.startswith("linear_bl_mpjpe_joint") or key.startswith("linear_bone_length_joint"):
-				prefixed_keys.append(key)
-			if key.startswith("linear_disp_range_mpjpe_joint") or key.startswith("linear_disp_range_joint"):
-				prefixed_keys.append(key)
-	numeric_keys.extend(sorted(set(prefixed_keys)))
 	per_file_stats = {}
 	for key in numeric_keys:
 		values = [r[key] for r in rows if key in r and r[key] is not None]
@@ -1007,23 +1201,61 @@ def summarize_results(rows, analytic_global):
 	return summary
 
 
-def write_rows_csv(rows, csv_path):
+def write_rows_csv_compact(rows, csv_path):
+	"""Write compact metrics CSV with each file taking 2 rows (pred and linear)."""
 	os.makedirs(os.path.dirname(csv_path), exist_ok=True)
 	if len(rows) == 0:
 		with open(csv_path, "w", newline="") as fp:
 			fp.write("sample_id\n")
 		return
 
-	header = []
-	for row in rows:
-		for key in row.keys():
-			if key not in header:
-				header.append(key)
+	# Define metric columns to keep (in order)
+	metric_cols = [
+		"V-MPJPE(mm)", "p95-MPJPE(mm)", "Max-MPJPE(mm)",
+		"V-MPJVE(mm/s)", "p95-MPJVE(mm/s)", "Max-MPJVE(mm/s)",
+		"V-MPJPE_BL(%)", "p95-MPJPE_BL(%)", "Max-MPJPE_BL(%)",
+		"RTE(%)", "Jitter(10mps3)"
+	]
 
+	# Build output rows with sample_id and method columns
+	output_rows = []
+	for row in rows:
+		# Row 1: pred values
+		pred_row = {"sample_id": row["sample_id"], "method": "pred"}
+		pred_row["V-MPJPE(mm)"] = row.get("mpjpe_pose_upsampled_mm", float("nan"))
+		pred_row["p95-MPJPE(mm)"] = row.get("mpjpe_pose_upsampled_p95_mm", float("nan"))
+		pred_row["Max-MPJPE(mm)"] = row.get("mpjpe_pose_upsampled_max_mm", float("nan"))
+		pred_row["V-MPJVE(mm/s)"] = row.get("mpjve_pose_upsampled_mmps", float("nan"))
+		pred_row["p95-MPJVE(mm/s)"] = row.get("mpjve_pose_upsampled_p95_mmps", float("nan"))
+		pred_row["Max-MPJVE(mm/s)"] = row.get("mpjve_pose_upsampled_max_mmps", float("nan"))
+		pred_row["V-MPJPE_BL(%)"] = row.get("bl_mpjpe_percent_pose_upsampled", float("nan"))
+		pred_row["p95-MPJPE_BL(%)"] = row.get("bl_mpjpe_p95_percent_pose_upsampled", float("nan"))
+		pred_row["Max-MPJPE_BL(%)"] = row.get("bl_mpjpe_max_percent_pose_upsampled", float("nan"))
+		pred_row["RTE(%)"] = row.get("rte_percent_pose_upsampled", float("nan"))
+		pred_row["Jitter(10mps3)"] = row.get("jitter_10mps3_pose_upsampled", float("nan"))
+		output_rows.append(pred_row)
+
+		# Row 2: linear values
+		linear_row = {"sample_id": row["sample_id"], "method": "linear"}
+		linear_row["V-MPJPE(mm)"] = row.get("linear_mpjpe_pose_upsampled_mm", float("nan"))
+		linear_row["p95-MPJPE(mm)"] = row.get("linear_mpjpe_pose_upsampled_p95_mm", float("nan"))
+		linear_row["Max-MPJPE(mm)"] = row.get("linear_mpjpe_pose_upsampled_max_mm", float("nan"))
+		linear_row["V-MPJVE(mm/s)"] = row.get("linear_mpjve_pose_upsampled_mmps", float("nan"))
+		linear_row["p95-MPJVE(mm/s)"] = row.get("linear_mpjve_pose_upsampled_p95_mmps", float("nan"))
+		linear_row["Max-MPJVE(mm/s)"] = row.get("linear_mpjve_pose_upsampled_max_mmps", float("nan"))
+		linear_row["V-MPJPE_BL(%)"] = row.get("linear_bl_mpjpe_percent_pose_upsampled", float("nan"))
+		linear_row["p95-MPJPE_BL(%)"] = row.get("linear_bl_mpjpe_p95_percent_pose_upsampled", float("nan"))
+		linear_row["Max-MPJPE_BL(%)"] = row.get("linear_bl_mpjpe_max_percent_pose_upsampled", float("nan"))
+		linear_row["RTE(%)"] = row.get("linear_rte_percent_pose_upsampled", float("nan"))
+		linear_row["Jitter(10mps3)"] = row.get("linear_jitter_10mps3_pose_upsampled", float("nan"))
+		output_rows.append(linear_row)
+
+	# Write CSV with sample_id, method, and metrics
+	fieldnames = ["sample_id", "method"] + metric_cols
 	with open(csv_path, "w", newline="") as fp:
-		writer = csv.DictWriter(fp, fieldnames=header)
+		writer = csv.DictWriter(fp, fieldnames=fieldnames)
 		writer.writeheader()
-		writer.writerows(rows)
+		writer.writerows(output_rows)
 
 
 def run_metrics(
@@ -1040,6 +1272,11 @@ def run_metrics(
 	linear_downsample_fps,
 	max_files,
 ):
+	gt_dir = resolve_runtime_path(gt_dir)
+	pred_dir = resolve_runtime_path(pred_dir)
+	gt_pose_dir = resolve_runtime_path(gt_pose_dir)
+	output_dir = resolve_runtime_path(output_dir)
+
 	gt_map = build_id_to_path_map(gt_dir, gt_suffix)
 	pred_map = build_id_to_path_map(pred_dir, pred_suffix)
 	pose_map = build_id_to_path_map(gt_pose_dir, gt_pose_suffix)
@@ -1059,7 +1296,6 @@ def run_metrics(
 
 	rows = []
 
-	total_pos_sq = 0.0
 	total_vel_sq = 0.0
 	total_acc_sq = 0.0
 	total_duration_channels = 0.0
@@ -1114,152 +1350,56 @@ def run_metrics(
 
 			row = {
 				"sample_id": sample_id,
-				"duration_sec": analytic["duration_sec"],
-				"duration_channels": analytic["duration_sec"] * analytic["channels"],
-				"pos_sq_integral": analytic["pos_sq_integral"],
-				"vel_sq_integral": analytic["vel_sq_integral"],
-				"acc_sq_integral": analytic["acc_sq_integral"],
-				"crmse_mm": analytic["crmse_mm"],
-				"ncrmse_by_pos_range": safe_div(analytic["crmse_mm"], sampled["gt_pos_range_mm"]),
-				"vel_rmse_mmps": analytic["vel_rmse_mmps"],
-				"nvel_rmse_by_vel_range": safe_div(analytic["vel_rmse_mmps"], sampled["gt_vel_range_mmps"]),
-				"acc_rmse_mmps2": analytic["acc_rmse_mmps2"],
-				"nacc_rmse_by_acc_range": safe_div(analytic["acc_rmse_mmps2"], sampled["gt_acc_range_mmps2"]),
-				"mpjpe_cont_mm": sampled["mpjpe_cont_mm"],
-				"mpjpe_integral_mm_sec": sampled["mpjpe_integral_mm_sec"],
-				"nmpjpe_by_pos_range": safe_div(sampled["mpjpe_cont_mm"], sampled["gt_pos_range_mm"]),
-				"pose_crmse_upsampled_mm": pose_up["pose_crmse_upsampled_mm"],
-				"pose_nrmse_range_upsampled": pose_up["pose_nrmse_range_upsampled"],
-				"pose_joint_err_sum_mm": pose_up["pose_joint_err_sum_mm"],
-				"rte_percent_pose_upsampled": pose_up["rte_percent_pose_upsampled"],
-				"jitter_10mps3_pose_upsampled": pose_up["jitter_10mps3_pose_upsampled"],
-				"jitter_mps3_pose_upsampled": pose_up["jitter_mps3_pose_upsampled"],
+				# MPJPE metrics (pred)
 				"mpjpe_pose_upsampled_mm": pose_up["mpjpe_pose_upsampled_mm"],
 				"mpjpe_pose_upsampled_p95_mm": pose_up["mpjpe_pose_upsampled_p95_mm"],
 				"mpjpe_pose_upsampled_max_mm": pose_up["mpjpe_pose_upsampled_max_mm"],
-				"nmpjpe_pose_upsampled_mm": pose_up["nmpjpe_pose_upsampled_mm"],
-				"nmpjpe_pose_upsampled_p95_mm": pose_up["nmpjpe_pose_upsampled_p95_mm"],
-				"nmpjpe_pose_upsampled_max_mm": pose_up["nmpjpe_pose_upsampled_max_mm"],
+				# MPJVE metrics (pred)
 				"mpjve_pose_upsampled_mmps": pose_up["mpjve_pose_upsampled_mmps"],
 				"mpjve_pose_upsampled_p95_mmps": pose_up["mpjve_pose_upsampled_p95_mmps"],
 				"mpjve_pose_upsampled_max_mmps": pose_up["mpjve_pose_upsampled_max_mmps"],
+				# MPJPE_BL metrics (pred)
 				"bl_mpjpe_percent_pose_upsampled": pose_up["bl_mpjpe_percent_pose_upsampled"],
 				"bl_mpjpe_p95_percent_pose_upsampled": pose_up["bl_mpjpe_p95_percent_pose_upsampled"],
 				"bl_mpjpe_max_percent_pose_upsampled": pose_up["bl_mpjpe_max_percent_pose_upsampled"],
-				"bl_valid_joint_count_pose_upsampled": pose_up["bl_valid_joint_count_pose_upsampled"],
-				"disp_range_mpjpe_percent_pose_upsampled": pose_up["disp_range_mpjpe_percent_pose_upsampled"],
-				"disp_range_mpjpe_p95_percent_pose_upsampled": pose_up["disp_range_mpjpe_p95_percent_pose_upsampled"],
-				"disp_range_mpjpe_max_percent_pose_upsampled": pose_up["disp_range_mpjpe_max_percent_pose_upsampled"],
-				"disp_range_valid_joint_count_pose_upsampled": pose_up["disp_range_valid_joint_count_pose_upsampled"],
-				"nmpjpe_pose_upsampled_by_pos_range": safe_div(
-					pose_up["nmpjpe_pose_upsampled_mm"], sampled["gt_pos_range_mm"]
-				),
-				"linear_downsample_fps": linear_ref["linear_downsample_fps"],
-				"linear_num_upsample_points": linear_ref["linear_num_upsample_points"],
+				# RTE and Jitter (pred)
+				"rte_percent_pose_upsampled": pose_up["rte_percent_pose_upsampled"],
+				"jitter_10mps3_pose_upsampled": pose_up["jitter_10mps3_pose_upsampled"],
+				# MPJPE metrics (linear)
 				"linear_mpjpe_pose_upsampled_mm": linear_ref["linear_mpjpe_pose_upsampled_mm"],
 				"linear_mpjpe_pose_upsampled_p95_mm": linear_ref["linear_mpjpe_pose_upsampled_p95_mm"],
 				"linear_mpjpe_pose_upsampled_max_mm": linear_ref["linear_mpjpe_pose_upsampled_max_mm"],
-				"linear_nmpjpe_pose_upsampled_mm": linear_ref["linear_nmpjpe_pose_upsampled_mm"],
-				"linear_nmpjpe_pose_upsampled_p95_mm": linear_ref["linear_nmpjpe_pose_upsampled_p95_mm"],
-				"linear_nmpjpe_pose_upsampled_max_mm": linear_ref["linear_nmpjpe_pose_upsampled_max_mm"],
+				# MPJVE metrics (linear)
 				"linear_mpjve_pose_upsampled_mmps": linear_ref["linear_mpjve_pose_upsampled_mmps"],
 				"linear_mpjve_pose_upsampled_p95_mmps": linear_ref["linear_mpjve_pose_upsampled_p95_mmps"],
 				"linear_mpjve_pose_upsampled_max_mmps": linear_ref["linear_mpjve_pose_upsampled_max_mmps"],
+				# MPJPE_BL metrics (linear)
 				"linear_bl_mpjpe_percent_pose_upsampled": linear_ref["linear_bl_mpjpe_percent_pose_upsampled"],
 				"linear_bl_mpjpe_p95_percent_pose_upsampled": linear_ref["linear_bl_mpjpe_p95_percent_pose_upsampled"],
 				"linear_bl_mpjpe_max_percent_pose_upsampled": linear_ref["linear_bl_mpjpe_max_percent_pose_upsampled"],
-				"linear_disp_range_mpjpe_percent_pose_upsampled": linear_ref["linear_disp_range_mpjpe_percent_pose_upsampled"],
-				"linear_disp_range_mpjpe_p95_percent_pose_upsampled": linear_ref["linear_disp_range_mpjpe_p95_percent_pose_upsampled"],
-				"linear_disp_range_mpjpe_max_percent_pose_upsampled": linear_ref["linear_disp_range_mpjpe_max_percent_pose_upsampled"],
-				"linear_p95_joint_err_pose_upsampled_mm": linear_ref["linear_p95_joint_err_pose_upsampled_mm"],
-				"linear_max_joint_err_pose_upsampled_mm": linear_ref["linear_max_joint_err_pose_upsampled_mm"],
-				"mpjpe_pose_minus_linear_mm": (
-					pose_up["mpjpe_pose_upsampled_mm"] - linear_ref["linear_mpjpe_pose_upsampled_mm"]
-				),
-				"p95_joint_err_mm": sampled["p95_joint_err_mm"],
-				"np95_joint_err_by_pos_range": safe_div(sampled["p95_joint_err_mm"], sampled["gt_pos_range_mm"]),
-				"p95_joint_err_pose_upsampled_mm": pose_up["p95_joint_err_pose_upsampled_mm"],
-				"np95_joint_err_pose_upsampled_by_pos_range": safe_div(
-					pose_up["p95_joint_err_pose_upsampled_mm"], sampled["gt_pos_range_mm"]
-				),
-				"max_joint_err_mm": sampled["max_joint_err_mm"],
-				"nmax_joint_err_by_pos_range": safe_div(sampled["max_joint_err_mm"], sampled["gt_pos_range_mm"]),
-				"max_joint_err_pose_upsampled_mm": pose_up["max_joint_err_pose_upsampled_mm"],
-				"nmax_joint_err_pose_upsampled_by_pos_range": safe_div(
-					pose_up["max_joint_err_pose_upsampled_mm"], sampled["gt_pos_range_mm"]
-				),
-				"upsample_fps": pose_up["upsample_fps"],
-				"num_upsample_points": pose_up["num_upsample_points"],
-				"num_dense_time_samples": sampled["num_dense_time_samples"],
-				"num_dense_joint_samples": sampled["num_dense_joint_samples"],
-				"gt_pos_range_mm": sampled["gt_pos_range_mm"],
-				"gt_vel_range_mmps": sampled["gt_vel_range_mmps"],
-				"gt_acc_range_mmps2": sampled["gt_acc_range_mmps2"],
-				"gt_path": gt_path,
-				"pred_path": pred_path,
-				"gt_pose_path": pose_path,
+				# RTE and Jitter (linear)
+				"linear_rte_percent_pose_upsampled": linear_ref["linear_rte_percent_pose_upsampled"],
+				"linear_jitter_10mps3_pose_upsampled": linear_ref["linear_jitter_10mps3_pose_upsampled"],
 			}
-
-			for j, val in enumerate(pose_up["bl_per_joint_percent_pose_upsampled"]):
-				row[f"bl_mpjpe_joint{j}_percent"] = float(val)
-			for j, val in enumerate(pose_up["bone_length_per_joint_mm"]):
-				row[f"bone_length_joint{j}_mm"] = float(val)
-			for j, val in enumerate(pose_up["disp_range_per_joint_percent_pose_upsampled"]):
-				row[f"disp_range_mpjpe_joint{j}_percent"] = float(val)
-			for j, val in enumerate(pose_up["disp_range_per_joint_mm"]):
-				row[f"disp_range_joint{j}_mm"] = float(val)
-
-			for j, val in enumerate(linear_ref["linear_bl_per_joint_percent_pose_upsampled"]):
-				row[f"linear_bl_mpjpe_joint{j}_percent"] = float(val)
-			for j, val in enumerate(linear_ref["linear_bone_length_per_joint_mm"]):
-				row[f"linear_bone_length_joint{j}_mm"] = float(val)
-			for j, val in enumerate(linear_ref["linear_disp_range_per_joint_percent_pose_upsampled"]):
-				row[f"linear_disp_range_mpjpe_joint{j}_percent"] = float(val)
-			for j, val in enumerate(linear_ref["linear_disp_range_per_joint_mm"]):
-				row[f"linear_disp_range_joint{j}_mm"] = float(val)
-
-			for key, val in pose_up.items():
-				if key.startswith("ch_"):
-					if isinstance(val, (np.floating, np.integer, float, int, bool)):
-						row[key] = float(val)
-					else:
-						row[key] = val
-			for key, val in linear_ref.items():
-				if key.startswith("linear_ch_"):
-					if isinstance(val, (np.floating, np.integer, float, int, bool)):
-						row[key] = float(val)
-					else:
-						row[key] = val
 			rows.append(row)
 
-			total_pos_sq += analytic["pos_sq_integral"]
 			total_vel_sq += analytic["vel_sq_integral"]
 			total_acc_sq += analytic["acc_sq_integral"]
 			total_duration_channels += analytic["duration_sec"] * analytic["channels"]
 
 			print(
 				f"[{idx}/{len(matched_ids)}] {sample_id}: "
-				f"cRMSE={analytic['crmse_mm']:.4f} mm, "
-				f"ncRMSE={safe_div(analytic['crmse_mm'], sampled['gt_pos_range_mm']):.6f}, "
-				f"RTE={pose_up['rte_percent_pose_upsampled']:.4f}%, "
-				f"MPJPE_cont={sampled['mpjpe_cont_mm']:.4f} mm, "
-				f"MPJPE_pose_up(mean/p95/max)={pose_up['mpjpe_pose_upsampled_mm']:.4f}/"
-				f"{pose_up['mpjpe_pose_upsampled_p95_mm']:.4f}/"
-				f"{pose_up['mpjpe_pose_upsampled_max_mm']:.4f} mm, "
-				f"NMPJPE(mean/p95/max)={pose_up['nmpjpe_pose_upsampled_mm']:.4f}/"
-				f"{pose_up['nmpjpe_pose_upsampled_p95_mm']:.4f}/"
-				f"{pose_up['nmpjpe_pose_upsampled_max_mm']:.4f} mm, "
-				f"MPJVE(mean/p95/max)={pose_up['mpjve_pose_upsampled_mmps']:.4f}/"
-				f"{pose_up['mpjve_pose_upsampled_p95_mmps']:.4f}/"
-				f"{pose_up['mpjve_pose_upsampled_max_mmps']:.4f} mm/s, "
-				f"BL-MPJPE(mean/p95/max)={pose_up['bl_mpjpe_percent_pose_upsampled']:.4f}/"
-				f"{pose_up['bl_mpjpe_p95_percent_pose_upsampled']:.4f}/"
-				f"{pose_up['bl_mpjpe_max_percent_pose_upsampled']:.4f}%, "
-				f"DispRange-MPJPE(mean/p95/max)={pose_up['disp_range_mpjpe_percent_pose_upsampled']:.4f}/"
-				f"{pose_up['disp_range_mpjpe_p95_percent_pose_upsampled']:.4f}/"
-				f"{pose_up['disp_range_mpjpe_max_percent_pose_upsampled']:.4f}%, "
-				f"chMeanMPJPE={pose_up.get('ch_mean_mpjpe_mm', float('nan')):.4f} mm, "
-				f"LinearMPJPE={linear_ref['linear_mpjpe_pose_upsampled_mm']:.4f} mm"
+				f"MPJPE(V/p95/Max)={pose_up['mpjpe_pose_upsampled_mm']:.2f}/"
+				f"{pose_up['mpjpe_pose_upsampled_p95_mm']:.2f}/"
+				f"{pose_up['mpjpe_pose_upsampled_max_mm']:.2f} mm, "
+				f"MPJVE(V/p95/Max)={pose_up['mpjve_pose_upsampled_mmps']:.2f}/"
+				f"{pose_up['mpjve_pose_upsampled_p95_mmps']:.2f}/"
+				f"{pose_up['mpjve_pose_upsampled_max_mmps']:.2f} mm/s, "
+				f"MPJPE_BL(V/p95/Max)={pose_up['bl_mpjpe_percent_pose_upsampled']:.2f}/"
+				f"{pose_up['bl_mpjpe_p95_percent_pose_upsampled']:.2f}/"
+				f"{pose_up['bl_mpjpe_max_percent_pose_upsampled']:.2f}%, "
+				f"RTE={pose_up['rte_percent_pose_upsampled']:.2f}%, "
+				f"Jitter={pose_up['jitter_10mps3_pose_upsampled']:.4f}"
 			)
 		except Exception as exc:
 			failed += 1
@@ -1267,11 +1407,9 @@ def run_metrics(
 
 	analytic_global = None
 	if total_duration_channels > 0:
-		global_pos_mse = clamp_small_negative(total_pos_sq / total_duration_channels, tol=1e-15)
 		global_vel_mse = clamp_small_negative(total_vel_sq / total_duration_channels, tol=1e-15)
 		global_acc_mse = clamp_small_negative(total_acc_sq / total_duration_channels, tol=1e-12)
 		analytic_global = {
-			"crmse_mm": float(np.sqrt(global_pos_mse)),
 			"vel_rmse_mmps": float(np.sqrt(global_vel_mse)),
 			"acc_rmse_mmps2": float(np.sqrt(global_acc_mse)),
 			"duration_channels": float(total_duration_channels),
@@ -1292,7 +1430,7 @@ def run_metrics(
 	csv_path = os.path.join(output_dir, "metrics_per_file.csv")
 	summary_path = os.path.join(output_dir, "metrics_summary.json")
 
-	write_rows_csv(rows, csv_path)
+	write_rows_csv_compact(rows, csv_path)
 	with open(summary_path, "w") as fp:
 		json.dump(summary, fp, indent=2)
 
@@ -1302,7 +1440,6 @@ def run_metrics(
 	if analytic_global is not None:
 		print(
 			"Global analytic metrics: "
-			f"cRMSE={analytic_global['crmse_mm']:.4f} mm, "
 			f"vRMSE={analytic_global['vel_rmse_mmps']:.4f} mm/s, "
 			f"aRMSE={analytic_global['acc_rmse_mmps2']:.4f} mm/s^2"
 		)
@@ -1324,13 +1461,13 @@ def build_argparser():
 	parser.add_argument(
 		"--pred-dir",
 		type=str,
-		default="/home/ztw/HVCCS/res/splines_fit_baseline",
+		default="res/splines_fit_baseline",
 		help="Prediction spline directory (e.g., Kalman, ABG or Baseline realtime output).",
 	)
 	parser.add_argument(
 		"--output-dir",
 		type=str,
-		default="/home/ztw/HVCCS/res/splines_metrics_batch",
+		default="res/splines_metrics_batch",
 		help="Output directory for CSV/JSON metrics.",
 	)
 	parser.add_argument(
@@ -1414,10 +1551,10 @@ if __name__ == "__main__":
 			max_files=args.max_files,
 		)
 	else:
-		gt_splines_dir = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps_notaknot_splines"
-		pred_splines_dir = "/home/ztw/HVCCS/res/splines_fit_baseline"
-		gt_pose_dir = "/home/data/ztw/AtheletePose3D/h36m_pose_cam_1/test/S2_cam_1_120fps"
-		output_dir = "/home/ztw/HVCCS/res/splines_metrics_batch"
+		gt_splines_dir = "/Users/twz/demo_sys_user/h36m_pose_cam_1/test/S2_cam_1_120fps_notaknot_splines/"
+		pred_splines_dir = "res/splines_fit_baseline"
+		gt_pose_dir = "/Users/twz/demo_sys_user/h36m_pose_cam_1/test/S2_cam_1_120fps"
+		output_dir = "res/splines_metrics_batch"
 		gt_suffix = "_notaknot_spline.npz"
 		pred_suffix = "_30fps_baseline_realtime_spline.npz"
 		gt_pose_suffix = ".npy"
