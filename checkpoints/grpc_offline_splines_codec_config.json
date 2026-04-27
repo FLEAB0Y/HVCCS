@@ -33,7 +33,24 @@
 		"save_enabled": true,
 		"save_max_frames": 0,
 		"save_dir": "res/decode_res",
-		"save_file": "decoded_Running_37_cam_1_h36m_30fps.npy"
+		"save_file": "decoded_Running_37_cam_1_h36m_30fps.npy",
+		"spline_fit_enabled": true,
+		"spline_save_file": "decoded_Running_37_cam_1_h36m_30fps_baseline_realtime_spline.npz",
+
+		"predictor_type": "baseline",
+		"fps": 30.0,
+		"process_acc_var": 3000000000.0,
+		"measurement_var": 20.0,
+		"init_pos_var": 1000000.0,
+		"init_vel_var": 100000000.0,
+
+		"alpha": 1.0,
+		"beta": 0.79,
+		"gamma": 0.05,
+
+		"mamba_checkpoint_path": "checkpoints/splines_mamba_runs/train_gpu0_e1000/ckpt/best.pt",
+		"mamba_history_len": 8,
+		"mamba_cuda_device": 0
 	},
 	"train": {
 		"input_path": "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/",

@@ -8,10 +8,11 @@ from collections import deque
 import numpy as np
 
 from server import THStreamServiceServicer, serve
+from realtime_offline_splines_fit import create_predictor, fit_realtime_segments_with_predictor
 
 
 DEFAULT_CODEC_CONFIG_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "checkpoints", "grpc_online_splines_codec_config.json")
+    os.path.join(os.path.dirname(__file__), "..", "checkpoints", "grpc_offline_splines_codec_config.json")
 )
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -316,6 +317,68 @@ def get_payload_seq(payload) -> str:
     return str(seq)
 
 
+def _normalize_predictor_type(predictor_type: str) -> str:
+    name = str(predictor_type).lower().strip()
+    if name == "aby":
+        name = "abg"
+    if name not in {"kalman", "abg", "mamba", "baseline"}:
+        raise ValueError(
+            f"receiver.spline_predictor_type must be one of ['kalman', 'abg', 'aby', 'mamba', 'baseline'], got: {predictor_type}"
+        )
+    return name
+
+
+def _build_channel_spline_path(save_dir: str, save_file: str, channel: int, multi_channel: bool) -> str:
+    root, ext = os.path.splitext(save_file)
+    if not ext:
+        ext = ".npz"
+    if multi_channel:
+        return os.path.join(save_dir, f"{root}_ch{channel}{ext}")
+    return os.path.join(save_dir, f"{root}{ext}")
+
+
+def save_spline_result(save_path: str, result: dict, predictor_name: str, source_shape, channel: int):
+    predictor_label_map = {
+        "kalman": "kalman_cv",
+        "abg": "alpha_beta_gamma",
+        "mamba": "mamba",
+        "baseline": "truth_history_baseline",
+    }
+    predictor_label = predictor_label_map.get(predictor_name, predictor_name)
+
+    np.savez_compressed(
+        save_path,
+        channel=np.asarray([channel], dtype=np.int32),
+        source_shape=np.asarray(source_shape, dtype=np.int32),
+        predictor=np.asarray([predictor_label]),
+        bc_type=np.asarray([result.get("bc_type", "hermite_endpoint_prediction")]),
+        fps=np.asarray([result["fps"]], dtype=np.float64),
+        dt=np.asarray([result["dt"]], dtype=np.float64),
+        time_sec=result["time_sec"],
+        coeffs=result["coeffs"],
+        x_est=result["x_est"],
+        v_est=result["v_est"],
+        pred_x_next=result["pred_x_next"],
+        pred_v_next=result["pred_v_next"],
+        a_est=result["a_est"] if "a_est" in result else np.asarray([], dtype=np.float64),
+        alpha=np.asarray([result["alpha"]], dtype=np.float64) if "alpha" in result else np.asarray([], dtype=np.float64),
+        beta=np.asarray([result["beta"]], dtype=np.float64) if "beta" in result else np.asarray([], dtype=np.float64),
+        gamma=np.asarray([result["gamma"]], dtype=np.float64) if "gamma" in result else np.asarray([], dtype=np.float64),
+        mamba_history_len=np.asarray([result["mamba_history_len"]], dtype=np.float64)
+        if "mamba_history_len" in result
+        else np.asarray([], dtype=np.float64),
+    )
+
+
+def _get_receiver_param(receiver_cfg: dict, spline_key: str, base_key: str, default_value):
+    # Prefer receiver.spline_xxx, fallback to receiver.xxx for compatibility with splines_fitter main names.
+    if spline_key in receiver_cfg:
+        return receiver_cfg.get(spline_key)
+    if base_key in receiver_cfg:
+        return receiver_cfg.get(base_key)
+    return default_value
+
+
 def main():
     cfg = load_runtime_config(DEFAULT_CODEC_CONFIG_PATH)
     common_cfg = cfg["common"]
@@ -327,6 +390,7 @@ def main():
     debug = bool(receiver_cfg.get("debug", False))
     save_enabled = bool(receiver_cfg.get("save_enabled", True))
     save_max_frames = int(receiver_cfg.get("save_max_frames", 0))
+    spline_fit_enabled = bool(receiver_cfg.get("spline_fit_enabled", True))
 
     if report_interval <= 0:
         raise ValueError("receiver.report_interval must be > 0")
@@ -339,6 +403,46 @@ def main():
 
     save_file = str(receiver_cfg.get("save_file", "decoded_all_channels.npy"))
     save_path = os.path.join(save_dir, save_file)
+    spline_save_file = str(
+        _get_receiver_param(receiver_cfg, "spline_save_file", "output_file", "decoded_all_channels_spline_fit.npz")
+    )
+
+    spline_predictor_type = _normalize_predictor_type(
+        _get_receiver_param(receiver_cfg, "spline_predictor_type", "predictor_type", "baseline")
+    )
+    spline_fps = float(
+        _get_receiver_param(receiver_cfg, "spline_fps", "fps", cfg.get("sender", {}).get("fps", 30.0))
+    )
+    spline_process_acc_var = float(
+        _get_receiver_param(receiver_cfg, "spline_process_acc_var", "process_acc_var", 3e5)
+    )
+    spline_measurement_var = float(
+        _get_receiver_param(receiver_cfg, "spline_measurement_var", "measurement_var", 9.0)
+    )
+    spline_init_pos_var = float(
+        _get_receiver_param(receiver_cfg, "spline_init_pos_var", "init_pos_var", 1.0)
+    )
+    spline_init_vel_var = float(
+        _get_receiver_param(receiver_cfg, "spline_init_vel_var", "init_vel_var", 1e4)
+    )
+    spline_alpha = float(_get_receiver_param(receiver_cfg, "spline_alpha", "alpha", 0.65))
+    spline_beta = float(_get_receiver_param(receiver_cfg, "spline_beta", "beta", 0.08))
+    spline_gamma = float(_get_receiver_param(receiver_cfg, "spline_gamma", "gamma", 0.005))
+    spline_mamba_checkpoint_path = str(
+        _get_receiver_param(receiver_cfg, "spline_mamba_checkpoint_path", "mamba_checkpoint_path", "")
+    ).strip()
+    spline_mamba_history_len = int(
+        _get_receiver_param(receiver_cfg, "spline_mamba_history_len", "mamba_history_len", 8)
+    )
+    spline_mamba_cuda_device = int(
+        _get_receiver_param(receiver_cfg, "spline_mamba_cuda_device", "mamba_cuda_device", -1)
+    )
+
+    if spline_mamba_checkpoint_path:
+        spline_mamba_checkpoint_path = resolve_runtime_path(spline_mamba_checkpoint_path)
+
+    if spline_fps <= 0:
+        raise ValueError("receiver.spline_fps must be > 0")
 
     default_num_keypoints = int(common_cfg.get("num_keypoints", 17))
     default_coord_dims = int(common_cfg.get("coord_dims", 3))
@@ -381,11 +485,18 @@ def main():
     last_report_time = time.time()
     prev_recon_by_channel = {}
     saved_frames = []
+    saved_frames_by_channel = {}
+    received_pose_frame_count = 0
 
     print(
         f"接收端已启动，监听 gRPC 端口: {grpc_port}, "
         f"save_all_channels=true, save_enabled={save_enabled}, save_path={save_path}"
     )
+    if spline_fit_enabled:
+        print(
+            f"样条拟合已启用: predictor={spline_predictor_type}, fps={spline_fps}, "
+            f"save_file={spline_save_file}"
+        )
 
     try:
         while True:
@@ -451,9 +562,16 @@ def main():
                         recon_flat = decoded_values.astype(np.float32, copy=False)
                     prev_recon_by_channel[channel] = recon_flat
 
-                    if save_enabled:
-                        saved_frames.append(recon_flat.reshape(num_keypoints, coord_dims).copy())
-                        if save_max_frames > 0 and len(saved_frames) >= save_max_frames:
+                    if save_enabled or spline_fit_enabled:
+                        pose_frame = recon_flat.reshape(num_keypoints, coord_dims).copy()
+                        received_pose_frame_count += 1
+                        if save_enabled:
+                            saved_frames.append(pose_frame)
+                        if spline_fit_enabled:
+                            if channel not in saved_frames_by_channel:
+                                saved_frames_by_channel[channel] = []
+                            saved_frames_by_channel[channel].append(pose_frame)
+                        if save_max_frames > 0 and received_pose_frame_count >= save_max_frames:
                             break
 
                     # 解码结束后记录 t1，统计 t1-t0，覆盖编码/量化/解码路径时延。
@@ -490,6 +608,72 @@ def main():
             print(f"解码结果已保存: {save_path}, shape={decoded_arr.shape}")
         else:
             print("未保存任何帧：可能未接收到可解码数据")
+
+    if spline_fit_enabled:
+        if not saved_frames_by_channel:
+            print("未执行样条拟合：没有可用的解码帧")
+        else:
+            channels = sorted(saved_frames_by_channel.keys())
+            multi_channel = len(channels) > 1
+            for channel in channels:
+                pose_frames = saved_frames_by_channel[channel]
+                if len(pose_frames) < 2:
+                    print(f"跳过 channel={channel} 的样条拟合：帧数不足 2，实际={len(pose_frames)}")
+                    continue
+
+                try:
+                    pose_data = np.asarray(pose_frames, dtype=np.float64)
+                    channels_count = pose_data.shape[1] * pose_data.shape[2]
+                    predictor = create_predictor(
+                        predictor_type=spline_predictor_type,
+                        channels=channels_count,
+                        num_keypoints=pose_data.shape[1],
+                        num_dims=pose_data.shape[2],
+                        process_acc_var=spline_process_acc_var,
+                        measurement_var=spline_measurement_var,
+                        init_pos_var=spline_init_pos_var,
+                        init_vel_var=spline_init_vel_var,
+                        alpha=spline_alpha,
+                        beta=spline_beta,
+                        gamma=spline_gamma,
+                        mamba_checkpoint_path=spline_mamba_checkpoint_path,
+                        mamba_history_len=spline_mamba_history_len,
+                        mamba_cuda_device=spline_mamba_cuda_device,
+                    )
+
+                    result = fit_realtime_segments_with_predictor(
+                        pose_data=pose_data,
+                        fps=spline_fps,
+                        predictor=predictor,
+                        velocity_mode="history_accel_extrapolation" if spline_predictor_type == "baseline" else "endpoint",
+                    )
+
+                    if spline_predictor_type == "abg":
+                        result["alpha"] = float(spline_alpha)
+                        result["beta"] = float(spline_beta)
+                        result["gamma"] = float(spline_gamma)
+                    if spline_predictor_type == "mamba":
+                        result["mamba_history_len"] = float(spline_mamba_history_len)
+
+                    spline_save_path = _build_channel_spline_path(
+                        save_dir=save_dir,
+                        save_file=spline_save_file,
+                        channel=channel,
+                        multi_channel=multi_channel,
+                    )
+                    save_spline_result(
+                        save_path=spline_save_path,
+                        result=result,
+                        predictor_name=spline_predictor_type,
+                        source_shape=pose_data.shape,
+                        channel=channel,
+                    )
+                    print(
+                        f"样条拟合结果已保存: {spline_save_path}, "
+                        f"channel={channel}, coeffs_shape={result['coeffs'].shape}"
+                    )
+                except Exception as fit_exc:
+                    print(f"channel={channel} 样条拟合失败: {fit_exc}")
 
     print("最终统计:")
     print(stats.summary())
