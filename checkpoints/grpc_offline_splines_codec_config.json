@@ -1,0 +1,66 @@
+{
+    "common": {
+        "packet_tag": "POSE_RES_V1",
+        "num_keypoints": 17,
+        "coord_dims": 3,
+        "i_frame_interval": 30,
+        "quantize": true,
+        "quantize_i_frame": false,
+        "quantize_p_frame": true,
+        "quant_scale": 100.0,
+        "quant_bits": 16,
+        "clip_abs": 152.04258483886736,
+        "entropy_enabled": true,
+        "entropy_codec": "huffman",
+        "entropy_codebook_path": "checkpoints/grpc_online_splines_entropy_codebook_q16.json"
+    },
+    "sender": {
+        "feature_file": "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_49_cam_1_h36m_30fps.npy",
+        "server_addr": "127.0.0.1",
+        "port_num": 50051,
+        "fps": 30.0,
+        "start_col": 0,
+        "max_frames": 0,
+        "buffer_limit": 80,
+        "channel": 0,
+        "debug": false
+    },
+    "receiver": {
+        "grpc_port": 50051,
+        "report_interval": 1.0,
+        "poll_interval": 0.01,
+        "idle_timeout_sec": 2.0,
+        "debug": false,
+        "save_max_frames": 0,
+        "save_dir": "res/sender_receiver_test/abg_q16",
+        "spline_fit_enabled": true,
+        "spline_save_file": "Running_49_cam_1_h36m_30fps_abg_q16_realtime_spline.npz",
+        "predictor_type": "abg",
+        "fps": 30.0,
+        "process_acc_var": 3000000000.0,
+        "measurement_var": 20.0,
+        "init_pos_var": 1000000.0,
+        "init_vel_var": 100000000.0,
+        "alpha": 1.0,
+        "beta": 0.79,
+        "gamma": 0.05,
+        "mamba_checkpoint_path": "checkpoints/splines_mamba_runs/train_gpu0_e1000/ckpt/best.pt",
+        "mamba_history_len": 8,
+        "mamba_cuda_device": 0
+    },
+    "train": {
+        "input_path": "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/",
+        "output_json": "checkpoints/grpc_online_splines_entropy_codebook.json",
+        "quant_bits_list": [
+            4,
+            6,
+            8,
+            10,
+            12,
+            14,
+            16
+        ],
+        "clip_percentile": 99.5,
+        "include_i_frames": false
+    }
+}

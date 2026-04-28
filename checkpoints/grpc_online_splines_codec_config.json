@@ -8,8 +8,11 @@
 		"quantize_i_frame": false,
 		"quantize_p_frame": true,
 		"quant_scale":100.0,
+		"quant_bits": 8,
+		"clip_abs": 152.04258483886736,
 		"entropy_enabled": true,
-		"entropy_level": 6
+		"entropy_codec": "huffman",
+		"entropy_codebook_path": "checkpoints/grpc_online_splines_entropy_codebook.json"
 	},
 	"sender": {
 		"feature_file": "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_37_cam_1_h36m_30fps.npy",
@@ -31,5 +34,20 @@
 		"save_max_frames": 0,
 		"save_dir": "res/decode_res",
 		"save_file": "decoded_Running_37_cam_1_h36m_30fps.npy"
+	},
+	"train": {
+		"input_path": "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/",
+		"output_json": "checkpoints/grpc_online_splines_entropy_codebook.json",
+		"quant_bits_list": [
+			4,
+			6,
+			8,
+			10,
+			12,
+			14,
+			16
+		],
+		"clip_percentile": 99.5,
+		"include_i_frames": false
 	}
 }

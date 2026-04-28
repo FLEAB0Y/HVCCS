@@ -11,7 +11,7 @@ from THStreamData import THStreamDataPayload
 
 
 DEFAULT_CODEC_CONFIG_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "checkpoints", "grpc_online_splines_codec_config.json")
+    os.path.join(os.path.dirname(__file__), "..", "checkpoints", "grpc_offline_splines_codec_config.json")
 )
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
