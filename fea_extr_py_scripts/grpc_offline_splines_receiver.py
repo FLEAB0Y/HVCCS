@@ -387,8 +387,8 @@ def main():
     grpc_port = int(receiver_cfg["grpc_port"])
     report_interval = float(receiver_cfg.get("report_interval", 1.0))
     poll_interval = float(receiver_cfg.get("poll_interval", 0.01))
+    idle_timeout_sec = float(receiver_cfg.get("idle_timeout_sec", 5.0))
     debug = bool(receiver_cfg.get("debug", False))
-    save_enabled = bool(receiver_cfg.get("save_enabled", True))
     save_max_frames = int(receiver_cfg.get("save_max_frames", 0))
     spline_fit_enabled = bool(receiver_cfg.get("spline_fit_enabled", True))
 
@@ -396,13 +396,13 @@ def main():
         raise ValueError("receiver.report_interval must be > 0")
     if poll_interval <= 0:
         raise ValueError("receiver.poll_interval must be > 0")
+    if idle_timeout_sec < 0:
+        raise ValueError("receiver.idle_timeout_sec must be >= 0")
 
     save_dir = str(receiver_cfg.get("save_dir", "res/decode_res"))
     save_dir = resolve_runtime_path(save_dir)
     os.makedirs(save_dir, exist_ok=True)
 
-    save_file = str(receiver_cfg.get("save_file", "decoded_all_channels.npy"))
-    save_path = os.path.join(save_dir, save_file)
     spline_save_file = str(
         _get_receiver_param(receiver_cfg, "spline_save_file", "output_file", "decoded_all_channels_spline_fit.npz")
     )
@@ -484,14 +484,19 @@ def main():
     stats = ReceiveStats()
     last_report_time = time.time()
     prev_recon_by_channel = {}
-    saved_frames = []
     saved_frames_by_channel = {}
     received_pose_frame_count = 0
+    has_received_payload = False
+    last_payload_time = time.time()
 
     print(
         f"接收端已启动，监听 gRPC 端口: {grpc_port}, "
-        f"save_all_channels=true, save_enabled={save_enabled}, save_path={save_path}"
+        "仅保存样条拟合结果"
     )
+    if idle_timeout_sec > 0:
+        print(f"空闲自动停止已启用: idle_timeout_sec={idle_timeout_sec:.1f}s（首次收到数据后生效）")
+    else:
+        print("空闲自动停止已关闭: idle_timeout_sec<=0")
     if spline_fit_enabled:
         print(
             f"样条拟合已启用: predictor={spline_predictor_type}, fps={spline_fps}, "
@@ -502,8 +507,20 @@ def main():
         while True:
             if servicer.receive_data_buffer.get_size() < 1:
                 time.sleep(poll_interval)
+                now = time.time()
+                if (
+                    idle_timeout_sec > 0
+                    and has_received_payload
+                    and (now - last_payload_time) >= idle_timeout_sec
+                ):
+                    print(
+                        f"\n超过 {idle_timeout_sec:.1f}s 未接收到新数据，自动停止接收并保存结果"
+                    )
+                    break
             else:
                 payload = servicer.receive_data_buffer.get_items()
+                has_received_payload = True
+                last_payload_time = time.time()
 
                 rgb_data = get_payload_bytes(payload, "rgbData", "rgb_data")
                 point_data = get_payload_bytes(payload, "pointData", "point_data")
@@ -562,15 +579,12 @@ def main():
                         recon_flat = decoded_values.astype(np.float32, copy=False)
                     prev_recon_by_channel[channel] = recon_flat
 
-                    if save_enabled or spline_fit_enabled:
+                    if spline_fit_enabled:
                         pose_frame = recon_flat.reshape(num_keypoints, coord_dims).copy()
                         received_pose_frame_count += 1
-                        if save_enabled:
-                            saved_frames.append(pose_frame)
-                        if spline_fit_enabled:
-                            if channel not in saved_frames_by_channel:
-                                saved_frames_by_channel[channel] = []
-                            saved_frames_by_channel[channel].append(pose_frame)
+                        if channel not in saved_frames_by_channel:
+                            saved_frames_by_channel[channel] = []
+                        saved_frames_by_channel[channel].append(pose_frame)
                         if save_max_frames > 0 and received_pose_frame_count >= save_max_frames:
                             break
 
@@ -600,14 +614,6 @@ def main():
 
     except KeyboardInterrupt:
         print("\n接收被用户中断")
-
-    if save_enabled:
-        if saved_frames:
-            decoded_arr = np.asarray(saved_frames, dtype=np.float32)
-            np.save(save_path, decoded_arr)
-            print(f"解码结果已保存: {save_path}, shape={decoded_arr.shape}")
-        else:
-            print("未保存任何帧：可能未接收到可解码数据")
 
     if spline_fit_enabled:
         if not saved_frames_by_channel:
@@ -674,6 +680,8 @@ def main():
                     )
                 except Exception as fit_exc:
                     print(f"channel={channel} 样条拟合失败: {fit_exc}")
+    else:
+        print("未执行样条拟合：receiver.spline_fit_enabled=false")
 
     print("最终统计:")
     print(stats.summary())

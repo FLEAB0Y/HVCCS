@@ -232,6 +232,8 @@ def collect_symbol_distribution(
     quant_bits: int,
     clip_abs: float,
     include_i_frames: bool,
+    quantize_i_frame: bool,
+    quantize_p_frame: bool,
 ) -> SymbolStats:
     levels = 1 << quant_bits
     counts = np.zeros((levels,), dtype=np.int64)
@@ -258,16 +260,19 @@ def collect_symbol_distribution(
                 payload_values = (current_flat - prev_recon).astype(np.float32, copy=False)
                 p_frames += 1
 
-            q_values = quantize_uniform(payload_values, quant_bits=quant_bits, clip_abs=clip_abs)
-            recon_values = dequantize_uniform(q_values, quant_bits=quant_bits, clip_abs=clip_abs)
+            use_quantize = quantize_i_frame if is_i_frame else quantize_p_frame
+            if use_quantize:
+                q_values = quantize_uniform(payload_values, quant_bits=quant_bits, clip_abs=clip_abs)
+                recon_values = dequantize_uniform(q_values, quant_bits=quant_bits, clip_abs=clip_abs)
+                if include_i_frames or (not is_i_frame):
+                    counts += np.bincount(q_values, minlength=levels)
+            else:
+                recon_values = payload_values.astype(np.float32, copy=False)
 
             if is_i_frame:
                 prev_recon = recon_values
             else:
                 prev_recon = (prev_recon + recon_values).astype(np.float32, copy=False)
-
-            if include_i_frames or (not is_i_frame):
-                counts += np.bincount(q_values, minlength=levels)
 
             sent_count += 1
 
@@ -466,6 +471,8 @@ def main():
     num_keypoints = int(common_cfg.get("num_keypoints", 17))
     coord_dims = int(common_cfg.get("coord_dims", 3))
     i_frame_interval = int(common_cfg.get("i_frame_interval", 30))
+    quantize_i_frame = bool(common_cfg.get("quantize_i_frame", common_cfg.get("quantize", True)))
+    quantize_p_frame = bool(common_cfg.get("quantize_p_frame", common_cfg.get("quantize", True)))
     include_i_frames = bool(
         train_cfg.get("include_i_frames", common_cfg.get("entropy_include_i_frames", False))
     )
@@ -510,6 +517,8 @@ def main():
         raise ValueError("i_frame_interval must be >= 1")
     if clip_percentile <= 0 or clip_percentile > 100:
         raise ValueError("clip_percentile must be in (0, 100]")
+    if not (quantize_i_frame or quantize_p_frame):
+        raise ValueError("both quantize_i_frame and quantize_p_frame are false; no quantized symbols to train")
 
     files = list_npy_files(input_path)
 
@@ -539,6 +548,8 @@ def main():
             quant_bits=quant_bits,
             clip_abs=float(inferred_clip_abs),
             include_i_frames=include_i_frames,
+            quantize_i_frame=quantize_i_frame,
+            quantize_p_frame=quantize_p_frame,
         )
 
         code_lengths = build_huffman_code_lengths(stats.counts)
