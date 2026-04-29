@@ -1,251 +1,183 @@
-# 姿态样条曲线质量指标说明
+# 姿态样条评估与可视化指标（与当前代码同步）
 
-本文档描述 `splines_metrics_batch.py`（批量评估）与 `splines_metrics.py`（单文件可视化）中所有评估指标的数学定义、物理含义、好坏方向及典型取值范围。
+本文档对应当前实现：
+- `tools/splines_metrics_batch.py`
+- `tools/plot_splines_metrics_batch.py`
 
----
-
-## 评估框架
-
-评估在以下两个场景下同时进行：
-
-- **pred（预测）**：将预测样条曲线以高帧率（默认 120 Hz）重采样，与对应时间戳的 GT pose 比较。
-- **linear（线性基准）**：将 GT pose 以低帧率（默认 30 Hz）降采样后做分段线性插值，再以同样的高帧率重采样，与 GT pose 比较。该基准反映了不使用任何曲线拟合时的朴素性能下界。
-
-所有指标均在两种方法的**相同时间窗口**内计算，保证可比性。
+记号：
+- 文件（样本）索引：$i=1,\dots,N$
+- 帧索引：$t=1,\dots,T_i$
+- 关节数：$K=17$
+- GT 关节坐标：$\mathbf{g}_{i,t,j}\in\mathbb{R}^3$，预测坐标：$\hat{\mathbf{p}}_{i,t,j}\in\mathbb{R}^3$
 
 ---
 
-## 一、MPJPE — 平均关节位置误差
+## 1. 评估对象与时间对齐
 
-### 定义
+对每个文件 $i$：
+1. 用预测样条在统一高帧率（`upsample_fps`，默认 120Hz）上重采样，得到 $\hat{\mathbf{p}}_{i,t,j}$。
+2. 将 GT pose 插值到同一时间戳，得到 $\mathbf{g}_{i,t,j}$。
+3. 仅在有效重叠时间戳上计算误差。
 
-设序列共 $T$ 帧，$K = 17$ 个关节，各帧 GT 位置为 $\mathbf{g}_{t,j} \in \mathbb{R}^3$，预测位置为 $\hat{\mathbf{p}}_{t,j} \in \mathbb{R}^3$（单位：mm）。
-
-每帧的平均关节误差为：
-
-$$
-e_t = \frac{1}{K} \sum_{j=1}^{K} \left\| \hat{\mathbf{p}}_{t,j} - \mathbf{g}_{t,j} \right\|_2
-$$
-
-三个统计量：
-
-$$
-\text{V-MPJPE} = \frac{1}{T}\sum_{t=1}^{T} e_t, \quad
-\text{p95-MPJPE} = \text{Percentile}_{95}(\{e_t\}), \quad
-\text{Max-MPJPE} = \max_t e_t
-$$
-
-### 含义
-
-衡量预测姿态与 GT 之间的**绝对空间误差**（无任何归一化）。V-MPJPE 反映平均精度，p95 和 Max 反映误差的长尾分布，适合发现偶发性大误差帧。
-
-### 方向与取值
-
-- **越低越好**
-- 优秀：< 10 mm；可接受：10–30 mm；较差：> 50 mm
-- 该指标对坐标系的全局偏移敏感；若预测坐标系与 GT 存在系统性偏差，数值会虚高
+线性基线（`linear_*`）的当前实现为：
+- 先将 **预测样条** 以低帧率（`linear_downsample_fps`，默认 30Hz）采样为控制点；
+- 再做分段线性插值回评估时间戳。
 
 ---
 
-## 二、MPJVE — 平均关节速度误差
+## 2. 文件内指标（single-file）
 
-### 定义
+### 2.1 MPJPE（mm）
 
-每帧的速度用相邻帧差分除以时间间隔 $\Delta t = 1/\text{fps}$ 估算：
-
+逐帧关节平均误差：
 $$
-\mathbf{v}_{t,j} = \frac{\mathbf{p}_{t+1,j} - \mathbf{p}_{t,j}}{\Delta t}, \quad t = 1, \ldots, T-1
-$$
-
-每帧平均速度误差：
-
-$$
-e^v_t = \frac{1}{K}\sum_{j=1}^{K} \left\| \hat{\mathbf{v}}_{t,j} - \mathbf{v}_{t,j} \right\|_2
+e_{i,t}=\frac{1}{K}\sum_{j=1}^{K}\left\|\hat{\mathbf{p}}_{i,t,j}-\mathbf{g}_{i,t,j}\right\|_2
 $$
 
-三个统计量定义同 MPJPE：V（均值）、p95（95 百分位）、Max（最大值）。
+文件内统计：
+$$
+\text{V-MPJPE}_i=\frac{1}{T_i}\sum_t e_{i,t},\quad
+\text{p95-MPJPE}_i=\operatorname{Perc}_{95}(\{e_{i,t}\}),\quad
+\text{Max-MPJPE}_i=\max_t e_{i,t}
+$$
 
-### 含义
+### 2.2 MPJVE（mm/s）
 
-衡量预测姿态的**运动速度精度**。MPJPE 低但 MPJVE 高，说明预测在空间位置上接近 GT，但运动节奏（快慢变化）存在明显抖动或滞后。
+速度误差按相邻帧差分：
+$$
+\mathbf{v}^{\text{gt}}_{i,t,j}=\frac{\mathbf{g}_{i,t+1,j}-\mathbf{g}_{i,t,j}}{\Delta t_t},\quad
+\mathbf{v}^{\text{pr}}_{i,t,j}=\frac{\hat{\mathbf{p}}_{i,t+1,j}-\hat{\mathbf{p}}_{i,t,j}}{\Delta t_t}
+$$
 
-### 方向与取值
+$$
+e^v_{i,t}=\frac{1}{K}\sum_{j=1}^{K}\left\|\mathbf{v}^{\text{pr}}_{i,t,j}-\mathbf{v}^{\text{gt}}_{i,t,j}\right\|_2
+$$
 
-- **越低越好**
-- 优秀：< 50 mm/s；可接受：50–200 mm/s；较差：> 500 mm/s
-- 线性插值的 MPJVE 通常高于样条，因为分段线性在控制点处存在速度不连续跳变
+再取 $\text{V/p95/Max}$（与 MPJPE 同型）。
+
+### 2.3 MPJPE\_BL（%）
+
+对非根关节 $j\neq 0$，以 GT 骨长均值归一化：
+$$
+\bar L_{i,j}=\frac{1}{T_i}\sum_t\left\|\mathbf{g}_{i,t,j}-\mathbf{g}_{i,t,\pi(j)}\right\|_2
+$$
+$$
+E^{\text{BL}}_{i,t,j}=\frac{\|\hat{\mathbf{p}}_{i,t,j}-\mathbf{g}_{i,t,j}\|_2}{\bar L_{i,j}}
+$$
+
+全局（文件内）对有效 $(t,j)$ 聚合，并乘 $100\%$，得到
+$\text{V/p95/Max-MPJPE\_BL}_i$。
+
+### 2.4 RTE（%）
+
+先对根轨迹做刚体对齐（Kabsch）：
+$$
+\hat{\mathbf{r}}^*_{i,t}=\mathbf{R}_i\hat{\mathbf{r}}_{i,t}+\mathbf{t}_i
+$$
+
+GT 根轨迹路径长度：
+$$
+D_i=\sum_{t=1}^{T_i-1}\|\mathbf{r}^{\text{gt}}_{i,t+1}-\mathbf{r}^{\text{gt}}_{i,t}\|_2
+$$
+
+$$
+\text{RTE}_i=\frac{1}{T_i}\sum_t\frac{\|\hat{\mathbf{r}}^*_{i,t}-\mathbf{r}^{\text{gt}}_{i,t}\|_2}{D_i}\times100\%
+$$
+
+### 2.5 Jitter（10 m/s³）
+
+三阶差分 jerk：
+$$
+\mathbf{j}_{i,t,j}=\left(\hat{\mathbf{p}}_{i,t+3,j}-3\hat{\mathbf{p}}_{i,t+2,j}+3\hat{\mathbf{p}}_{i,t+1,j}-\hat{\mathbf{p}}_{i,t,j}\right)f^3
+$$
+
+先做关节均值，再做时间均值，并做单位换算：
+$$
+\text{Jitter}_i=\frac{1}{10}\cdot\frac{1}{1000}\cdot
+\frac{1}{T_i-3}\sum_t\frac{1}{K}\sum_j\|\mathbf{j}_{i,t,j}\|_2
+$$
+
+对应键名：`jitter_10mps3_pose_upsampled`。
 
 ---
 
-## 三、MPJPE_BL — 骨长归一化 MPJPE
+## 3. “文件内” 与 “文件间”统计口径
 
-### 定义
+这是当前最重要的两层统计。
 
-对每个关节 $j \neq 0$（根关节 hip 除外），以其父骨的平均长度作为归一化参考：
+### 3.1 文件内（每个 sample_id）
 
+在 `metrics_per_file.csv` 中，每个文件输出两行：
+- `method = pred`
+- `method = linear`
+
+每行里的 `V/p95/Max`（如 `V-MPJPE(mm)`）是**该文件内部**按时间（或时间×关节）统计得到的值。
+
+### 3.2 文件间（跨 sample_id）
+
+在 `metrics_summary.json` 的 `per_file_stats` 中，对“文件内标量”再做一次跨文件统计：
+
+设某指标的文件内标量为 $m_i$（例如 $m_i=\text{V-MPJPE}_i$），则：
 $$
-\bar{L}_j = \frac{1}{T}\sum_t \left\| \mathbf{g}_{t,j} - \mathbf{g}_{t,\text{parent}(j)} \right\|_2
+\text{mean}=\frac{1}{N}\sum_{i=1}^{N}m_i,\quad
+\text{median}=\operatorname{Perc}_{50}(\{m_i\}),
+$$
+$$
+\text{p95}=\operatorname{Perc}_{95}(\{m_i\}),\quad
+\text{max}=\max_i m_i
 $$
 
-归一化误差（无量纲）：
-
-$$
-E^{\text{BL}}_{t,j} = \frac{\left\| \hat{\mathbf{p}}_{t,j} - \mathbf{g}_{t,j} \right\|_2}{\bar{L}_j}
-$$
-
-全局 BL-MPJPE（以百分比表示）：
-
-$$
-\text{V-MPJPE\_BL} = \frac{1}{T(K-1)} \sum_{t,j \neq 0} E^{\text{BL}}_{t,j} \times 100\%
-$$
-
-p95 和 Max 统计量对所有有效的 $(t,j)$ 样本同样计算。
-
-### 含义
-
-将误差用**人体骨段长度**归一化，消除了不同数据集或不同身高人体之间的量纲差异。1% 表示误差约为该关节所在骨段长度的 1%，具有直观的相对意义。根关节（hip）因无父骨而排除在外。
-
-### 方向与取值
-
-- **越低越好**
-- 优秀：< 5%；可接受：5–20%；较差：> 50%
-- 上肢关节（肘、腕）因骨段短，绝对误差相同时百分比更高
+因此：
+- `per_file_stats.xxx.mean/max/p95` 是**文件间统计**；
+- `metrics_per_file.csv` 的 `V/p95/Max` 是**文件内统计**。
 
 ---
 
-## 四、RTE — 根节点平移误差
+## 4. 可视化数学口径（plot_splines_metrics_batch.py）
 
-### 定义
+每张图固定一个指标 `metric_name` 和一个跨文件统计 `stat_name ∈ {mean, median, p95, max}`。
 
-取所有帧的根关节（hip，关节 0）3D 轨迹 $\{\mathbf{r}^{\text{GT}}_t\}$ 与 $\{\hat{\mathbf{r}}_t\}$。
+### 4.1 纵轴
 
-**第一步：刚性对齐**（Kabsch 算法，旋转 + 平移，无缩放）
+纵轴取 `metrics_summary.json -> per_file_stats[metric_name][stat_name]`。
 
+### 4.2 横轴（Bitrate per Keypoint）
+
+从 `res/pose_metrics_batch_test/baseline_q*/codec_metrics_summary.json` 读取：
 $$
-\hat{\mathbf{r}}^*_t = \mathbf{R}\,\hat{\mathbf{r}}_t + \mathbf{t},
-\quad \text{其中 } (\mathbf{R}, \mathbf{t}) = \arg\min \sum_t \left\| \mathbf{R}\,\hat{\mathbf{r}}_t + \mathbf{t} - \mathbf{r}^{\text{GT}}_t \right\|_2^2
+B_q^{(s)} = \text{bitrate\_kbps at q-level }q\text{ and stat }s
+$$
+再换算：
+$$
+X_q^{(s)} = \frac{B_q^{(s)}}{17}
+$$
+即 `Bitrate per Keypoint (kbps)`。
+
+### 4.3 q16→q64 断轴缩略（仅显示变换）
+
+令 $x_{16}=X_{q16}^{(s)}$, $x_{64}=X_{q64}^{(s)}$，压缩系数 $\alpha=0.08$。
+对显示坐标做分段变换：
+$$
+\tilde x =
+\begin{cases}
+x, & x\le x_{16}\\
+x_{16}+\alpha(x-x_{16}), & x>x_{16}
+\end{cases}
 $$
 
-消除全局坐标系偏移和初始朝向差异，使比较聚焦于**轨迹形状误差**。
-
-**第二步：计算 GT 根节点总位移（路径长度）**
-
-$$
-D = \sum_{t=1}^{T-1} \left\| \mathbf{r}^{\text{GT}}_{t+1} - \mathbf{r}^{\text{GT}}_t \right\|_2
-$$
-
-**第三步：归一化均值误差**
-
-$$
-\text{RTE} = \frac{1}{D} \cdot \frac{1}{T}\sum_{t=1}^{T} \left\| \hat{\mathbf{r}}^*_t - \mathbf{r}^{\text{GT}}_t \right\|_2 \times 100\%
-$$
-
-若 GT 几乎静止（$D \approx 0$），则 RTE 置为 NaN。
-
-### 含义
-
-RTE 衡量**根节点（全局位移）的轨迹跟踪精度**，归一化后与运动幅度无关。1% 表示平均误差为总行走/运动距离的 1%。刚性对齐确保测量的是相对轨迹形状而非坐标系对齐误差。
-
-### 方向与取值
-
-- **越低越好**
-- 优秀：< 2%；可接受：2–10%；较差：> 20%
-- 慢速动作（$D$ 小）时数值不稳定，参考意义降低
-- 线性插值的 RTE 通常较低（无预测延迟），样条的优势体现在 MPJVE 和 Jitter
+拟合与绘制在 $\tilde x$ 上进行；刻度文本仍显示原始 $x$（未压缩值）。
 
 ---
 
-## 五、Jitter — 运动抖动
+## 5. 当前用于汇总/绘图的核心键
 
-### 定义
+`pred`：
+- `mpjpe_pose_upsampled_mm`, `mpjpe_pose_upsampled_p95_mm`, `mpjpe_pose_upsampled_max_mm`
+- `mpjve_pose_upsampled_mmps`, `mpjve_pose_upsampled_p95_mmps`, `mpjve_pose_upsampled_max_mmps`
+- `bl_mpjpe_percent_pose_upsampled`, `bl_mpjpe_p95_percent_pose_upsampled`, `bl_mpjpe_max_percent_pose_upsampled`
+- `rte_percent_pose_upsampled`, `jitter_10mps3_pose_upsampled`
 
-抖动通过计算预测姿态的三阶差分（加速度的变化率，即 **jerk**）来量化。
+`linear`：
+- 对应同名 `linear_*` 键。
 
-对全身 $K$ 个关节的三维坐标，以帧率 $f$（Hz）计算离散 jerk：
-
-$$
-\mathbf{j}_{t,k} = \left(\hat{\mathbf{p}}_{t+3,k} - 3\hat{\mathbf{p}}_{t+2,k} + 3\hat{\mathbf{p}}_{t+1,k} - \hat{\mathbf{p}}_{t,k}\right) \cdot f^3, \quad t = 1,\ldots,T-3
-$$
-
-每帧全关节 jerk 范数均值：
-
-$$
-\bar{j}_t = \frac{1}{K}\sum_{k=1}^{K} \left\| \mathbf{j}_{t,k} \right\|_2
-$$
-
-最终指标（单位换算到 $10\,\text{m/s}^3$）：
-
-$$
-\text{Jitter} = \frac{1}{T-3}\sum_t \bar{j}_t \cdot \frac{1}{1000} \cdot \frac{1}{10} \quad [\text{单位: } 10\,\text{m/s}^3]
-$$
-
-其中除以 1000 将 mm/s³ 转换为 m/s³，再除以 10 得到以 $10\,\text{m/s}^3$ 为单位的数值（避免数值过大）。
-
-### 含义
-
-Jitter 衡量预测序列的**时间平滑性**，即运动是否自然流畅。较高的 Jitter 意味着存在高频抖动或帧间突变，在渲染虚拟人时会造成明显的视觉瑕疵。注意：Jitter 仅取决于预测序列本身，与 GT 无关。
-
-### 方向与取值
-
-- **越低越好**
-- 优秀：< 0.5（单位 $10\,\text{m/s}^3$）；可接受：0.5–2；较差：> 5
-- 线性插值在控制点处存在速度突变，jerk 理论上趋于无穷大（Dirac δ），因此实际数值通常远高于样条方法
-- GT 的 Jitter 若通过同样方法计算，一般低于 0.3
-
----
-
-## 六、统计聚合方式
-
-对每个指标，同时报告三种统计量：
-
-| 统计量 | 符号 | 含义 |
-|--------|------|------|
-| 均值 | V- | 所有时间帧/样本的平均，代表整体水平 |
-| 95 百分位 | p95- | 排除最差 5% 后的上界，抗异常值干扰，反映绝大多数帧的表现 |
-| 最大值 | Max- | 所有样本中的最差情况，用于发现极端误差帧 |
-
-RTE 和 Jitter 仅报告一个标量（本身已是全局统计量）。
-
----
-
-## 七、指标汇总
-
-| 指标 | 单位 | 好坏方向 | 优秀阈值 | 可接受范围 |
-|------|------|----------|----------|------------|
-| MPJPE | mm | ↓ 越低越好 | < 10 mm | 10–30 mm |
-| MPJVE | mm/s | ↓ 越低越好 | < 50 mm/s | 50–200 mm/s |
-| MPJPE\_BL | % | ↓ 越低越好 | < 5% | 5–20% |
-| RTE | % | ↓ 越低越好 | < 2% | 2–10% |
-| Jitter | 10 m/s³ | ↓ 越低越好 | < 0.5 | 0.5–2 |
-
----
-
-## 八、关节结构（H36M-17 骨架）
-
-本项目使用 Human3.6M 数据集的 17 关节骨架。父子关系如下：
-
-```
-hip (0)
-├── rhip (1) → rknee (2) → rfoot (3)
-├── lhip (4) → lknee (5) → lfoot (6)
-└── spine (7) → thorax (8)
-                ├── neck (9) → head (10)
-                ├── lshoulder (11) → lelbow (12) → lwrist (13)
-                └── rshoulder (14) → relbow (15) → rwrist (16)
-```
-
-- 根关节 hip（0）无父节点，不参与 MPJPE\_BL 的归一化计算，但参与 RTE 和 Jitter 计算。
-- MPJPE\_BL 的归一化骨长取关节到其父关节距离的时间均值。
-
----
-
-## 九、典型场景解读
-
-**样条 pred 优于 linear 基准的预期表现：**
-- MPJPE：pred 应低于 linear（样条能拟合关节间运动规律）
-- MPJVE：pred 应显著低于 linear（线性插值在控制点处有速度跳变）
-- Jitter：pred 应远低于 linear（三次样条天然具有连续二阶导数）
-- RTE：两者相近，取决于根节点的跟踪策略；若样条无法捕捉大幅移动，可能不如 linear
-
-**若 pred 的 p95 或 Max 远大于 V（均值）：**
-说明误差分布有较长尾部，存在少数极差帧，建议进一步分析这些帧的发生时刻（通常对应动作突变、遮挡等困难场景）。
+以上即为“最新计算 + 最新可视化”与代码一致的数学定义。
