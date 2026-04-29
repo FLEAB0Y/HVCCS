@@ -1603,11 +1603,11 @@ if __name__ == "__main__":
 			linear_output_path=args.linear_output_path,
 		)
 	else:
-		gt_file = "/Users/twz/demo_sys_user/h36m_pose_cam_1/test/S2_cam_1_120fps_notaknot_splines/Running_60_cam_1_h36m_notaknot_spline.npz"
-		pred_file = "res/splines_fit_baseline/Running_60_cam_1_h36m_30fps_baseline_realtime_spline.npz"
-		gt_pose_file = "/Users/twz/demo_sys_user/h36m_pose_cam_1/test/S2_cam_1_120fps/Running_60_cam_1_h36m.npy"
+		gt_file = "/Users/twz/demo_sys_user/h36m_pose_cam_1/test/S2_cam_1_120fps_notaknot_splines/Running_37_cam_1_h36m_notaknot_spline.npz"
+		pred_file = "res/test/decoded_Running_37_cam_1_h36m_30fps_baseline_realtime_spline.npz"
+		gt_pose_file = "/Users/twz/demo_sys_user/h36m_pose_cam_1/test/S2_cam_1_120fps/Running_37_cam_1_h36m.npy"
 		gt_pose_fps = 120.0 # 120.0. or 60.0 depending on the source of the pose file and its timestamp alignment with the splines.
-		spline_id = 24               # valid range: 0..50 for 17x3
+		spline_id = 0               # valid range: 0..50 for 17x3
 		samples_per_interval = 40   # dense sampling for MAE/P95/Max approximation
 		upsample_fps = 120.0        # uniform spline resampling FPS for MPJPE/abs-error points
 		output_path = "res/splines_metrics/splines_compare_plot.png"

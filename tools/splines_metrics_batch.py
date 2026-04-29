@@ -2,6 +2,7 @@ import argparse
 import csv
 import json
 import os
+import sys
 
 import numpy as np
 
@@ -989,8 +990,12 @@ def compute_pose_upsampled_metrics(
 	return ret
 
 
-def compute_linear_interp_reference_metrics(pose_time_sec, pose_data, eval_ts, downsample_fps, eval_fps):
-	ctrl_ts, ctrl_pose = downsample_pose_linear(pose_time_sec, pose_data, downsample_fps)
+def compute_linear_interp_reference_metrics(pose_time_sec, pose_data, pred_time_sec, pred_coeffs, eval_ts, downsample_fps, eval_fps):
+	# Sample pred_splines at downsample_fps to get control points, then linearly interpolate.
+	overlap_start = float(eval_ts[0])
+	overlap_end = float(eval_ts[-1])
+	ctrl_ts = build_uniform_sample_times(overlap_start, overlap_end, downsample_fps)
+	ctrl_pose = eval_spline_pose_at_times(pred_time_sec, pred_coeffs, ctrl_ts)
 	lin_pred_all, lin_valid = eval_pose_linear_from_controls(ctrl_ts, ctrl_pose, eval_ts)
 	gt_eval, gt_valid = resample_pose_at_times(pose_time_sec, pose_data, eval_ts)
 	valid = lin_valid & gt_valid
@@ -1182,6 +1187,9 @@ def summarize_results(rows, analytic_global):
 		"linear_bl_mpjpe_percent_pose_upsampled",
 		"linear_bl_mpjpe_p95_percent_pose_upsampled",
 		"linear_bl_mpjpe_max_percent_pose_upsampled",
+		# Linear RTE and Jitter
+		"linear_rte_percent_pose_upsampled",
+		"linear_jitter_10mps3_pose_upsampled",
 	]
 
 	per_file_stats = {}
@@ -1343,6 +1351,8 @@ def run_metrics(
 			linear_ref = compute_linear_interp_reference_metrics(
 				pose_time_sec=pose_time_sec,
 				pose_data=pose_data,
+				pred_time_sec=pr_t,
+				pred_coeffs=pr_c,
 				eval_ts=pose_up["target_ts_valid"],
 				downsample_fps=linear_downsample_fps,
 				eval_fps=upsample_fps,
@@ -1532,7 +1542,7 @@ if __name__ == "__main__":
 	# Direct config mode: edit values below and run this script directly.
 	# Set USE_CLI=True if you prefer passing parameters via command line.
 	# -----------------------------------------------------------------
-	USE_CLI = False
+	USE_CLI = len(sys.argv) > 1
 
 	if USE_CLI:
 		args = build_argparser().parse_args()
