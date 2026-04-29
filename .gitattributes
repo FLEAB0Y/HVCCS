@@ -1,1 +1,2 @@
 *.blend filter=lfs diff=lfs merge=lfs -text
+checkpoints/splines_mamba_runs/train_gpu0_e1000/ckpt/*.pt filter=lfs diff=lfs merge=lfs -text
