@@ -38,7 +38,7 @@ def get_shapekeys_and_bones_with_dimensions():
 
 def main():
     # Path to the FBX file
-    fbx_filepath = "/Users/twz/demo_sys_user/HVCCS/data/t-pose.FBX"
+    fbx_filepath = "/Users/twz/demo_sys_user/HVCCS/data/rp_carla_rigged_001_zup_t.fbx"
 
     # Import the FBX file
     import_fbx(fbx_filepath)
