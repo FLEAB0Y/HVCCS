@@ -1,0 +1,514 @@
+{
+  "meta": {
+    "input_path": "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps",
+    "num_files": 37,
+    "files": [
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_37_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_38_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_39_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_40_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_41_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_42_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_43_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_44_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_45_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_46_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_47_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_48_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_49_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_50_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_51_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_52_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_53_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_54_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_55_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_56_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_57_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_58_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_59_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_60_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_61_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_62_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_63_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_64_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_65_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_66_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_67_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_68_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_69_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_70_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_71_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_72_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_73_cam_1_h36m_30fps.npy"
+    ],
+    "quant_bits": 6,
+    "levels": 64,
+    "clip_abs": 152.04258483886736,
+    "clip_percentile": 99.5,
+    "i_frame_interval": 30,
+    "include_i_frames": false,
+    "total_frames": 1806,
+    "i_frames": 74,
+    "p_frames": 1732,
+    "total_symbols": 88332
+  },
+  "analysis": {
+    "entropy_bits_per_symbol": 4.905588388205249,
+    "avg_huffman_bits_per_symbol": 4.9207421998822625,
+    "fixed_bits_per_symbol": 6,
+    "estimated_fixed_total_bits": 529992,
+    "estimated_huffman_total_bits": 434659,
+    "estimated_compression_ratio_vs_fixed": 0.820123699980377,
+    "estimated_saving_percent_vs_fixed": 17.987630001962295
+  },
+  "symbols": [
+    {
+      "symbol": 31,
+      "count": 10187,
+      "prob": 0.11532626907575963,
+      "code_len": 3,
+      "code": "000"
+    },
+    {
+      "symbol": 32,
+      "count": 9770,
+      "prob": 0.11060544310102793,
+      "code_len": 3,
+      "code": "001"
+    },
+    {
+      "symbol": 30,
+      "count": 6291,
+      "prob": 0.07121994294253498,
+      "code_len": 4,
+      "code": "0100"
+    },
+    {
+      "symbol": 33,
+      "count": 5897,
+      "prob": 0.06675949825657745,
+      "code_len": 4,
+      "code": "0101"
+    },
+    {
+      "symbol": 34,
+      "count": 3459,
+      "prob": 0.039159081646515416,
+      "code_len": 5,
+      "code": "10010"
+    },
+    {
+      "symbol": 36,
+      "count": 3428,
+      "prob": 0.038808132952950235,
+      "code_len": 5,
+      "code": "10100"
+    },
+    {
+      "symbol": 29,
+      "count": 3414,
+      "prob": 0.03864963999456596,
+      "code_len": 5,
+      "code": "10001"
+    },
+    {
+      "symbol": 37,
+      "count": 3033,
+      "prob": 0.03433636734139383,
+      "code_len": 5,
+      "code": "10101"
+    },
+    {
+      "symbol": 35,
+      "count": 2957,
+      "prob": 0.03347597699587918,
+      "code_len": 5,
+      "code": "10011"
+    },
+    {
+      "symbol": 28,
+      "count": 2937,
+      "prob": 0.033249558483901646,
+      "code_len": 5,
+      "code": "10000"
+    },
+    {
+      "symbol": 27,
+      "count": 2755,
+      "prob": 0.031189150024906038,
+      "code_len": 5,
+      "code": "01111"
+    },
+    {
+      "symbol": 16,
+      "count": 2564,
+      "prob": 0.029026853235520535,
+      "code_len": 5,
+      "code": "01100"
+    },
+    {
+      "symbol": 46,
+      "count": 2475,
+      "prob": 0.028019290857220488,
+      "code_len": 5,
+      "code": "10110"
+    },
+    {
+      "symbol": 17,
+      "count": 2447,
+      "prob": 0.027702304940451932,
+      "code_len": 5,
+      "code": "01101"
+    },
+    {
+      "symbol": 47,
+      "count": 2349,
+      "prob": 0.026592854231761987,
+      "code_len": 5,
+      "code": "10111"
+    },
+    {
+      "symbol": 26,
+      "count": 2183,
+      "prob": 0.02471358058234841,
+      "code_len": 5,
+      "code": "01110"
+    },
+    {
+      "symbol": 45,
+      "count": 1692,
+      "prob": 0.019155006113299823,
+      "code_len": 6,
+      "code": "110100"
+    },
+    {
+      "symbol": 15,
+      "count": 1595,
+      "prob": 0.01805687633020876,
+      "code_len": 6,
+      "code": "110000"
+    },
+    {
+      "symbol": 18,
+      "count": 1475,
+      "prob": 0.016698365258343523,
+      "code_len": 6,
+      "code": "110001"
+    },
+    {
+      "symbol": 25,
+      "count": 1446,
+      "prob": 0.01637005841597609,
+      "code_len": 6,
+      "code": "110010"
+    },
+    {
+      "symbol": 48,
+      "count": 1351,
+      "prob": 0.01529457048408278,
+      "code_len": 6,
+      "code": "110101"
+    },
+    {
+      "symbol": 38,
+      "count": 1268,
+      "prob": 0.01435493365937599,
+      "code_len": 6,
+      "code": "110011"
+    },
+    {
+      "symbol": 44,
+      "count": 924,
+      "prob": 0.010460535253362315,
+      "code_len": 7,
+      "code": "1110100"
+    },
+    {
+      "symbol": 14,
+      "count": 810,
+      "prob": 0.009169949735090341,
+      "code_len": 7,
+      "code": "1101100"
+    },
+    {
+      "symbol": 24,
+      "count": 779,
+      "prob": 0.008819001041525155,
+      "code_len": 7,
+      "code": "1110001"
+    },
+    {
+      "symbol": 19,
+      "count": 764,
+      "prob": 0.008649187157542001,
+      "code_len": 7,
+      "code": "1101101"
+    },
+    {
+      "symbol": 39,
+      "count": 616,
+      "prob": 0.00697369016890821,
+      "code_len": 7,
+      "code": "1110010"
+    },
+    {
+      "symbol": 49,
+      "count": 595,
+      "prob": 0.006735950731331794,
+      "code_len": 7,
+      "code": "1110101"
+    },
+    {
+      "symbol": 23,
+      "count": 585,
+      "prob": 0.006622741475343024,
+      "code_len": 7,
+      "code": "1110000"
+    },
+    {
+      "symbol": 22,
+      "count": 521,
+      "prob": 0.005898202237014898,
+      "code_len": 7,
+      "code": "1101111"
+    },
+    {
+      "symbol": 43,
+      "count": 486,
+      "prob": 0.005501969841054204,
+      "code_len": 7,
+      "code": "1110011"
+    },
+    {
+      "symbol": 20,
+      "count": 463,
+      "prob": 0.005241588552280034,
+      "code_len": 7,
+      "code": "1101110"
+    },
+    {
+      "symbol": 40,
+      "count": 449,
+      "prob": 0.0050830955938957565,
+      "code_len": 8,
+      "code": "11110011"
+    },
+    {
+      "symbol": 21,
+      "count": 445,
+      "prob": 0.005037811891500249,
+      "code_len": 8,
+      "code": "11110010"
+    },
+    {
+      "symbol": 13,
+      "count": 430,
+      "prob": 0.004867998007517095,
+      "code_len": 8,
+      "code": "11110001"
+    },
+    {
+      "symbol": 42,
+      "count": 415,
+      "prob": 0.00469818412353394,
+      "code_len": 8,
+      "code": "11110101"
+    },
+    {
+      "symbol": 41,
+      "count": 355,
+      "prob": 0.004018928587601322,
+      "code_len": 8,
+      "code": "11110100"
+    },
+    {
+      "symbol": 50,
+      "count": 355,
+      "prob": 0.004018928587601322,
+      "code_len": 8,
+      "code": "11110110"
+    },
+    {
+      "symbol": 0,
+      "count": 331,
+      "prob": 0.0037472263732282753,
+      "code_len": 8,
+      "code": "11101100"
+    },
+    {
+      "symbol": 63,
+      "count": 327,
+      "prob": 0.003701942670832767,
+      "code_len": 8,
+      "code": "11111010"
+    },
+    {
+      "symbol": 12,
+      "count": 320,
+      "prob": 0.0036226961916406286,
+      "code_len": 8,
+      "code": "11110000"
+    },
+    {
+      "symbol": 10,
+      "count": 293,
+      "prob": 0.0033170312004709504,
+      "code_len": 8,
+      "code": "11101110"
+    },
+    {
+      "symbol": 51,
+      "count": 283,
+      "prob": 0.0032038219444821808,
+      "code_len": 8,
+      "code": "11110111"
+    },
+    {
+      "symbol": 52,
+      "count": 278,
+      "prob": 0.003147217316487796,
+      "code_len": 8,
+      "code": "11111000"
+    },
+    {
+      "symbol": 11,
+      "count": 275,
+      "prob": 0.003113254539691165,
+      "code_len": 8,
+      "code": "11101111"
+    },
+    {
+      "symbol": 53,
+      "count": 256,
+      "prob": 0.002898156953312503,
+      "code_len": 8,
+      "code": "11111001"
+    },
+    {
+      "symbol": 9,
+      "count": 244,
+      "prob": 0.0027623058461259792,
+      "code_len": 8,
+      "code": "11101101"
+    },
+    {
+      "symbol": 54,
+      "count": 213,
+      "prob": 0.0024113571525607932,
+      "code_len": 9,
+      "code": "111111001"
+    },
+    {
+      "symbol": 8,
+      "count": 209,
+      "prob": 0.0023660734501652855,
+      "code_len": 9,
+      "code": "111111000"
+    },
+    {
+      "symbol": 55,
+      "count": 190,
+      "prob": 0.0021509758637866232,
+      "code_len": 9,
+      "code": "111111010"
+    },
+    {
+      "symbol": 56,
+      "count": 165,
+      "prob": 0.0018679527238146991,
+      "code_len": 9,
+      "code": "111111011"
+    },
+    {
+      "symbol": 7,
+      "count": 162,
+      "prob": 0.0018339899470180682,
+      "code_len": 9,
+      "code": "111110111"
+    },
+    {
+      "symbol": 6,
+      "count": 141,
+      "prob": 0.0015962505094416519,
+      "code_len": 9,
+      "code": "111110110"
+    },
+    {
+      "symbol": 57,
+      "count": 100,
+      "prob": 0.0011320925598876964,
+      "code_len": 10,
+      "code": "1111111010"
+    },
+    {
+      "symbol": 5,
+      "count": 90,
+      "prob": 0.0010188833038989268,
+      "code_len": 10,
+      "code": "1111111001"
+    },
+    {
+      "symbol": 58,
+      "count": 75,
+      "prob": 0.0008490694199157723,
+      "code_len": 10,
+      "code": "1111111011"
+    },
+    {
+      "symbol": 61,
+      "count": 58,
+      "prob": 0.0006566136847348639,
+      "code_len": 10,
+      "code": "1111111100"
+    },
+    {
+      "symbol": 4,
+      "count": 57,
+      "prob": 0.0006452927591359869,
+      "code_len": 10,
+      "code": "1111111000"
+    },
+    {
+      "symbol": 62,
+      "count": 55,
+      "prob": 0.000622650907938233,
+      "code_len": 11,
+      "code": "11111111111"
+    },
+    {
+      "symbol": 2,
+      "count": 54,
+      "prob": 0.0006113299823393561,
+      "code_len": 11,
+      "code": "11111111011"
+    },
+    {
+      "symbol": 3,
+      "count": 53,
+      "prob": 0.000600009056740479,
+      "code_len": 11,
+      "code": "11111111100"
+    },
+    {
+      "symbol": 59,
+      "count": 53,
+      "prob": 0.000600009056740479,
+      "code_len": 11,
+      "code": "11111111101"
+    },
+    {
+      "symbol": 1,
+      "count": 43,
+      "prob": 0.00048679980075170946,
+      "code_len": 11,
+      "code": "11111111010"
+    },
+    {
+      "symbol": 60,
+      "count": 42,
+      "prob": 0.0004754788751528325,
+      "code_len": 11,
+      "code": "11111111110"
+    }
+  ]
+}

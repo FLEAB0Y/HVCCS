@@ -19,7 +19,8 @@ usage() {
 	echo ""
 	echo "Options:"
 	echo "  --predictor NAME   Run only selected predictor(s): abg | kalman | baseline"
-	echo "  --q BITS           Run only selected quant bits: 4 | 6 | 8 | 10 | 12 | 14 | 16"
+	echo "  --q BITS           Run only selected quant bits: 4 | 6 | 8 | 10 | 12 | 14 | 16 | 64"
+	echo "                     (64 means disable quantization and entropy coding)"
 	echo "  -h, --help         Show this help"
 }
 
@@ -57,7 +58,7 @@ while [[ $# -gt 0 ]]; do
 				usage
 				exit 1
 			fi
-			if ! contains_item "$2" "${quant_bits_list[@]}"; then
+			if [[ "$2" != "64" ]] && ! contains_item "$2" "${quant_bits_list[@]}"; then
 				echo "[ERROR] invalid q value: $2"
 				usage
 				exit 1
@@ -135,20 +136,32 @@ quant_bits = int(quant_bits)
 with open(config_path, "r", encoding="utf-8") as f:
 	cfg = json.load(f)
 
-with open(codebook_path, "r", encoding="utf-8") as f:
-	codebook_obj = json.load(f)
-
-codebook_meta = codebook_obj.get("meta", {}) if isinstance(codebook_obj, dict) else {}
-codebook_clip_abs = codebook_meta.get("clip_abs", None)
-
 cfg.setdefault("common", {})
 cfg.setdefault("sender", {})
 cfg.setdefault("receiver", {})
 
-cfg["common"]["quant_bits"] = quant_bits
-cfg["common"]["entropy_codebook_path"] = codebook_path
-if codebook_clip_abs is not None:
-	cfg["common"]["clip_abs"] = float(codebook_clip_abs)
+if quant_bits == 64:
+	cfg["common"]["quantize"] = False
+	cfg["common"]["quantize_i_frame"] = False
+	cfg["common"]["quantize_p_frame"] = False
+	cfg["common"]["entropy_enabled"] = False
+	cfg["common"]["entropy_codec"] = "none"
+else:
+	with open(codebook_path, "r", encoding="utf-8") as f:
+		codebook_obj = json.load(f)
+
+	codebook_meta = codebook_obj.get("meta", {}) if isinstance(codebook_obj, dict) else {}
+	codebook_clip_abs = codebook_meta.get("clip_abs", None)
+
+	cfg["common"]["quantize"] = True
+	cfg["common"]["quantize_i_frame"] = bool(cfg["common"].get("quantize_i_frame", cfg["common"].get("quantize", True)))
+	cfg["common"]["quantize_p_frame"] = bool(cfg["common"].get("quantize_p_frame", cfg["common"].get("quantize", True)))
+	cfg["common"]["entropy_enabled"] = True
+	cfg["common"]["entropy_codec"] = "huffman"
+	cfg["common"]["quant_bits"] = quant_bits
+	cfg["common"]["entropy_codebook_path"] = codebook_path
+	if codebook_clip_abs is not None:
+		cfg["common"]["clip_abs"] = float(codebook_clip_abs)
 
 cfg["sender"]["feature_file"] = feature_file
 
@@ -233,10 +246,15 @@ echo "Quant bits: ${selected_quant_bits[*]}"
 
 for predictor in "${selected_predictors[@]}"; do
 	for quant_bits in "${selected_quant_bits[@]}"; do
-		codebook_path="checkpoints/grpc_online_splines_entropy_codebook_q${quant_bits}.json"
-		if [[ ! -f "$codebook_path" ]]; then
-			echo "[ERROR] codebook not found: $codebook_path"
-			exit 1
+		codebook_path=""
+		if [[ "$quant_bits" == "64" ]]; then
+			echo "[INFO] q=64 selected: disable quantization and entropy coding"
+		else
+			codebook_path="checkpoints/grpc_online_splines_entropy_codebook_q${quant_bits}.json"
+			if [[ ! -f "$codebook_path" ]]; then
+				echo "[ERROR] codebook not found: $codebook_path"
+				exit 1
+			fi
 		fi
 
 		for npy_file in "${npy_files[@]}"; do

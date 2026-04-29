@@ -1,0 +1,178 @@
+{
+  "meta": {
+    "input_path": "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps",
+    "num_files": 37,
+    "files": [
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_37_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_38_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_39_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_40_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_41_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_42_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_43_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_44_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_45_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_46_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_47_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_48_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_49_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_50_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_51_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_52_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_53_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_54_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_55_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_56_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_57_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_58_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_59_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_60_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_61_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_62_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_63_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_64_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_65_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_66_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_67_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_68_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_69_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_70_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_71_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_72_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_73_cam_1_h36m_30fps.npy"
+    ],
+    "quant_bits": 4,
+    "levels": 16,
+    "clip_abs": 152.04258483886736,
+    "clip_percentile": 99.5,
+    "i_frame_interval": 30,
+    "include_i_frames": false,
+    "total_frames": 1806,
+    "i_frames": 74,
+    "p_frames": 1732,
+    "total_symbols": 88332
+  },
+  "analysis": {
+    "entropy_bits_per_symbol": 3.0408702460341868,
+    "avg_huffman_bits_per_symbol": 3.072567133088801,
+    "fixed_bits_per_symbol": 4,
+    "estimated_fixed_total_bits": 353328,
+    "estimated_huffman_total_bits": 271406,
+    "estimated_compression_ratio_vs_fixed": 0.7681417832722003,
+    "estimated_saving_percent_vs_fixed": 23.185821672779973
+  },
+  "symbols": [
+    {
+      "symbol": 8,
+      "count": 23111,
+      "prob": 0.2616379115156455,
+      "code_len": 2,
+      "code": "01"
+    },
+    {
+      "symbol": 7,
+      "count": 23025,
+      "prob": 0.2606643119141421,
+      "code_len": 2,
+      "code": "00"
+    },
+    {
+      "symbol": 9,
+      "count": 7601,
+      "prob": 0.0860503554770638,
+      "code_len": 3,
+      "code": "100"
+    },
+    {
+      "symbol": 4,
+      "count": 7254,
+      "prob": 0.0821219942942535,
+      "code_len": 4,
+      "code": "1010"
+    },
+    {
+      "symbol": 11,
+      "count": 7172,
+      "prob": 0.08119367839514559,
+      "code_len": 4,
+      "code": "1100"
+    },
+    {
+      "symbol": 6,
+      "count": 6925,
+      "prob": 0.07839740977222298,
+      "code_len": 4,
+      "code": "1011"
+    },
+    {
+      "symbol": 3,
+      "count": 2643,
+      "prob": 0.029921206357831815,
+      "code_len": 5,
+      "code": "11010"
+    },
+    {
+      "symbol": 5,
+      "count": 2628,
+      "prob": 0.029751392473848663,
+      "code_len": 5,
+      "code": "11011"
+    },
+    {
+      "symbol": 10,
+      "count": 2512,
+      "prob": 0.028438165104378934,
+      "code_len": 5,
+      "code": "11100"
+    },
+    {
+      "symbol": 12,
+      "count": 2212,
+      "prob": 0.025041887424715845,
+      "code_len": 5,
+      "code": "11101"
+    },
+    {
+      "symbol": 2,
+      "count": 929,
+      "prob": 0.0105171398813567,
+      "code_len": 6,
+      "code": "111100"
+    },
+    {
+      "symbol": 13,
+      "count": 862,
+      "prob": 0.009758637866231943,
+      "code_len": 6,
+      "code": "111101"
+    },
+    {
+      "symbol": 15,
+      "count": 412,
+      "prob": 0.0046642213467373095,
+      "code_len": 7,
+      "code": "1111111"
+    },
+    {
+      "symbol": 0,
+      "count": 402,
+      "prob": 0.00455101209074854,
+      "code_len": 7,
+      "code": "1111100"
+    },
+    {
+      "symbol": 1,
+      "count": 356,
+      "prob": 0.004030249513200199,
+      "code_len": 7,
+      "code": "1111101"
+    },
+    {
+      "symbol": 14,
+      "count": 288,
+      "prob": 0.0032604265724765656,
+      "code_len": 7,
+      "code": "1111110"
+    }
+  ]
+}

@@ -148,12 +148,73 @@ def compute_mpjpe(pred: np.ndarray, gt: np.ndarray) -> Tuple[float, np.ndarray, 
 	return mpjpe, per_joint, per_frame
 
 
+def visualize_channel_error(
+	pred: np.ndarray,
+	gt: np.ndarray,
+	channel_index: int,
+	coord_dims: int,
+	error_scale_to_mm: float = 1000.0,
+) -> None:
+	try:
+		import matplotlib.pyplot as plt
+	except ImportError as exc:
+		raise ImportError(
+			"matplotlib is required for visualization. Install it with: pip install matplotlib"
+		) from exc
+
+	max_channels = pred.shape[1] * pred.shape[2]
+	if channel_index < 0 or channel_index >= max_channels:
+		raise ValueError(
+			f"channel_index out of range: {channel_index}. valid range: [0, {max_channels - 1}]"
+		)
+
+	joint_idx = channel_index // coord_dims
+	dim_idx = channel_index % coord_dims
+	coord_name = ["x", "y", "z"][dim_idx] if dim_idx < 3 else f"d{dim_idx}"
+
+	gt_series = gt[:, joint_idx, dim_idx]
+	pred_series = pred[:, joint_idx, dim_idx]
+	err_series = np.abs(pred_series - gt_series)
+	err_series_mm = err_series * error_scale_to_mm
+
+	t = np.arange(len(gt_series), dtype=np.float64)
+	err_mean_mm = float(np.nanmean(err_series_mm))
+	err_max_mm = float(np.nanmax(err_series_mm))
+
+	fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(11, 7), sharex=True)
+
+	# Top: scatter of GT and Pred for selected channel.
+	ax1.scatter(t, gt_series, s=18, alpha=0.85, label="GT", color="tab:blue", marker="o")
+	ax1.scatter(t, pred_series, s=24, alpha=0.85, label="Pred", color="tab:orange", marker="x", linewidths=1.0)
+	ax1.set_ylabel("Value")
+	ax1.set_title(
+		f"Channel {channel_index} (joint={joint_idx}, dim={coord_name}) - GT vs Pred"
+	)
+	ax1.grid(True, alpha=0.3)
+	ax1.legend(loc="best")
+
+	# Bottom: per-point absolute error for selected channel.
+	ax2.plot(t, err_series_mm, linewidth=1.2, color="tab:red", label="|Pred-GT| (mm)")
+	ax2.axhline(err_mean_mm, linestyle="--", linewidth=1.2, color="tab:green", label=f"mean={err_mean_mm:.6f} mm")
+	ax2.axhline(err_max_mm, linestyle=":", linewidth=1.2, color="tab:purple", label=f"max={err_max_mm:.6f} mm")
+	ax2.set_xlabel("Frame Index")
+	ax2.set_ylabel("Channel Error (mm)")
+	ax2.set_title(
+		f"Channel {channel_index} Error: mean={err_mean_mm:.6f} mm, max={err_max_mm:.6f} mm"
+	)
+	ax2.grid(True, alpha=0.3)
+	ax2.legend(loc="best")
+
+	fig.tight_layout()
+	plt.show()
+
+
 def main() -> None:
 	# ---------------------------------------------------------------------
 	# User configuration section: edit values below instead of CLI args.
 	# ---------------------------------------------------------------------
-	pred_path = "/home/ztw/HVCCS/res/decode_res/pose_recon_codec_h36m.npy"
-	gt_path = "/home/data/ztw/AtheletePose3D/data/train_set/S3/Running_0_cam_1_h36m.npy"
+	pred_path = "/Users/twz/demo_sys_user/HVCCS/res/decode_res/decoded_Running_37_cam_1_h36m_30fps.npy"
+	gt_path = "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_37_cam_1_h36m_30fps.npy"
 
 	# Supported values: "COCO", "Human3.6M", "COCO_RM", "Human3.6M_RM".
 	# For *_h36m.npy files, use "Human3.6M".
@@ -179,6 +240,11 @@ def main() -> None:
 	# Optional detailed reports.
 	print_per_joint = False
 	print_per_frame = False
+
+	# Visualization for one flattened channel index in [0, 50] for 17x3.
+	# channel_index = joint_index * coord_dims + dim_index
+	enable_visualization = True
+	channel_index = 25
 
 	if coord_dims not in (2, 3):
 		raise ValueError(f"coord_dims must be 2 or 3, got {coord_dims}")
@@ -233,6 +299,7 @@ def main() -> None:
 		gt = align_root(gt, root_index)
 
 	mpjpe, per_joint, per_frame = compute_mpjpe(pred, gt)
+	mpjpe_mm = mpjpe * 1000.0
 
 	print("=== MPJPE Result ===")
 	print(f"pred file: {pred_file}")
@@ -242,7 +309,20 @@ def main() -> None:
 	print(f"evaluation format: {normalize_pose_format(final_eval_format)}")
 	print(f"root align: {root_align} (root index={root_index})")
 	print(f"scale: {scale}")
-	print(f"MPJPE: {mpjpe:.6f}")
+	print(f"MPJPE (raw unit): {mpjpe:.6f}")
+	print(f"MPJPE (mm): {mpjpe_mm:.6f}")
+	print("Formula: MPJPE = mean_{t,j}( ||pred[t,j,:]-gt[t,j,:]||_2 )")
+
+	if enable_visualization:
+		joint_idx = channel_index // coord_dims
+		dim_idx = channel_index % coord_dims
+		channel_mae_mm = float(np.nanmean(np.abs(pred[:, joint_idx, dim_idx] - gt[:, joint_idx, dim_idx])) * 1000.0)
+		joint_mpjpe_mm = float(np.nanmean(np.linalg.norm(pred[:, joint_idx, :] - gt[:, joint_idx, :], axis=-1)) * 1000.0)
+		print(
+			f"Selected channel[{channel_index}] 1D MAE (mm): {channel_mae_mm:.6f} "
+			f"(joint={joint_idx}, dim={dim_idx})"
+		)
+		print(f"Selected joint[{joint_idx}] 3D MPJPE (mm): {joint_mpjpe_mm:.6f}")
 
 	if print_per_joint:
 		print("Per-joint MPJPE:")
@@ -253,6 +333,15 @@ def main() -> None:
 		print("Per-frame MPJPE:")
 		for i, err in enumerate(per_frame):
 			print(f"  frame[{i:05d}] = {err:.6f}")
+
+	if enable_visualization:
+		visualize_channel_error(
+			pred=pred,
+			gt=gt,
+			channel_index=channel_index,
+			coord_dims=coord_dims,
+			error_scale_to_mm=1000.0,
+		)
 
 
 if __name__ == "__main__":
