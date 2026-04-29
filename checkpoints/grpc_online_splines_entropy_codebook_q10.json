@@ -1,0 +1,7192 @@
+{
+  "meta": {
+    "input_path": "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps",
+    "num_files": 37,
+    "files": [
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_37_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_38_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_39_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_40_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_41_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_42_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_43_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_44_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_45_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_46_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_47_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_48_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_49_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_50_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_51_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_52_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_53_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_54_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_55_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_56_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_57_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_58_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_59_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_60_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_61_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_62_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_63_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_64_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_65_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_66_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_67_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_68_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_69_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_70_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_71_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_72_cam_1_h36m_30fps.npy",
+      "/Users/twz/demo_sys_user/h36m_pose_cam_1_downsample/test/S2_cam_1_30fps/Running_73_cam_1_h36m_30fps.npy"
+    ],
+    "quant_bits": 10,
+    "levels": 1024,
+    "clip_abs": 152.04258483886736,
+    "clip_percentile": 99.5,
+    "i_frame_interval": 30,
+    "include_i_frames": false,
+    "total_frames": 1806,
+    "i_frames": 74,
+    "p_frames": 1732,
+    "total_symbols": 88332
+  },
+  "analysis": {
+    "entropy_bits_per_symbol": 8.868866486066306,
+    "avg_huffman_bits_per_symbol": 8.891511569985962,
+    "fixed_bits_per_symbol": 10,
+    "estimated_fixed_total_bits": 883320,
+    "estimated_huffman_total_bits": 785405,
+    "estimated_compression_ratio_vs_fixed": 0.8891511569985963,
+    "estimated_saving_percent_vs_fixed": 11.084884300140374
+  },
+  "symbols": [
+    {
+      "symbol": 507,
+      "count": 732,
+      "prob": 0.008286917538377937,
+      "code_len": 7,
+      "code": "0001101"
+    },
+    {
+      "symbol": 510,
+      "count": 732,
+      "prob": 0.008286917538377937,
+      "code_len": 7,
+      "code": "0010000"
+    },
+    {
+      "symbol": 504,
+      "count": 714,
+      "prob": 0.008083140877598153,
+      "code_len": 7,
+      "code": "0001010"
+    },
+    {
+      "symbol": 513,
+      "count": 713,
+      "prob": 0.008071819951999275,
+      "code_len": 7,
+      "code": "0010011"
+    },
+    {
+      "symbol": 509,
+      "count": 696,
+      "prob": 0.007879364216818367,
+      "code_len": 7,
+      "code": "0001111"
+    },
+    {
+      "symbol": 517,
+      "count": 690,
+      "prob": 0.0078114386632251055,
+      "code_len": 7,
+      "code": "0010111"
+    },
+    {
+      "symbol": 512,
+      "count": 688,
+      "prob": 0.007788796812027351,
+      "code_len": 7,
+      "code": "0010010"
+    },
+    {
+      "symbol": 506,
+      "count": 684,
+      "prob": 0.007743513109631843,
+      "code_len": 7,
+      "code": "0001100"
+    },
+    {
+      "symbol": 514,
+      "count": 668,
+      "prob": 0.007562378300049812,
+      "code_len": 7,
+      "code": "0010100"
+    },
+    {
+      "symbol": 511,
+      "count": 666,
+      "prob": 0.007539736448852058,
+      "code_len": 7,
+      "code": "0010001"
+    },
+    {
+      "symbol": 503,
+      "count": 663,
+      "prob": 0.007505773672055427,
+      "code_len": 7,
+      "code": "0001001"
+    },
+    {
+      "symbol": 516,
+      "count": 655,
+      "prob": 0.007415206267264412,
+      "code_len": 7,
+      "code": "0010110"
+    },
+    {
+      "symbol": 519,
+      "count": 655,
+      "prob": 0.007415206267264412,
+      "code_len": 7,
+      "code": "0011001"
+    },
+    {
+      "symbol": 505,
+      "count": 654,
+      "prob": 0.007403885341665534,
+      "code_len": 7,
+      "code": "0001011"
+    },
+    {
+      "symbol": 518,
+      "count": 649,
+      "prob": 0.007347280713671149,
+      "code_len": 7,
+      "code": "0011000"
+    },
+    {
+      "symbol": 502,
+      "count": 636,
+      "prob": 0.007200108680885749,
+      "code_len": 7,
+      "code": "0001000"
+    },
+    {
+      "symbol": 508,
+      "count": 627,
+      "prob": 0.007098220350495857,
+      "code_len": 7,
+      "code": "0001110"
+    },
+    {
+      "symbol": 515,
+      "count": 627,
+      "prob": 0.007098220350495857,
+      "code_len": 7,
+      "code": "0010101"
+    },
+    {
+      "symbol": 501,
+      "count": 616,
+      "prob": 0.00697369016890821,
+      "code_len": 7,
+      "code": "0000111"
+    },
+    {
+      "symbol": 520,
+      "count": 607,
+      "prob": 0.006871801838518318,
+      "code_len": 7,
+      "code": "0011010"
+    },
+    {
+      "symbol": 521,
+      "count": 605,
+      "prob": 0.0068491599873205635,
+      "code_len": 7,
+      "code": "0011011"
+    },
+    {
+      "symbol": 498,
+      "count": 603,
+      "prob": 0.006826518136122809,
+      "code_len": 7,
+      "code": "0000100"
+    },
+    {
+      "symbol": 499,
+      "count": 586,
+      "prob": 0.006634062400941901,
+      "code_len": 7,
+      "code": "0000101"
+    },
+    {
+      "symbol": 500,
+      "count": 571,
+      "prob": 0.006464248516958746,
+      "code_len": 7,
+      "code": "0000110"
+    },
+    {
+      "symbol": 522,
+      "count": 568,
+      "prob": 0.006430285740162116,
+      "code_len": 7,
+      "code": "0011100"
+    },
+    {
+      "symbol": 524,
+      "count": 563,
+      "prob": 0.006373681112167731,
+      "code_len": 7,
+      "code": "0011110"
+    },
+    {
+      "symbol": 494,
+      "count": 557,
+      "prob": 0.006305755558574469,
+      "code_len": 7,
+      "code": "0000000"
+    },
+    {
+      "symbol": 523,
+      "count": 542,
+      "prob": 0.006135941674591315,
+      "code_len": 7,
+      "code": "0011101"
+    },
+    {
+      "symbol": 525,
+      "count": 536,
+      "prob": 0.006068016120998053,
+      "code_len": 7,
+      "code": "0011111"
+    },
+    {
+      "symbol": 495,
+      "count": 535,
+      "prob": 0.006056695195399176,
+      "code_len": 7,
+      "code": "0000001"
+    },
+    {
+      "symbol": 496,
+      "count": 528,
+      "prob": 0.005977448716207037,
+      "code_len": 7,
+      "code": "0000010"
+    },
+    {
+      "symbol": 526,
+      "count": 525,
+      "prob": 0.005943485939410406,
+      "code_len": 7,
+      "code": "0100000"
+    },
+    {
+      "symbol": 497,
+      "count": 517,
+      "prob": 0.005852918534619391,
+      "code_len": 7,
+      "code": "0000011"
+    },
+    {
+      "symbol": 493,
+      "count": 498,
+      "prob": 0.005637820948240728,
+      "code_len": 8,
+      "code": "01010000"
+    },
+    {
+      "symbol": 527,
+      "count": 496,
+      "prob": 0.005615179097042974,
+      "code_len": 8,
+      "code": "01010001"
+    },
+    {
+      "symbol": 528,
+      "count": 476,
+      "prob": 0.005388760585065435,
+      "code_len": 8,
+      "code": "01010010"
+    },
+    {
+      "symbol": 490,
+      "count": 458,
+      "prob": 0.0051849839242856495,
+      "code_len": 8,
+      "code": "01001101"
+    },
+    {
+      "symbol": 491,
+      "count": 454,
+      "prob": 0.005139700221890141,
+      "code_len": 8,
+      "code": "01001110"
+    },
+    {
+      "symbol": 492,
+      "count": 453,
+      "prob": 0.005128379296291265,
+      "code_len": 8,
+      "code": "01001111"
+    },
+    {
+      "symbol": 532,
+      "count": 447,
+      "prob": 0.005060453742698003,
+      "code_len": 8,
+      "code": "01010110"
+    },
+    {
+      "symbol": 530,
+      "count": 443,
+      "prob": 0.005015170040302495,
+      "code_len": 8,
+      "code": "01010100"
+    },
+    {
+      "symbol": 529,
+      "count": 436,
+      "prob": 0.004935923561110356,
+      "code_len": 8,
+      "code": "01010011"
+    },
+    {
+      "symbol": 489,
+      "count": 425,
+      "prob": 0.00481139337952271,
+      "code_len": 8,
+      "code": "01001100"
+    },
+    {
+      "symbol": 531,
+      "count": 422,
+      "prob": 0.004777430602726079,
+      "code_len": 8,
+      "code": "01010101"
+    },
+    {
+      "symbol": 488,
+      "count": 388,
+      "prob": 0.004392519132364262,
+      "code_len": 8,
+      "code": "01001011"
+    },
+    {
+      "symbol": 533,
+      "count": 385,
+      "prob": 0.004358556355567631,
+      "code_len": 8,
+      "code": "01010111"
+    },
+    {
+      "symbol": 535,
+      "count": 379,
+      "prob": 0.004290630801974369,
+      "code_len": 8,
+      "code": "01011001"
+    },
+    {
+      "symbol": 487,
+      "count": 378,
+      "prob": 0.004279309876375492,
+      "code_len": 8,
+      "code": "01001010"
+    },
+    {
+      "symbol": 486,
+      "count": 373,
+      "prob": 0.0042227052483811076,
+      "code_len": 8,
+      "code": "01001001"
+    },
+    {
+      "symbol": 534,
+      "count": 371,
+      "prob": 0.0042000633971833535,
+      "code_len": 8,
+      "code": "01011000"
+    },
+    {
+      "symbol": 537,
+      "count": 359,
+      "prob": 0.00406421228999683,
+      "code_len": 8,
+      "code": "01011011"
+    },
+    {
+      "symbol": 536,
+      "count": 352,
+      "prob": 0.003984965810804692,
+      "code_len": 8,
+      "code": "01011010"
+    },
+    {
+      "symbol": 485,
+      "count": 341,
+      "prob": 0.003860435629217045,
+      "code_len": 8,
+      "code": "01001000"
+    },
+    {
+      "symbol": 483,
+      "count": 338,
+      "prob": 0.003826472852420414,
+      "code_len": 8,
+      "code": "01000110"
+    },
+    {
+      "symbol": 538,
+      "count": 333,
+      "prob": 0.003769868224426029,
+      "code_len": 8,
+      "code": "01011100"
+    },
+    {
+      "symbol": 482,
+      "count": 331,
+      "prob": 0.0037472263732282753,
+      "code_len": 8,
+      "code": "01000101"
+    },
+    {
+      "symbol": 0,
+      "count": 312,
+      "prob": 0.0035321287868496126,
+      "code_len": 8,
+      "code": "01000010"
+    },
+    {
+      "symbol": 1023,
+      "count": 309,
+      "prob": 0.003498166010052982,
+      "code_len": 8,
+      "code": "01100100"
+    },
+    {
+      "symbol": 540,
+      "count": 301,
+      "prob": 0.0034075986052619664,
+      "code_len": 8,
+      "code": "01011110"
+    },
+    {
+      "symbol": 541,
+      "count": 300,
+      "prob": 0.0033962776796630893,
+      "code_len": 8,
+      "code": "01011111"
+    },
+    {
+      "symbol": 539,
+      "count": 294,
+      "prob": 0.0033283521260698275,
+      "code_len": 8,
+      "code": "01011101"
+    },
+    {
+      "symbol": 484,
+      "count": 286,
+      "prob": 0.003237784721278812,
+      "code_len": 8,
+      "code": "01000111"
+    },
+    {
+      "symbol": 543,
+      "count": 286,
+      "prob": 0.003237784721278812,
+      "code_len": 8,
+      "code": "01100001"
+    },
+    {
+      "symbol": 542,
+      "count": 273,
+      "prob": 0.003090612688493411,
+      "code_len": 8,
+      "code": "01100000"
+    },
+    {
+      "symbol": 480,
+      "count": 267,
+      "prob": 0.0030226871349001492,
+      "code_len": 8,
+      "code": "01000011"
+    },
+    {
+      "symbol": 592,
+      "count": 261,
+      "prob": 0.002954761581306888,
+      "code_len": 8,
+      "code": "01100011"
+    },
+    {
+      "symbol": 481,
+      "count": 256,
+      "prob": 0.002898156953312503,
+      "code_len": 8,
+      "code": "01000100"
+    },
+    {
+      "symbol": 544,
+      "count": 251,
+      "prob": 0.002841552325318118,
+      "code_len": 8,
+      "code": "01100010"
+    },
+    {
+      "symbol": 590,
+      "count": 243,
+      "prob": 0.002750984920527102,
+      "code_len": 9,
+      "code": "101010010"
+    },
+    {
+      "symbol": 596,
+      "count": 242,
+      "prob": 0.002739663994928225,
+      "code_len": 9,
+      "code": "101010111"
+    },
+    {
+      "symbol": 589,
+      "count": 237,
+      "prob": 0.0026830593669338403,
+      "code_len": 9,
+      "code": "101010001"
+    },
+    {
+      "symbol": 579,
+      "count": 236,
+      "prob": 0.0026717384413349637,
+      "code_len": 9,
+      "code": "101000111"
+    },
+    {
+      "symbol": 547,
+      "count": 235,
+      "prob": 0.0026604175157360866,
+      "code_len": 9,
+      "code": "100100111"
+    },
+    {
+      "symbol": 478,
+      "count": 232,
+      "prob": 0.0026264547389394555,
+      "code_len": 9,
+      "code": "100100011"
+    },
+    {
+      "symbol": 479,
+      "count": 232,
+      "prob": 0.0026264547389394555,
+      "code_len": 9,
+      "code": "100100100"
+    },
+    {
+      "symbol": 477,
+      "count": 230,
+      "prob": 0.002603812887741702,
+      "code_len": 9,
+      "code": "100100010"
+    },
+    {
+      "symbol": 545,
+      "count": 230,
+      "prob": 0.002603812887741702,
+      "code_len": 9,
+      "code": "100100101"
+    },
+    {
+      "symbol": 549,
+      "count": 230,
+      "prob": 0.002603812887741702,
+      "code_len": 9,
+      "code": "100101001"
+    },
+    {
+      "symbol": 595,
+      "count": 227,
+      "prob": 0.0025698501109450707,
+      "code_len": 9,
+      "code": "101010110"
+    },
+    {
+      "symbol": 581,
+      "count": 225,
+      "prob": 0.002547208259747317,
+      "code_len": 9,
+      "code": "101001001"
+    },
+    {
+      "symbol": 591,
+      "count": 223,
+      "prob": 0.002524566408549563,
+      "code_len": 9,
+      "code": "101010011"
+    },
+    {
+      "symbol": 469,
+      "count": 222,
+      "prob": 0.002513245482950686,
+      "code_len": 9,
+      "code": "100011010"
+    },
+    {
+      "symbol": 471,
+      "count": 221,
+      "prob": 0.0025019245573518092,
+      "code_len": 9,
+      "code": "100011100"
+    },
+    {
+      "symbol": 552,
+      "count": 221,
+      "prob": 0.0025019245573518092,
+      "code_len": 9,
+      "code": "100101100"
+    },
+    {
+      "symbol": 583,
+      "count": 218,
+      "prob": 0.002467961780555178,
+      "code_len": 9,
+      "code": "101001011"
+    },
+    {
+      "symbol": 475,
+      "count": 216,
+      "prob": 0.0024453199293574244,
+      "code_len": 9,
+      "code": "100100000"
+    },
+    {
+      "symbol": 587,
+      "count": 216,
+      "prob": 0.0024453199293574244,
+      "code_len": 9,
+      "code": "101001111"
+    },
+    {
+      "symbol": 553,
+      "count": 215,
+      "prob": 0.0024339990037585474,
+      "code_len": 9,
+      "code": "100101101"
+    },
+    {
+      "symbol": 548,
+      "count": 214,
+      "prob": 0.0024226780781596703,
+      "code_len": 9,
+      "code": "100101000"
+    },
+    {
+      "symbol": 597,
+      "count": 214,
+      "prob": 0.0024226780781596703,
+      "code_len": 9,
+      "code": "101011000"
+    },
+    {
+      "symbol": 546,
+      "count": 213,
+      "prob": 0.0024113571525607932,
+      "code_len": 9,
+      "code": "100100110"
+    },
+    {
+      "symbol": 551,
+      "count": 213,
+      "prob": 0.0024113571525607932,
+      "code_len": 9,
+      "code": "100101011"
+    },
+    {
+      "symbol": 602,
+      "count": 211,
+      "prob": 0.0023887153013630396,
+      "code_len": 9,
+      "code": "101011101"
+    },
+    {
+      "symbol": 584,
+      "count": 210,
+      "prob": 0.0023773943757641625,
+      "code_len": 9,
+      "code": "101001100"
+    },
+    {
+      "symbol": 476,
+      "count": 209,
+      "prob": 0.0023660734501652855,
+      "code_len": 9,
+      "code": "100100001"
+    },
+    {
+      "symbol": 550,
+      "count": 209,
+      "prob": 0.0023660734501652855,
+      "code_len": 9,
+      "code": "100101010"
+    },
+    {
+      "symbol": 576,
+      "count": 209,
+      "prob": 0.0023660734501652855,
+      "code_len": 9,
+      "code": "101000100"
+    },
+    {
+      "symbol": 577,
+      "count": 209,
+      "prob": 0.0023660734501652855,
+      "code_len": 9,
+      "code": "101000101"
+    },
+    {
+      "symbol": 474,
+      "count": 208,
+      "prob": 0.0023547525245664084,
+      "code_len": 9,
+      "code": "100011111"
+    },
+    {
+      "symbol": 582,
+      "count": 208,
+      "prob": 0.0023547525245664084,
+      "code_len": 9,
+      "code": "101001010"
+    },
+    {
+      "symbol": 462,
+      "count": 207,
+      "prob": 0.0023434315989675314,
+      "code_len": 9,
+      "code": "100010011"
+    },
+    {
+      "symbol": 575,
+      "count": 207,
+      "prob": 0.0023434315989675314,
+      "code_len": 9,
+      "code": "101000011"
+    },
+    {
+      "symbol": 593,
+      "count": 207,
+      "prob": 0.0023434315989675314,
+      "code_len": 9,
+      "code": "101010100"
+    },
+    {
+      "symbol": 580,
+      "count": 205,
+      "prob": 0.0023207897477697777,
+      "code_len": 9,
+      "code": "101001000"
+    },
+    {
+      "symbol": 601,
+      "count": 205,
+      "prob": 0.0023207897477697777,
+      "code_len": 9,
+      "code": "101011100"
+    },
+    {
+      "symbol": 603,
+      "count": 205,
+      "prob": 0.0023207897477697777,
+      "code_len": 9,
+      "code": "101011110"
+    },
+    {
+      "symbol": 585,
+      "count": 204,
+      "prob": 0.0023094688221709007,
+      "code_len": 9,
+      "code": "101001101"
+    },
+    {
+      "symbol": 446,
+      "count": 203,
+      "prob": 0.0022981478965720236,
+      "code_len": 9,
+      "code": "100000011"
+    },
+    {
+      "symbol": 472,
+      "count": 203,
+      "prob": 0.0022981478965720236,
+      "code_len": 9,
+      "code": "100011101"
+    },
+    {
+      "symbol": 466,
+      "count": 202,
+      "prob": 0.0022868269709731466,
+      "code_len": 9,
+      "code": "100010111"
+    },
+    {
+      "symbol": 574,
+      "count": 202,
+      "prob": 0.0022868269709731466,
+      "code_len": 9,
+      "code": "101000010"
+    },
+    {
+      "symbol": 753,
+      "count": 202,
+      "prob": 0.0022868269709731466,
+      "code_len": 9,
+      "code": "101111000"
+    },
+    {
+      "symbol": 453,
+      "count": 201,
+      "prob": 0.00227550604537427,
+      "code_len": 9,
+      "code": "100001010"
+    },
+    {
+      "symbol": 464,
+      "count": 201,
+      "prob": 0.00227550604537427,
+      "code_len": 9,
+      "code": "100010101"
+    },
+    {
+      "symbol": 563,
+      "count": 200,
+      "prob": 0.002264185119775393,
+      "code_len": 9,
+      "code": "100110111"
+    },
+    {
+      "symbol": 586,
+      "count": 199,
+      "prob": 0.002252864194176516,
+      "code_len": 9,
+      "code": "101001110"
+    },
+    {
+      "symbol": 594,
+      "count": 199,
+      "prob": 0.002252864194176516,
+      "code_len": 9,
+      "code": "101010101"
+    },
+    {
+      "symbol": 470,
+      "count": 196,
+      "prob": 0.002218901417379885,
+      "code_len": 9,
+      "code": "100011011"
+    },
+    {
+      "symbol": 598,
+      "count": 196,
+      "prob": 0.002218901417379885,
+      "code_len": 9,
+      "code": "101011001"
+    },
+    {
+      "symbol": 449,
+      "count": 194,
+      "prob": 0.002196259566182131,
+      "code_len": 9,
+      "code": "100000110"
+    },
+    {
+      "symbol": 473,
+      "count": 194,
+      "prob": 0.002196259566182131,
+      "code_len": 9,
+      "code": "100011110"
+    },
+    {
+      "symbol": 559,
+      "count": 194,
+      "prob": 0.002196259566182131,
+      "code_len": 9,
+      "code": "100110011"
+    },
+    {
+      "symbol": 588,
+      "count": 191,
+      "prob": 0.0021622967893855003,
+      "code_len": 9,
+      "code": "101010000"
+    },
+    {
+      "symbol": 443,
+      "count": 190,
+      "prob": 0.0021509758637866232,
+      "code_len": 9,
+      "code": "100000000"
+    },
+    {
+      "symbol": 270,
+      "count": 189,
+      "prob": 0.002139654938187746,
+      "code_len": 9,
+      "code": "011011100"
+    },
+    {
+      "symbol": 456,
+      "count": 188,
+      "prob": 0.002128334012588869,
+      "code_len": 9,
+      "code": "100001101"
+    },
+    {
+      "symbol": 578,
+      "count": 188,
+      "prob": 0.002128334012588869,
+      "code_len": 9,
+      "code": "101000110"
+    },
+    {
+      "symbol": 463,
+      "count": 186,
+      "prob": 0.0021056921613911155,
+      "code_len": 9,
+      "code": "100010100"
+    },
+    {
+      "symbol": 452,
+      "count": 185,
+      "prob": 0.0020943712357922384,
+      "code_len": 9,
+      "code": "100001001"
+    },
+    {
+      "symbol": 599,
+      "count": 185,
+      "prob": 0.0020943712357922384,
+      "code_len": 9,
+      "code": "101011010"
+    },
+    {
+      "symbol": 760,
+      "count": 185,
+      "prob": 0.0020943712357922384,
+      "code_len": 9,
+      "code": "101111111"
+    },
+    {
+      "symbol": 260,
+      "count": 184,
+      "prob": 0.0020830503101933614,
+      "code_len": 9,
+      "code": "011010010"
+    },
+    {
+      "symbol": 267,
+      "count": 184,
+      "prob": 0.0020830503101933614,
+      "code_len": 9,
+      "code": "011011001"
+    },
+    {
+      "symbol": 263,
+      "count": 183,
+      "prob": 0.0020717293845944843,
+      "code_len": 9,
+      "code": "011010101"
+    },
+    {
+      "symbol": 600,
+      "count": 182,
+      "prob": 0.0020604084589956073,
+      "code_len": 9,
+      "code": "101011011"
+    },
+    {
+      "symbol": 272,
+      "count": 181,
+      "prob": 0.0020490875333967306,
+      "code_len": 9,
+      "code": "011011110"
+    },
+    {
+      "symbol": 435,
+      "count": 181,
+      "prob": 0.0020490875333967306,
+      "code_len": 9,
+      "code": "011111000"
+    },
+    {
+      "symbol": 460,
+      "count": 181,
+      "prob": 0.0020490875333967306,
+      "code_len": 9,
+      "code": "100010001"
+    },
+    {
+      "symbol": 465,
+      "count": 181,
+      "prob": 0.0020490875333967306,
+      "code_len": 9,
+      "code": "100010110"
+    },
+    {
+      "symbol": 554,
+      "count": 181,
+      "prob": 0.0020490875333967306,
+      "code_len": 9,
+      "code": "100101110"
+    },
+    {
+      "symbol": 560,
+      "count": 181,
+      "prob": 0.0020490875333967306,
+      "code_len": 9,
+      "code": "100110100"
+    },
+    {
+      "symbol": 265,
+      "count": 180,
+      "prob": 0.0020377666077978536,
+      "code_len": 9,
+      "code": "011010111"
+    },
+    {
+      "symbol": 266,
+      "count": 180,
+      "prob": 0.0020377666077978536,
+      "code_len": 9,
+      "code": "011011000"
+    },
+    {
+      "symbol": 442,
+      "count": 180,
+      "prob": 0.0020377666077978536,
+      "code_len": 9,
+      "code": "011111111"
+    },
+    {
+      "symbol": 557,
+      "count": 180,
+      "prob": 0.0020377666077978536,
+      "code_len": 9,
+      "code": "100110001"
+    },
+    {
+      "symbol": 570,
+      "count": 180,
+      "prob": 0.0020377666077978536,
+      "code_len": 9,
+      "code": "100111110"
+    },
+    {
+      "symbol": 439,
+      "count": 179,
+      "prob": 0.0020264456821989765,
+      "code_len": 9,
+      "code": "011111100"
+    },
+    {
+      "symbol": 455,
+      "count": 179,
+      "prob": 0.0020264456821989765,
+      "code_len": 9,
+      "code": "100001100"
+    },
+    {
+      "symbol": 567,
+      "count": 179,
+      "prob": 0.0020264456821989765,
+      "code_len": 9,
+      "code": "100111011"
+    },
+    {
+      "symbol": 604,
+      "count": 179,
+      "prob": 0.0020264456821989765,
+      "code_len": 9,
+      "code": "101011111"
+    },
+    {
+      "symbol": 461,
+      "count": 178,
+      "prob": 0.0020151247566000995,
+      "code_len": 9,
+      "code": "100010010"
+    },
+    {
+      "symbol": 561,
+      "count": 178,
+      "prob": 0.0020151247566000995,
+      "code_len": 9,
+      "code": "100110101"
+    },
+    {
+      "symbol": 566,
+      "count": 178,
+      "prob": 0.0020151247566000995,
+      "code_len": 9,
+      "code": "100111010"
+    },
+    {
+      "symbol": 261,
+      "count": 177,
+      "prob": 0.002003803831001223,
+      "code_len": 9,
+      "code": "011010011"
+    },
+    {
+      "symbol": 448,
+      "count": 177,
+      "prob": 0.002003803831001223,
+      "code_len": 9,
+      "code": "100000101"
+    },
+    {
+      "symbol": 562,
+      "count": 177,
+      "prob": 0.002003803831001223,
+      "code_len": 9,
+      "code": "100110110"
+    },
+    {
+      "symbol": 755,
+      "count": 177,
+      "prob": 0.002003803831001223,
+      "code_len": 9,
+      "code": "101111010"
+    },
+    {
+      "symbol": 467,
+      "count": 176,
+      "prob": 0.001992482905402346,
+      "code_len": 9,
+      "code": "100011000"
+    },
+    {
+      "symbol": 434,
+      "count": 175,
+      "prob": 0.0019811619798034688,
+      "code_len": 9,
+      "code": "011110111"
+    },
+    {
+      "symbol": 555,
+      "count": 175,
+      "prob": 0.0019811619798034688,
+      "code_len": 9,
+      "code": "100101111"
+    },
+    {
+      "symbol": 605,
+      "count": 175,
+      "prob": 0.0019811619798034688,
+      "code_len": 9,
+      "code": "101100000"
+    },
+    {
+      "symbol": 759,
+      "count": 175,
+      "prob": 0.0019811619798034688,
+      "code_len": 9,
+      "code": "101111110"
+    },
+    {
+      "symbol": 451,
+      "count": 174,
+      "prob": 0.0019698410542045917,
+      "code_len": 9,
+      "code": "100001000"
+    },
+    {
+      "symbol": 457,
+      "count": 174,
+      "prob": 0.0019698410542045917,
+      "code_len": 9,
+      "code": "100001110"
+    },
+    {
+      "symbol": 573,
+      "count": 174,
+      "prob": 0.0019698410542045917,
+      "code_len": 9,
+      "code": "101000001"
+    },
+    {
+      "symbol": 761,
+      "count": 174,
+      "prob": 0.0019698410542045917,
+      "code_len": 9,
+      "code": "110000000"
+    },
+    {
+      "symbol": 565,
+      "count": 173,
+      "prob": 0.0019585201286057147,
+      "code_len": 9,
+      "code": "100111001"
+    },
+    {
+      "symbol": 269,
+      "count": 172,
+      "prob": 0.0019471992030068378,
+      "code_len": 9,
+      "code": "011011011"
+    },
+    {
+      "symbol": 438,
+      "count": 172,
+      "prob": 0.0019471992030068378,
+      "code_len": 9,
+      "code": "011111011"
+    },
+    {
+      "symbol": 262,
+      "count": 171,
+      "prob": 0.0019358782774079608,
+      "code_len": 9,
+      "code": "011010100"
+    },
+    {
+      "symbol": 436,
+      "count": 171,
+      "prob": 0.0019358782774079608,
+      "code_len": 9,
+      "code": "011111001"
+    },
+    {
+      "symbol": 564,
+      "count": 171,
+      "prob": 0.0019358782774079608,
+      "code_len": 9,
+      "code": "100111000"
+    },
+    {
+      "symbol": 264,
+      "count": 170,
+      "prob": 0.001924557351809084,
+      "code_len": 9,
+      "code": "011010110"
+    },
+    {
+      "symbol": 429,
+      "count": 170,
+      "prob": 0.001924557351809084,
+      "code_len": 9,
+      "code": "011110010"
+    },
+    {
+      "symbol": 758,
+      "count": 170,
+      "prob": 0.001924557351809084,
+      "code_len": 9,
+      "code": "101111101"
+    },
+    {
+      "symbol": 444,
+      "count": 169,
+      "prob": 0.001913236426210207,
+      "code_len": 9,
+      "code": "100000001"
+    },
+    {
+      "symbol": 572,
+      "count": 169,
+      "prob": 0.001913236426210207,
+      "code_len": 9,
+      "code": "101000000"
+    },
+    {
+      "symbol": 606,
+      "count": 169,
+      "prob": 0.001913236426210207,
+      "code_len": 9,
+      "code": "101100001"
+    },
+    {
+      "symbol": 440,
+      "count": 168,
+      "prob": 0.00190191550061133,
+      "code_len": 9,
+      "code": "011111101"
+    },
+    {
+      "symbol": 441,
+      "count": 168,
+      "prob": 0.00190191550061133,
+      "code_len": 9,
+      "code": "011111110"
+    },
+    {
+      "symbol": 447,
+      "count": 168,
+      "prob": 0.00190191550061133,
+      "code_len": 9,
+      "code": "100000100"
+    },
+    {
+      "symbol": 747,
+      "count": 168,
+      "prob": 0.00190191550061133,
+      "code_len": 9,
+      "code": "101110010"
+    },
+    {
+      "symbol": 762,
+      "count": 168,
+      "prob": 0.00190191550061133,
+      "code_len": 9,
+      "code": "110000001"
+    },
+    {
+      "symbol": 437,
+      "count": 167,
+      "prob": 0.001890594575012453,
+      "code_len": 9,
+      "code": "011111010"
+    },
+    {
+      "symbol": 754,
+      "count": 167,
+      "prob": 0.001890594575012453,
+      "code_len": 9,
+      "code": "101111001"
+    },
+    {
+      "symbol": 271,
+      "count": 166,
+      "prob": 0.001879273649413576,
+      "code_len": 9,
+      "code": "011011101"
+    },
+    {
+      "symbol": 569,
+      "count": 166,
+      "prob": 0.001879273649413576,
+      "code_len": 9,
+      "code": "100111101"
+    },
+    {
+      "symbol": 458,
+      "count": 165,
+      "prob": 0.0018679527238146991,
+      "code_len": 9,
+      "code": "100001111"
+    },
+    {
+      "symbol": 558,
+      "count": 165,
+      "prob": 0.0018679527238146991,
+      "code_len": 9,
+      "code": "100110010"
+    },
+    {
+      "symbol": 432,
+      "count": 164,
+      "prob": 0.001856631798215822,
+      "code_len": 9,
+      "code": "011110101"
+    },
+    {
+      "symbol": 450,
+      "count": 164,
+      "prob": 0.001856631798215822,
+      "code_len": 9,
+      "code": "100000111"
+    },
+    {
+      "symbol": 751,
+      "count": 163,
+      "prob": 0.0018453108726169452,
+      "code_len": 9,
+      "code": "101110110"
+    },
+    {
+      "symbol": 273,
+      "count": 162,
+      "prob": 0.0018339899470180682,
+      "code_len": 9,
+      "code": "011011111"
+    },
+    {
+      "symbol": 433,
+      "count": 162,
+      "prob": 0.0018339899470180682,
+      "code_len": 9,
+      "code": "011110110"
+    },
+    {
+      "symbol": 571,
+      "count": 162,
+      "prob": 0.0018339899470180682,
+      "code_len": 9,
+      "code": "100111111"
+    },
+    {
+      "symbol": 752,
+      "count": 162,
+      "prob": 0.0018339899470180682,
+      "code_len": 9,
+      "code": "101110111"
+    },
+    {
+      "symbol": 468,
+      "count": 161,
+      "prob": 0.0018226690214191911,
+      "code_len": 9,
+      "code": "100011001"
+    },
+    {
+      "symbol": 568,
+      "count": 161,
+      "prob": 0.0018226690214191911,
+      "code_len": 9,
+      "code": "100111100"
+    },
+    {
+      "symbol": 749,
+      "count": 161,
+      "prob": 0.0018226690214191911,
+      "code_len": 9,
+      "code": "101110100"
+    },
+    {
+      "symbol": 454,
+      "count": 160,
+      "prob": 0.0018113480958203143,
+      "code_len": 9,
+      "code": "100001011"
+    },
+    {
+      "symbol": 253,
+      "count": 159,
+      "prob": 0.0018000271702214373,
+      "code_len": 9,
+      "code": "011001011"
+    },
+    {
+      "symbol": 268,
+      "count": 159,
+      "prob": 0.0018000271702214373,
+      "code_len": 9,
+      "code": "011011010"
+    },
+    {
+      "symbol": 459,
+      "count": 159,
+      "prob": 0.0018000271702214373,
+      "code_len": 9,
+      "code": "100010000"
+    },
+    {
+      "symbol": 763,
+      "count": 159,
+      "prob": 0.0018000271702214373,
+      "code_len": 9,
+      "code": "110000010"
+    },
+    {
+      "symbol": 765,
+      "count": 159,
+      "prob": 0.0018000271702214373,
+      "code_len": 9,
+      "code": "110000100"
+    },
+    {
+      "symbol": 430,
+      "count": 158,
+      "prob": 0.0017887062446225604,
+      "code_len": 9,
+      "code": "011110011"
+    },
+    {
+      "symbol": 258,
+      "count": 157,
+      "prob": 0.0017773853190236834,
+      "code_len": 9,
+      "code": "011010000"
+    },
+    {
+      "symbol": 275,
+      "count": 157,
+      "prob": 0.0017773853190236834,
+      "code_len": 9,
+      "code": "011100001"
+    },
+    {
+      "symbol": 431,
+      "count": 157,
+      "prob": 0.0017773853190236834,
+      "code_len": 9,
+      "code": "011110100"
+    },
+    {
+      "symbol": 608,
+      "count": 157,
+      "prob": 0.0017773853190236834,
+      "code_len": 9,
+      "code": "101100011"
+    },
+    {
+      "symbol": 276,
+      "count": 155,
+      "prob": 0.0017547434678259295,
+      "code_len": 9,
+      "code": "011100010"
+    },
+    {
+      "symbol": 252,
+      "count": 153,
+      "prob": 0.0017321016166281756,
+      "code_len": 9,
+      "code": "011001010"
+    },
+    {
+      "symbol": 556,
+      "count": 153,
+      "prob": 0.0017321016166281756,
+      "code_len": 9,
+      "code": "100110000"
+    },
+    {
+      "symbol": 748,
+      "count": 152,
+      "prob": 0.0017207806910292985,
+      "code_len": 9,
+      "code": "101110011"
+    },
+    {
+      "symbol": 254,
+      "count": 151,
+      "prob": 0.0017094597654304215,
+      "code_len": 9,
+      "code": "011001100"
+    },
+    {
+      "symbol": 277,
+      "count": 151,
+      "prob": 0.0017094597654304215,
+      "code_len": 9,
+      "code": "011100011"
+    },
+    {
+      "symbol": 741,
+      "count": 150,
+      "prob": 0.0016981388398315447,
+      "code_len": 9,
+      "code": "101101100"
+    },
+    {
+      "symbol": 745,
+      "count": 150,
+      "prob": 0.0016981388398315447,
+      "code_len": 9,
+      "code": "101110000"
+    },
+    {
+      "symbol": 744,
+      "count": 149,
+      "prob": 0.0016868179142326676,
+      "code_len": 9,
+      "code": "101101111"
+    },
+    {
+      "symbol": 278,
+      "count": 148,
+      "prob": 0.0016754969886337908,
+      "code_len": 9,
+      "code": "011100100"
+    },
+    {
+      "symbol": 279,
+      "count": 147,
+      "prob": 0.0016641760630349137,
+      "code_len": 9,
+      "code": "011100101"
+    },
+    {
+      "symbol": 737,
+      "count": 147,
+      "prob": 0.0016641760630349137,
+      "code_len": 9,
+      "code": "101101000"
+    },
+    {
+      "symbol": 750,
+      "count": 147,
+      "prob": 0.0016641760630349137,
+      "code_len": 9,
+      "code": "101110101"
+    },
+    {
+      "symbol": 274,
+      "count": 146,
+      "prob": 0.0016528551374360367,
+      "code_len": 9,
+      "code": "011100000"
+    },
+    {
+      "symbol": 259,
+      "count": 145,
+      "prob": 0.0016415342118371598,
+      "code_len": 9,
+      "code": "011010001"
+    },
+    {
+      "symbol": 746,
+      "count": 145,
+      "prob": 0.0016415342118371598,
+      "code_len": 9,
+      "code": "101110001"
+    },
+    {
+      "symbol": 756,
+      "count": 145,
+      "prob": 0.0016415342118371598,
+      "code_len": 9,
+      "code": "101111011"
+    },
+    {
+      "symbol": 757,
+      "count": 145,
+      "prob": 0.0016415342118371598,
+      "code_len": 9,
+      "code": "101111100"
+    },
+    {
+      "symbol": 255,
+      "count": 142,
+      "prob": 0.001607571435040529,
+      "code_len": 9,
+      "code": "011001101"
+    },
+    {
+      "symbol": 256,
+      "count": 142,
+      "prob": 0.001607571435040529,
+      "code_len": 9,
+      "code": "011001110"
+    },
+    {
+      "symbol": 280,
+      "count": 142,
+      "prob": 0.001607571435040529,
+      "code_len": 9,
+      "code": "011100110"
+    },
+    {
+      "symbol": 418,
+      "count": 141,
+      "prob": 0.0015962505094416519,
+      "code_len": 9,
+      "code": "011101010"
+    },
+    {
+      "symbol": 419,
+      "count": 141,
+      "prob": 0.0015962505094416519,
+      "code_len": 9,
+      "code": "011101011"
+    },
+    {
+      "symbol": 424,
+      "count": 140,
+      "prob": 0.001584929583842775,
+      "code_len": 9,
+      "code": "011101110"
+    },
+    {
+      "symbol": 426,
+      "count": 140,
+      "prob": 0.001584929583842775,
+      "code_len": 9,
+      "code": "011101111"
+    },
+    {
+      "symbol": 740,
+      "count": 140,
+      "prob": 0.001584929583842775,
+      "code_len": 9,
+      "code": "101101011"
+    },
+    {
+      "symbol": 742,
+      "count": 139,
+      "prob": 0.001573608658243898,
+      "code_len": 9,
+      "code": "101101101"
+    },
+    {
+      "symbol": 766,
+      "count": 139,
+      "prob": 0.001573608658243898,
+      "code_len": 9,
+      "code": "110000101"
+    },
+    {
+      "symbol": 282,
+      "count": 137,
+      "prob": 0.001550966807046144,
+      "code_len": 9,
+      "code": "011101000"
+    },
+    {
+      "symbol": 427,
+      "count": 137,
+      "prob": 0.001550966807046144,
+      "code_len": 9,
+      "code": "011110000"
+    },
+    {
+      "symbol": 445,
+      "count": 137,
+      "prob": 0.001550966807046144,
+      "code_len": 9,
+      "code": "100000010"
+    },
+    {
+      "symbol": 743,
+      "count": 137,
+      "prob": 0.001550966807046144,
+      "code_len": 9,
+      "code": "101101110"
+    },
+    {
+      "symbol": 767,
+      "count": 137,
+      "prob": 0.001550966807046144,
+      "code_len": 9,
+      "code": "110000110"
+    },
+    {
+      "symbol": 422,
+      "count": 136,
+      "prob": 0.001539645881447267,
+      "code_len": 9,
+      "code": "011101100"
+    },
+    {
+      "symbol": 428,
+      "count": 135,
+      "prob": 0.0015283249558483902,
+      "code_len": 9,
+      "code": "011110001"
+    },
+    {
+      "symbol": 257,
+      "count": 134,
+      "prob": 0.0015170040302495131,
+      "code_len": 9,
+      "code": "011001111"
+    },
+    {
+      "symbol": 736,
+      "count": 134,
+      "prob": 0.0015170040302495131,
+      "code_len": 9,
+      "code": "101100111"
+    },
+    {
+      "symbol": 423,
+      "count": 130,
+      "prob": 0.0014717203278540054,
+      "code_len": 9,
+      "code": "011101101"
+    },
+    {
+      "symbol": 735,
+      "count": 130,
+      "prob": 0.0014717203278540054,
+      "code_len": 9,
+      "code": "101100110"
+    },
+    {
+      "symbol": 738,
+      "count": 130,
+      "prob": 0.0014717203278540054,
+      "code_len": 9,
+      "code": "101101001"
+    },
+    {
+      "symbol": 764,
+      "count": 130,
+      "prob": 0.0014717203278540054,
+      "code_len": 9,
+      "code": "110000011"
+    },
+    {
+      "symbol": 607,
+      "count": 129,
+      "prob": 0.0014603994022551283,
+      "code_len": 9,
+      "code": "101100010"
+    },
+    {
+      "symbol": 281,
+      "count": 128,
+      "prob": 0.0014490784766562515,
+      "code_len": 9,
+      "code": "011100111"
+    },
+    {
+      "symbol": 609,
+      "count": 128,
+      "prob": 0.0014490784766562515,
+      "code_len": 9,
+      "code": "101100100"
+    },
+    {
+      "symbol": 739,
+      "count": 128,
+      "prob": 0.0014490784766562515,
+      "code_len": 9,
+      "code": "101101010"
+    },
+    {
+      "symbol": 417,
+      "count": 127,
+      "prob": 0.0014377575510573744,
+      "code_len": 9,
+      "code": "011101001"
+    },
+    {
+      "symbol": 611,
+      "count": 126,
+      "prob": 0.0014264366254584974,
+      "code_len": 9,
+      "code": "101100101"
+    },
+    {
+      "symbol": 769,
+      "count": 125,
+      "prob": 0.0014151156998596206,
+      "code_len": 10,
+      "code": "1101100010"
+    },
+    {
+      "symbol": 413,
+      "count": 124,
+      "prob": 0.0014037947742607435,
+      "code_len": 10,
+      "code": "1101000001"
+    },
+    {
+      "symbol": 289,
+      "count": 123,
+      "prob": 0.0013924738486618667,
+      "code_len": 10,
+      "code": "1100100110"
+    },
+    {
+      "symbol": 414,
+      "count": 123,
+      "prob": 0.0013924738486618667,
+      "code_len": 10,
+      "code": "1101000010"
+    },
+    {
+      "symbol": 249,
+      "count": 122,
+      "prob": 0.0013811529230629896,
+      "code_len": 10,
+      "code": "1100011101"
+    },
+    {
+      "symbol": 283,
+      "count": 121,
+      "prob": 0.0013698319974641126,
+      "code_len": 10,
+      "code": "1100100000"
+    },
+    {
+      "symbol": 415,
+      "count": 121,
+      "prob": 0.0013698319974641126,
+      "code_len": 10,
+      "code": "1101000011"
+    },
+    {
+      "symbol": 416,
+      "count": 121,
+      "prob": 0.0013698319974641126,
+      "code_len": 10,
+      "code": "1101000100"
+    },
+    {
+      "symbol": 420,
+      "count": 121,
+      "prob": 0.0013698319974641126,
+      "code_len": 10,
+      "code": "1101000101"
+    },
+    {
+      "symbol": 732,
+      "count": 121,
+      "prob": 0.0013698319974641126,
+      "code_len": 10,
+      "code": "1101011110"
+    },
+    {
+      "symbol": 285,
+      "count": 118,
+      "prob": 0.0013358692206674818,
+      "code_len": 10,
+      "code": "1100100010"
+    },
+    {
+      "symbol": 421,
+      "count": 118,
+      "prob": 0.0013358692206674818,
+      "code_len": 10,
+      "code": "1101000110"
+    },
+    {
+      "symbol": 425,
+      "count": 118,
+      "prob": 0.0013358692206674818,
+      "code_len": 10,
+      "code": "1101000111"
+    },
+    {
+      "symbol": 250,
+      "count": 117,
+      "prob": 0.0013245482950686048,
+      "code_len": 10,
+      "code": "1100011110"
+    },
+    {
+      "symbol": 251,
+      "count": 116,
+      "prob": 0.0013132273694697277,
+      "code_len": 10,
+      "code": "1100011111"
+    },
+    {
+      "symbol": 284,
+      "count": 114,
+      "prob": 0.0012905855182719739,
+      "code_len": 10,
+      "code": "1100100001"
+    },
+    {
+      "symbol": 410,
+      "count": 114,
+      "prob": 0.0012905855182719739,
+      "code_len": 10,
+      "code": "1100111110"
+    },
+    {
+      "symbol": 768,
+      "count": 114,
+      "prob": 0.0012905855182719739,
+      "code_len": 10,
+      "code": "1101100001"
+    },
+    {
+      "symbol": 411,
+      "count": 113,
+      "prob": 0.001279264592673097,
+      "code_len": 10,
+      "code": "1100111111"
+    },
+    {
+      "symbol": 772,
+      "count": 112,
+      "prob": 0.00126794366707422,
+      "code_len": 10,
+      "code": "1101100101"
+    },
+    {
+      "symbol": 773,
+      "count": 112,
+      "prob": 0.00126794366707422,
+      "code_len": 10,
+      "code": "1101100110"
+    },
+    {
+      "symbol": 248,
+      "count": 111,
+      "prob": 0.001256622741475343,
+      "code_len": 10,
+      "code": "1100011100"
+    },
+    {
+      "symbol": 771,
+      "count": 110,
+      "prob": 0.001245301815876466,
+      "code_len": 10,
+      "code": "1101100100"
+    },
+    {
+      "symbol": 733,
+      "count": 109,
+      "prob": 0.001233980890277589,
+      "code_len": 10,
+      "code": "1101011111"
+    },
+    {
+      "symbol": 770,
+      "count": 107,
+      "prob": 0.0012113390390798352,
+      "code_len": 10,
+      "code": "1101100011"
+    },
+    {
+      "symbol": 610,
+      "count": 106,
+      "prob": 0.001200018113480958,
+      "code_len": 10,
+      "code": "1101001000"
+    },
+    {
+      "symbol": 775,
+      "count": 106,
+      "prob": 0.001200018113480958,
+      "code_len": 10,
+      "code": "1101101000"
+    },
+    {
+      "symbol": 242,
+      "count": 104,
+      "prob": 0.0011773762622832042,
+      "code_len": 10,
+      "code": "1100010110"
+    },
+    {
+      "symbol": 243,
+      "count": 104,
+      "prob": 0.0011773762622832042,
+      "code_len": 10,
+      "code": "1100010111"
+    },
+    {
+      "symbol": 409,
+      "count": 104,
+      "prob": 0.0011773762622832042,
+      "code_len": 10,
+      "code": "1100111101"
+    },
+    {
+      "symbol": 244,
+      "count": 103,
+      "prob": 0.0011660553366843274,
+      "code_len": 10,
+      "code": "1100011000"
+    },
+    {
+      "symbol": 246,
+      "count": 103,
+      "prob": 0.0011660553366843274,
+      "code_len": 10,
+      "code": "1100011010"
+    },
+    {
+      "symbol": 612,
+      "count": 103,
+      "prob": 0.0011660553366843274,
+      "code_len": 10,
+      "code": "1101001001"
+    },
+    {
+      "symbol": 408,
+      "count": 100,
+      "prob": 0.0011320925598876964,
+      "code_len": 10,
+      "code": "1100111100"
+    },
+    {
+      "symbol": 776,
+      "count": 100,
+      "prob": 0.0011320925598876964,
+      "code_len": 10,
+      "code": "1101101001"
+    },
+    {
+      "symbol": 247,
+      "count": 99,
+      "prob": 0.0011207716342888194,
+      "code_len": 10,
+      "code": "1100011011"
+    },
+    {
+      "symbol": 412,
+      "count": 99,
+      "prob": 0.0011207716342888194,
+      "code_len": 10,
+      "code": "1101000000"
+    },
+    {
+      "symbol": 241,
+      "count": 98,
+      "prob": 0.0011094507086899426,
+      "code_len": 10,
+      "code": "1100010101"
+    },
+    {
+      "symbol": 407,
+      "count": 98,
+      "prob": 0.0011094507086899426,
+      "code_len": 10,
+      "code": "1100111011"
+    },
+    {
+      "symbol": 287,
+      "count": 97,
+      "prob": 0.0010981297830910655,
+      "code_len": 10,
+      "code": "1100100100"
+    },
+    {
+      "symbol": 293,
+      "count": 97,
+      "prob": 0.0010981297830910655,
+      "code_len": 10,
+      "code": "1100101010"
+    },
+    {
+      "symbol": 734,
+      "count": 97,
+      "prob": 0.0010981297830910655,
+      "code_len": 10,
+      "code": "1101100000"
+    },
+    {
+      "symbol": 613,
+      "count": 96,
+      "prob": 0.0010868088574921885,
+      "code_len": 10,
+      "code": "1101001010"
+    },
+    {
+      "symbol": 731,
+      "count": 95,
+      "prob": 0.0010754879318933116,
+      "code_len": 10,
+      "code": "1101011101"
+    },
+    {
+      "symbol": 721,
+      "count": 93,
+      "prob": 0.0010528460806955577,
+      "code_len": 10,
+      "code": "1101010011"
+    },
+    {
+      "symbol": 774,
+      "count": 93,
+      "prob": 0.0010528460806955577,
+      "code_len": 10,
+      "code": "1101100111"
+    },
+    {
+      "symbol": 294,
+      "count": 92,
+      "prob": 0.0010415251550966807,
+      "code_len": 10,
+      "code": "1100101011"
+    },
+    {
+      "symbol": 730,
+      "count": 92,
+      "prob": 0.0010415251550966807,
+      "code_len": 10,
+      "code": "1101011100"
+    },
+    {
+      "symbol": 291,
+      "count": 91,
+      "prob": 0.0010302042294978036,
+      "code_len": 10,
+      "code": "1100101000"
+    },
+    {
+      "symbol": 723,
+      "count": 91,
+      "prob": 0.0010302042294978036,
+      "code_len": 10,
+      "code": "1101010101"
+    },
+    {
+      "symbol": 245,
+      "count": 90,
+      "prob": 0.0010188833038989268,
+      "code_len": 10,
+      "code": "1100011001"
+    },
+    {
+      "symbol": 288,
+      "count": 90,
+      "prob": 0.0010188833038989268,
+      "code_len": 10,
+      "code": "1100100101"
+    },
+    {
+      "symbol": 240,
+      "count": 89,
+      "prob": 0.0010075623783000497,
+      "code_len": 10,
+      "code": "1100010100"
+    },
+    {
+      "symbol": 286,
+      "count": 89,
+      "prob": 0.0010075623783000497,
+      "code_len": 10,
+      "code": "1100100011"
+    },
+    {
+      "symbol": 405,
+      "count": 89,
+      "prob": 0.0010075623783000497,
+      "code_len": 10,
+      "code": "1100111001"
+    },
+    {
+      "symbol": 297,
+      "count": 88,
+      "prob": 0.000996241452701173,
+      "code_len": 10,
+      "code": "1100101110"
+    },
+    {
+      "symbol": 301,
+      "count": 88,
+      "prob": 0.000996241452701173,
+      "code_len": 10,
+      "code": "1100110010"
+    },
+    {
+      "symbol": 726,
+      "count": 88,
+      "prob": 0.000996241452701173,
+      "code_len": 10,
+      "code": "1101011000"
+    },
+    {
+      "symbol": 292,
+      "count": 87,
+      "prob": 0.0009849205271022959,
+      "code_len": 10,
+      "code": "1100101001"
+    },
+    {
+      "symbol": 724,
+      "count": 87,
+      "prob": 0.0009849205271022959,
+      "code_len": 10,
+      "code": "1101010110"
+    },
+    {
+      "symbol": 729,
+      "count": 87,
+      "prob": 0.0009849205271022959,
+      "code_len": 10,
+      "code": "1101011011"
+    },
+    {
+      "symbol": 296,
+      "count": 86,
+      "prob": 0.0009735996015034189,
+      "code_len": 10,
+      "code": "1100101101"
+    },
+    {
+      "symbol": 406,
+      "count": 86,
+      "prob": 0.0009735996015034189,
+      "code_len": 10,
+      "code": "1100111010"
+    },
+    {
+      "symbol": 614,
+      "count": 86,
+      "prob": 0.0009735996015034189,
+      "code_len": 10,
+      "code": "1101001011"
+    },
+    {
+      "symbol": 239,
+      "count": 85,
+      "prob": 0.000962278675904542,
+      "code_len": 10,
+      "code": "1100010011"
+    },
+    {
+      "symbol": 402,
+      "count": 85,
+      "prob": 0.000962278675904542,
+      "code_len": 10,
+      "code": "1100110110"
+    },
+    {
+      "symbol": 782,
+      "count": 85,
+      "prob": 0.000962278675904542,
+      "code_len": 10,
+      "code": "1101101111"
+    },
+    {
+      "symbol": 781,
+      "count": 83,
+      "prob": 0.000939636824706788,
+      "code_len": 10,
+      "code": "1101101110"
+    },
+    {
+      "symbol": 777,
+      "count": 82,
+      "prob": 0.000928315899107911,
+      "code_len": 10,
+      "code": "1101101010"
+    },
+    {
+      "symbol": 290,
+      "count": 81,
+      "prob": 0.0009169949735090341,
+      "code_len": 10,
+      "code": "1100100111"
+    },
+    {
+      "symbol": 728,
+      "count": 81,
+      "prob": 0.0009169949735090341,
+      "code_len": 10,
+      "code": "1101011010"
+    },
+    {
+      "symbol": 778,
+      "count": 80,
+      "prob": 0.0009056740479101572,
+      "code_len": 10,
+      "code": "1101101011"
+    },
+    {
+      "symbol": 780,
+      "count": 80,
+      "prob": 0.0009056740479101572,
+      "code_len": 10,
+      "code": "1101101101"
+    },
+    {
+      "symbol": 725,
+      "count": 79,
+      "prob": 0.0008943531223112802,
+      "code_len": 10,
+      "code": "1101010111"
+    },
+    {
+      "symbol": 616,
+      "count": 78,
+      "prob": 0.0008830321967124032,
+      "code_len": 10,
+      "code": "1101001101"
+    },
+    {
+      "symbol": 727,
+      "count": 78,
+      "prob": 0.0008830321967124032,
+      "code_len": 10,
+      "code": "1101011001"
+    },
+    {
+      "symbol": 236,
+      "count": 77,
+      "prob": 0.0008717112711135262,
+      "code_len": 10,
+      "code": "1100010000"
+    },
+    {
+      "symbol": 404,
+      "count": 77,
+      "prob": 0.0008717112711135262,
+      "code_len": 10,
+      "code": "1100111000"
+    },
+    {
+      "symbol": 720,
+      "count": 77,
+      "prob": 0.0008717112711135262,
+      "code_len": 10,
+      "code": "1101010010"
+    },
+    {
+      "symbol": 779,
+      "count": 77,
+      "prob": 0.0008717112711135262,
+      "code_len": 10,
+      "code": "1101101100"
+    },
+    {
+      "symbol": 295,
+      "count": 75,
+      "prob": 0.0008490694199157723,
+      "code_len": 10,
+      "code": "1100101100"
+    },
+    {
+      "symbol": 299,
+      "count": 73,
+      "prob": 0.0008264275687180183,
+      "code_len": 10,
+      "code": "1100110000"
+    },
+    {
+      "symbol": 401,
+      "count": 73,
+      "prob": 0.0008264275687180183,
+      "code_len": 10,
+      "code": "1100110101"
+    },
+    {
+      "symbol": 722,
+      "count": 73,
+      "prob": 0.0008264275687180183,
+      "code_len": 10,
+      "code": "1101010100"
+    },
+    {
+      "symbol": 238,
+      "count": 72,
+      "prob": 0.0008151066431191414,
+      "code_len": 10,
+      "code": "1100010010"
+    },
+    {
+      "symbol": 715,
+      "count": 71,
+      "prob": 0.0008037857175202645,
+      "code_len": 10,
+      "code": "1101001111"
+    },
+    {
+      "symbol": 235,
+      "count": 68,
+      "prob": 0.0007698229407236335,
+      "code_len": 10,
+      "code": "1100001111"
+    },
+    {
+      "symbol": 298,
+      "count": 68,
+      "prob": 0.0007698229407236335,
+      "code_len": 10,
+      "code": "1100101111"
+    },
+    {
+      "symbol": 615,
+      "count": 68,
+      "prob": 0.0007698229407236335,
+      "code_len": 10,
+      "code": "1101001100"
+    },
+    {
+      "symbol": 618,
+      "count": 68,
+      "prob": 0.0007698229407236335,
+      "code_len": 10,
+      "code": "1101001110"
+    },
+    {
+      "symbol": 400,
+      "count": 67,
+      "prob": 0.0007585020151247566,
+      "code_len": 10,
+      "code": "1100110100"
+    },
+    {
+      "symbol": 403,
+      "count": 66,
+      "prob": 0.0007471810895258796,
+      "code_len": 10,
+      "code": "1100110111"
+    },
+    {
+      "symbol": 237,
+      "count": 65,
+      "prob": 0.0007358601639270027,
+      "code_len": 10,
+      "code": "1100010001"
+    },
+    {
+      "symbol": 300,
+      "count": 65,
+      "prob": 0.0007358601639270027,
+      "code_len": 10,
+      "code": "1100110001"
+    },
+    {
+      "symbol": 719,
+      "count": 64,
+      "prob": 0.0007245392383281257,
+      "code_len": 10,
+      "code": "1101010001"
+    },
+    {
+      "symbol": 230,
+      "count": 63,
+      "prob": 0.0007132183127292487,
+      "code_len": 10,
+      "code": "1100001110"
+    },
+    {
+      "symbol": 304,
+      "count": 63,
+      "prob": 0.0007132183127292487,
+      "code_len": 10,
+      "code": "1100110011"
+    },
+    {
+      "symbol": 718,
+      "count": 63,
+      "prob": 0.0007132183127292487,
+      "code_len": 10,
+      "code": "1101010000"
+    },
+    {
+      "symbol": 784,
+      "count": 62,
+      "prob": 0.0007018973871303718,
+      "code_len": 11,
+      "code": "11101010110"
+    },
+    {
+      "symbol": 234,
+      "count": 61,
+      "prob": 0.0006905764615314948,
+      "code_len": 11,
+      "code": "11011110000"
+    },
+    {
+      "symbol": 302,
+      "count": 61,
+      "prob": 0.0006905764615314948,
+      "code_len": 11,
+      "code": "11011110001"
+    },
+    {
+      "symbol": 398,
+      "count": 61,
+      "prob": 0.0006905764615314948,
+      "code_len": 11,
+      "code": "11100101001"
+    },
+    {
+      "symbol": 717,
+      "count": 60,
+      "prob": 0.0006792555359326179,
+      "code_len": 11,
+      "code": "11101010100"
+    },
+    {
+      "symbol": 388,
+      "count": 59,
+      "prob": 0.0006679346103337409,
+      "code_len": 11,
+      "code": "11100011111"
+    },
+    {
+      "symbol": 785,
+      "count": 59,
+      "prob": 0.0006679346103337409,
+      "code_len": 11,
+      "code": "11101010111"
+    },
+    {
+      "symbol": 620,
+      "count": 58,
+      "prob": 0.0006566136847348639,
+      "code_len": 11,
+      "code": "11100101101"
+    },
+    {
+      "symbol": 393,
+      "count": 57,
+      "prob": 0.0006452927591359869,
+      "code_len": 11,
+      "code": "11100100100"
+    },
+    {
+      "symbol": 399,
+      "count": 57,
+      "prob": 0.0006452927591359869,
+      "code_len": 11,
+      "code": "11100101010"
+    },
+    {
+      "symbol": 619,
+      "count": 57,
+      "prob": 0.0006452927591359869,
+      "code_len": 11,
+      "code": "11100101100"
+    },
+    {
+      "symbol": 786,
+      "count": 57,
+      "prob": 0.0006452927591359869,
+      "code_len": 11,
+      "code": "11101011000"
+    },
+    {
+      "symbol": 716,
+      "count": 56,
+      "prob": 0.00063397183353711,
+      "code_len": 11,
+      "code": "11101010011"
+    },
+    {
+      "symbol": 229,
+      "count": 54,
+      "prob": 0.0006113299823393561,
+      "code_len": 11,
+      "code": "11011101100"
+    },
+    {
+      "symbol": 231,
+      "count": 54,
+      "prob": 0.0006113299823393561,
+      "code_len": 11,
+      "code": "11011101101"
+    },
+    {
+      "symbol": 233,
+      "count": 54,
+      "prob": 0.0006113299823393561,
+      "code_len": 11,
+      "code": "11011101111"
+    },
+    {
+      "symbol": 397,
+      "count": 54,
+      "prob": 0.0006113299823393561,
+      "code_len": 11,
+      "code": "11100101000"
+    },
+    {
+      "symbol": 783,
+      "count": 54,
+      "prob": 0.0006113299823393561,
+      "code_len": 11,
+      "code": "11101010101"
+    },
+    {
+      "symbol": 787,
+      "count": 54,
+      "prob": 0.0006113299823393561,
+      "code_len": 11,
+      "code": "11101011001"
+    },
+    {
+      "symbol": 368,
+      "count": 53,
+      "prob": 0.000600009056740479,
+      "code_len": 11,
+      "code": "11100010000"
+    },
+    {
+      "symbol": 305,
+      "count": 52,
+      "prob": 0.0005886881311416021,
+      "code_len": 11,
+      "code": "11011110011"
+    },
+    {
+      "symbol": 391,
+      "count": 52,
+      "prob": 0.0005886881311416021,
+      "code_len": 11,
+      "code": "11100100010"
+    },
+    {
+      "symbol": 394,
+      "count": 52,
+      "prob": 0.0005886881311416021,
+      "code_len": 11,
+      "code": "11100100101"
+    },
+    {
+      "symbol": 621,
+      "count": 52,
+      "prob": 0.0005886881311416021,
+      "code_len": 11,
+      "code": "11100101110"
+    },
+    {
+      "symbol": 308,
+      "count": 51,
+      "prob": 0.0005773672055427252,
+      "code_len": 11,
+      "code": "11011110110"
+    },
+    {
+      "symbol": 714,
+      "count": 51,
+      "prob": 0.0005773672055427252,
+      "code_len": 11,
+      "code": "11101010010"
+    },
+    {
+      "symbol": 232,
+      "count": 50,
+      "prob": 0.0005660462799438482,
+      "code_len": 11,
+      "code": "11011101110"
+    },
+    {
+      "symbol": 396,
+      "count": 50,
+      "prob": 0.0005660462799438482,
+      "code_len": 11,
+      "code": "11100100111"
+    },
+    {
+      "symbol": 617,
+      "count": 50,
+      "prob": 0.0005660462799438482,
+      "code_len": 11,
+      "code": "11100101011"
+    },
+    {
+      "symbol": 792,
+      "count": 50,
+      "prob": 0.0005660462799438482,
+      "code_len": 11,
+      "code": "11101011110"
+    },
+    {
+      "symbol": 224,
+      "count": 49,
+      "prob": 0.0005547253543449713,
+      "code_len": 11,
+      "code": "11011101000"
+    },
+    {
+      "symbol": 623,
+      "count": 48,
+      "prob": 0.0005434044287460942,
+      "code_len": 11,
+      "code": "11100110000"
+    },
+    {
+      "symbol": 356,
+      "count": 47,
+      "prob": 0.0005320835031472173,
+      "code_len": 11,
+      "code": "11100001001"
+    },
+    {
+      "symbol": 389,
+      "count": 47,
+      "prob": 0.0005320835031472173,
+      "code_len": 11,
+      "code": "11100100000"
+    },
+    {
+      "symbol": 390,
+      "count": 47,
+      "prob": 0.0005320835031472173,
+      "code_len": 11,
+      "code": "11100100001"
+    },
+    {
+      "symbol": 382,
+      "count": 46,
+      "prob": 0.0005207625775483403,
+      "code_len": 11,
+      "code": "11100011010"
+    },
+    {
+      "symbol": 395,
+      "count": 46,
+      "prob": 0.0005207625775483403,
+      "code_len": 11,
+      "code": "11100100110"
+    },
+    {
+      "symbol": 627,
+      "count": 46,
+      "prob": 0.0005207625775483403,
+      "code_len": 11,
+      "code": "11100110100"
+    },
+    {
+      "symbol": 711,
+      "count": 46,
+      "prob": 0.0005207625775483403,
+      "code_len": 11,
+      "code": "11101001111"
+    },
+    {
+      "symbol": 712,
+      "count": 46,
+      "prob": 0.0005207625775483403,
+      "code_len": 11,
+      "code": "11101010000"
+    },
+    {
+      "symbol": 794,
+      "count": 46,
+      "prob": 0.0005207625775483403,
+      "code_len": 11,
+      "code": "11101100000"
+    },
+    {
+      "symbol": 227,
+      "count": 45,
+      "prob": 0.0005094416519494634,
+      "code_len": 11,
+      "code": "11011101010"
+    },
+    {
+      "symbol": 303,
+      "count": 45,
+      "prob": 0.0005094416519494634,
+      "code_len": 11,
+      "code": "11011110010"
+    },
+    {
+      "symbol": 306,
+      "count": 45,
+      "prob": 0.0005094416519494634,
+      "code_len": 11,
+      "code": "11011110100"
+    },
+    {
+      "symbol": 367,
+      "count": 45,
+      "prob": 0.0005094416519494634,
+      "code_len": 11,
+      "code": "11100001111"
+    },
+    {
+      "symbol": 624,
+      "count": 45,
+      "prob": 0.0005094416519494634,
+      "code_len": 11,
+      "code": "11100110001"
+    },
+    {
+      "symbol": 220,
+      "count": 44,
+      "prob": 0.0004981207263505865,
+      "code_len": 11,
+      "code": "11011100100"
+    },
+    {
+      "symbol": 622,
+      "count": 44,
+      "prob": 0.0004981207263505865,
+      "code_len": 11,
+      "code": "11100101111"
+    },
+    {
+      "symbol": 225,
+      "count": 43,
+      "prob": 0.00048679980075170946,
+      "code_len": 11,
+      "code": "11011101001"
+    },
+    {
+      "symbol": 228,
+      "count": 43,
+      "prob": 0.00048679980075170946,
+      "code_len": 11,
+      "code": "11011101011"
+    },
+    {
+      "symbol": 375,
+      "count": 43,
+      "prob": 0.00048679980075170946,
+      "code_len": 11,
+      "code": "11100010110"
+    },
+    {
+      "symbol": 631,
+      "count": 43,
+      "prob": 0.00048679980075170946,
+      "code_len": 11,
+      "code": "11100111000"
+    },
+    {
+      "symbol": 710,
+      "count": 43,
+      "prob": 0.00048679980075170946,
+      "code_len": 11,
+      "code": "11101001110"
+    },
+    {
+      "symbol": 713,
+      "count": 43,
+      "prob": 0.00048679980075170946,
+      "code_len": 11,
+      "code": "11101010001"
+    },
+    {
+      "symbol": 788,
+      "count": 43,
+      "prob": 0.00048679980075170946,
+      "code_len": 11,
+      "code": "11101011010"
+    },
+    {
+      "symbol": 378,
+      "count": 42,
+      "prob": 0.0004754788751528325,
+      "code_len": 11,
+      "code": "11100011000"
+    },
+    {
+      "symbol": 385,
+      "count": 42,
+      "prob": 0.0004754788751528325,
+      "code_len": 11,
+      "code": "11100011101"
+    },
+    {
+      "symbol": 392,
+      "count": 42,
+      "prob": 0.0004754788751528325,
+      "code_len": 11,
+      "code": "11100100011"
+    },
+    {
+      "symbol": 626,
+      "count": 42,
+      "prob": 0.0004754788751528325,
+      "code_len": 11,
+      "code": "11100110011"
+    },
+    {
+      "symbol": 628,
+      "count": 42,
+      "prob": 0.0004754788751528325,
+      "code_len": 11,
+      "code": "11100110101"
+    },
+    {
+      "symbol": 709,
+      "count": 42,
+      "prob": 0.0004754788751528325,
+      "code_len": 11,
+      "code": "11101001101"
+    },
+    {
+      "symbol": 789,
+      "count": 42,
+      "prob": 0.0004754788751528325,
+      "code_len": 11,
+      "code": "11101011011"
+    },
+    {
+      "symbol": 793,
+      "count": 42,
+      "prob": 0.0004754788751528325,
+      "code_len": 11,
+      "code": "11101011111"
+    },
+    {
+      "symbol": 309,
+      "count": 41,
+      "prob": 0.0004641579495539555,
+      "code_len": 11,
+      "code": "11011110111"
+    },
+    {
+      "symbol": 310,
+      "count": 41,
+      "prob": 0.0004641579495539555,
+      "code_len": 11,
+      "code": "11011111000"
+    },
+    {
+      "symbol": 312,
+      "count": 41,
+      "prob": 0.0004641579495539555,
+      "code_len": 11,
+      "code": "11011111010"
+    },
+    {
+      "symbol": 369,
+      "count": 41,
+      "prob": 0.0004641579495539555,
+      "code_len": 11,
+      "code": "11100010001"
+    },
+    {
+      "symbol": 625,
+      "count": 41,
+      "prob": 0.0004641579495539555,
+      "code_len": 11,
+      "code": "11100110010"
+    },
+    {
+      "symbol": 790,
+      "count": 41,
+      "prob": 0.0004641579495539555,
+      "code_len": 11,
+      "code": "11101011100"
+    },
+    {
+      "symbol": 307,
+      "count": 40,
+      "prob": 0.0004528370239550786,
+      "code_len": 11,
+      "code": "11011110101"
+    },
+    {
+      "symbol": 377,
+      "count": 40,
+      "prob": 0.0004528370239550786,
+      "code_len": 11,
+      "code": "11100010111"
+    },
+    {
+      "symbol": 387,
+      "count": 40,
+      "prob": 0.0004528370239550786,
+      "code_len": 11,
+      "code": "11100011110"
+    },
+    {
+      "symbol": 221,
+      "count": 39,
+      "prob": 0.0004415160983562016,
+      "code_len": 11,
+      "code": "11011100101"
+    },
+    {
+      "symbol": 222,
+      "count": 39,
+      "prob": 0.0004415160983562016,
+      "code_len": 11,
+      "code": "11011100110"
+    },
+    {
+      "symbol": 371,
+      "count": 39,
+      "prob": 0.0004415160983562016,
+      "code_len": 11,
+      "code": "11100010011"
+    },
+    {
+      "symbol": 373,
+      "count": 39,
+      "prob": 0.0004415160983562016,
+      "code_len": 11,
+      "code": "11100010101"
+    },
+    {
+      "symbol": 632,
+      "count": 39,
+      "prob": 0.0004415160983562016,
+      "code_len": 11,
+      "code": "11100111001"
+    },
+    {
+      "symbol": 636,
+      "count": 39,
+      "prob": 0.0004415160983562016,
+      "code_len": 11,
+      "code": "11100111101"
+    },
+    {
+      "symbol": 798,
+      "count": 39,
+      "prob": 0.0004415160983562016,
+      "code_len": 11,
+      "code": "11101100011"
+    },
+    {
+      "symbol": 218,
+      "count": 38,
+      "prob": 0.00043019517275732464,
+      "code_len": 11,
+      "code": "11011100010"
+    },
+    {
+      "symbol": 635,
+      "count": 38,
+      "prob": 0.00043019517275732464,
+      "code_len": 11,
+      "code": "11100111100"
+    },
+    {
+      "symbol": 791,
+      "count": 38,
+      "prob": 0.00043019517275732464,
+      "code_len": 11,
+      "code": "11101011101"
+    },
+    {
+      "symbol": 217,
+      "count": 37,
+      "prob": 0.0004188742471584477,
+      "code_len": 11,
+      "code": "11011100001"
+    },
+    {
+      "symbol": 350,
+      "count": 37,
+      "prob": 0.0004188742471584477,
+      "code_len": 11,
+      "code": "11100000110"
+    },
+    {
+      "symbol": 357,
+      "count": 37,
+      "prob": 0.0004188742471584477,
+      "code_len": 11,
+      "code": "11100001010"
+    },
+    {
+      "symbol": 384,
+      "count": 37,
+      "prob": 0.0004188742471584477,
+      "code_len": 11,
+      "code": "11100011100"
+    },
+    {
+      "symbol": 701,
+      "count": 37,
+      "prob": 0.0004188742471584477,
+      "code_len": 11,
+      "code": "11101000111"
+    },
+    {
+      "symbol": 706,
+      "count": 37,
+      "prob": 0.0004188742471584477,
+      "code_len": 11,
+      "code": "11101001010"
+    },
+    {
+      "symbol": 223,
+      "count": 36,
+      "prob": 0.0004075533215595707,
+      "code_len": 11,
+      "code": "11011100111"
+    },
+    {
+      "symbol": 327,
+      "count": 36,
+      "prob": 0.0004075533215595707,
+      "code_len": 11,
+      "code": "11100000001"
+    },
+    {
+      "symbol": 359,
+      "count": 36,
+      "prob": 0.0004075533215595707,
+      "code_len": 11,
+      "code": "11100001100"
+    },
+    {
+      "symbol": 366,
+      "count": 36,
+      "prob": 0.0004075533215595707,
+      "code_len": 11,
+      "code": "11100001110"
+    },
+    {
+      "symbol": 383,
+      "count": 36,
+      "prob": 0.0004075533215595707,
+      "code_len": 11,
+      "code": "11100011011"
+    },
+    {
+      "symbol": 629,
+      "count": 36,
+      "prob": 0.0004075533215595707,
+      "code_len": 11,
+      "code": "11100110110"
+    },
+    {
+      "symbol": 640,
+      "count": 36,
+      "prob": 0.0004075533215595707,
+      "code_len": 11,
+      "code": "11101000000"
+    },
+    {
+      "symbol": 697,
+      "count": 36,
+      "prob": 0.0004075533215595707,
+      "code_len": 11,
+      "code": "11101000101"
+    },
+    {
+      "symbol": 702,
+      "count": 36,
+      "prob": 0.0004075533215595707,
+      "code_len": 11,
+      "code": "11101001000"
+    },
+    {
+      "symbol": 708,
+      "count": 36,
+      "prob": 0.0004075533215595707,
+      "code_len": 11,
+      "code": "11101001100"
+    },
+    {
+      "symbol": 797,
+      "count": 36,
+      "prob": 0.0004075533215595707,
+      "code_len": 11,
+      "code": "11101100010"
+    },
+    {
+      "symbol": 355,
+      "count": 35,
+      "prob": 0.00039623239596069375,
+      "code_len": 11,
+      "code": "11100001000"
+    },
+    {
+      "symbol": 358,
+      "count": 35,
+      "prob": 0.00039623239596069375,
+      "code_len": 11,
+      "code": "11100001011"
+    },
+    {
+      "symbol": 364,
+      "count": 35,
+      "prob": 0.00039623239596069375,
+      "code_len": 11,
+      "code": "11100001101"
+    },
+    {
+      "symbol": 370,
+      "count": 35,
+      "prob": 0.00039623239596069375,
+      "code_len": 11,
+      "code": "11100010010"
+    },
+    {
+      "symbol": 372,
+      "count": 35,
+      "prob": 0.00039623239596069375,
+      "code_len": 11,
+      "code": "11100010100"
+    },
+    {
+      "symbol": 630,
+      "count": 35,
+      "prob": 0.00039623239596069375,
+      "code_len": 11,
+      "code": "11100110111"
+    },
+    {
+      "symbol": 637,
+      "count": 35,
+      "prob": 0.00039623239596069375,
+      "code_len": 11,
+      "code": "11100111110"
+    },
+    {
+      "symbol": 692,
+      "count": 35,
+      "prob": 0.00039623239596069375,
+      "code_len": 11,
+      "code": "11101000011"
+    },
+    {
+      "symbol": 219,
+      "count": 34,
+      "prob": 0.00038491147036181676,
+      "code_len": 11,
+      "code": "11011100011"
+    },
+    {
+      "symbol": 313,
+      "count": 34,
+      "prob": 0.00038491147036181676,
+      "code_len": 11,
+      "code": "11011111011"
+    },
+    {
+      "symbol": 314,
+      "count": 34,
+      "prob": 0.00038491147036181676,
+      "code_len": 11,
+      "code": "11011111100"
+    },
+    {
+      "symbol": 317,
+      "count": 34,
+      "prob": 0.00038491147036181676,
+      "code_len": 11,
+      "code": "11011111110"
+    },
+    {
+      "symbol": 318,
+      "count": 34,
+      "prob": 0.00038491147036181676,
+      "code_len": 11,
+      "code": "11011111111"
+    },
+    {
+      "symbol": 326,
+      "count": 34,
+      "prob": 0.00038491147036181676,
+      "code_len": 11,
+      "code": "11100000000"
+    },
+    {
+      "symbol": 340,
+      "count": 34,
+      "prob": 0.00038491147036181676,
+      "code_len": 11,
+      "code": "11100000100"
+    },
+    {
+      "symbol": 633,
+      "count": 34,
+      "prob": 0.00038491147036181676,
+      "code_len": 11,
+      "code": "11100111010"
+    },
+    {
+      "symbol": 693,
+      "count": 34,
+      "prob": 0.00038491147036181676,
+      "code_len": 11,
+      "code": "11101000100"
+    },
+    {
+      "symbol": 707,
+      "count": 34,
+      "prob": 0.00038491147036181676,
+      "code_len": 11,
+      "code": "11101001011"
+    },
+    {
+      "symbol": 796,
+      "count": 34,
+      "prob": 0.00038491147036181676,
+      "code_len": 11,
+      "code": "11101100001"
+    },
+    {
+      "symbol": 799,
+      "count": 34,
+      "prob": 0.00038491147036181676,
+      "code_len": 11,
+      "code": "11101100100"
+    },
+    {
+      "symbol": 311,
+      "count": 33,
+      "prob": 0.0003735905447629398,
+      "code_len": 11,
+      "code": "11011111001"
+    },
+    {
+      "symbol": 335,
+      "count": 33,
+      "prob": 0.0003735905447629398,
+      "code_len": 11,
+      "code": "11100000010"
+    },
+    {
+      "symbol": 347,
+      "count": 33,
+      "prob": 0.0003735905447629398,
+      "code_len": 11,
+      "code": "11100000101"
+    },
+    {
+      "symbol": 381,
+      "count": 33,
+      "prob": 0.0003735905447629398,
+      "code_len": 11,
+      "code": "11100011001"
+    },
+    {
+      "symbol": 642,
+      "count": 33,
+      "prob": 0.0003735905447629398,
+      "code_len": 11,
+      "code": "11101000001"
+    },
+    {
+      "symbol": 698,
+      "count": 33,
+      "prob": 0.0003735905447629398,
+      "code_len": 11,
+      "code": "11101000110"
+    },
+    {
+      "symbol": 216,
+      "count": 32,
+      "prob": 0.00036226961916406287,
+      "code_len": 11,
+      "code": "11011100000"
+    },
+    {
+      "symbol": 315,
+      "count": 32,
+      "prob": 0.00036226961916406287,
+      "code_len": 11,
+      "code": "11011111101"
+    },
+    {
+      "symbol": 339,
+      "count": 32,
+      "prob": 0.00036226961916406287,
+      "code_len": 11,
+      "code": "11100000011"
+    },
+    {
+      "symbol": 354,
+      "count": 32,
+      "prob": 0.00036226961916406287,
+      "code_len": 11,
+      "code": "11100000111"
+    },
+    {
+      "symbol": 634,
+      "count": 32,
+      "prob": 0.00036226961916406287,
+      "code_len": 11,
+      "code": "11100111011"
+    },
+    {
+      "symbol": 639,
+      "count": 32,
+      "prob": 0.00036226961916406287,
+      "code_len": 11,
+      "code": "11100111111"
+    },
+    {
+      "symbol": 683,
+      "count": 32,
+      "prob": 0.00036226961916406287,
+      "code_len": 11,
+      "code": "11101000010"
+    },
+    {
+      "symbol": 703,
+      "count": 32,
+      "prob": 0.00036226961916406287,
+      "code_len": 11,
+      "code": "11101001001"
+    },
+    {
+      "symbol": 323,
+      "count": 31,
+      "prob": 0.0003509486935651859,
+      "code_len": 12,
+      "code": "111100010001"
+    },
+    {
+      "symbol": 328,
+      "count": 31,
+      "prob": 0.0003509486935651859,
+      "code_len": 12,
+      "code": "111100010100"
+    },
+    {
+      "symbol": 346,
+      "count": 31,
+      "prob": 0.0003509486935651859,
+      "code_len": 12,
+      "code": "111100100011"
+    },
+    {
+      "symbol": 348,
+      "count": 31,
+      "prob": 0.0003509486935651859,
+      "code_len": 12,
+      "code": "111100100100"
+    },
+    {
+      "symbol": 362,
+      "count": 31,
+      "prob": 0.0003509486935651859,
+      "code_len": 12,
+      "code": "111100101011"
+    },
+    {
+      "symbol": 365,
+      "count": 31,
+      "prob": 0.0003509486935651859,
+      "code_len": 12,
+      "code": "111100101101"
+    },
+    {
+      "symbol": 376,
+      "count": 31,
+      "prob": 0.0003509486935651859,
+      "code_len": 12,
+      "code": "111100101111"
+    },
+    {
+      "symbol": 638,
+      "count": 31,
+      "prob": 0.0003509486935651859,
+      "code_len": 12,
+      "code": "111100110011"
+    },
+    {
+      "symbol": 641,
+      "count": 31,
+      "prob": 0.0003509486935651859,
+      "code_len": 12,
+      "code": "111100110100"
+    },
+    {
+      "symbol": 648,
+      "count": 31,
+      "prob": 0.0003509486935651859,
+      "code_len": 12,
+      "code": "111100111010"
+    },
+    {
+      "symbol": 649,
+      "count": 31,
+      "prob": 0.0003509486935651859,
+      "code_len": 12,
+      "code": "111100111011"
+    },
+    {
+      "symbol": 654,
+      "count": 31,
+      "prob": 0.0003509486935651859,
+      "code_len": 12,
+      "code": "111101000000"
+    },
+    {
+      "symbol": 700,
+      "count": 31,
+      "prob": 0.0003509486935651859,
+      "code_len": 12,
+      "code": "111101100111"
+    },
+    {
+      "symbol": 795,
+      "count": 31,
+      "prob": 0.0003509486935651859,
+      "code_len": 12,
+      "code": "111101101010"
+    },
+    {
+      "symbol": 802,
+      "count": 31,
+      "prob": 0.0003509486935651859,
+      "code_len": 12,
+      "code": "111101101101"
+    },
+    {
+      "symbol": 336,
+      "count": 30,
+      "prob": 0.00033962776796630893,
+      "code_len": 12,
+      "code": "111100011011"
+    },
+    {
+      "symbol": 379,
+      "count": 30,
+      "prob": 0.00033962776796630893,
+      "code_len": 12,
+      "code": "111100110000"
+    },
+    {
+      "symbol": 386,
+      "count": 30,
+      "prob": 0.00033962776796630893,
+      "code_len": 12,
+      "code": "111100110010"
+    },
+    {
+      "symbol": 643,
+      "count": 30,
+      "prob": 0.00033962776796630893,
+      "code_len": 12,
+      "code": "111100110101"
+    },
+    {
+      "symbol": 653,
+      "count": 30,
+      "prob": 0.00033962776796630893,
+      "code_len": 12,
+      "code": "111100111111"
+    },
+    {
+      "symbol": 658,
+      "count": 30,
+      "prob": 0.00033962776796630893,
+      "code_len": 12,
+      "code": "111101000100"
+    },
+    {
+      "symbol": 660,
+      "count": 30,
+      "prob": 0.00033962776796630893,
+      "code_len": 12,
+      "code": "111101000110"
+    },
+    {
+      "symbol": 682,
+      "count": 30,
+      "prob": 0.00033962776796630893,
+      "code_len": 12,
+      "code": "111101011010"
+    },
+    {
+      "symbol": 687,
+      "count": 30,
+      "prob": 0.00033962776796630893,
+      "code_len": 12,
+      "code": "111101011110"
+    },
+    {
+      "symbol": 705,
+      "count": 30,
+      "prob": 0.00033962776796630893,
+      "code_len": 12,
+      "code": "111101101001"
+    },
+    {
+      "symbol": 800,
+      "count": 30,
+      "prob": 0.00033962776796630893,
+      "code_len": 12,
+      "code": "111101101011"
+    },
+    {
+      "symbol": 803,
+      "count": 30,
+      "prob": 0.00033962776796630893,
+      "code_len": 12,
+      "code": "111101101110"
+    },
+    {
+      "symbol": 805,
+      "count": 30,
+      "prob": 0.00033962776796630893,
+      "code_len": 12,
+      "code": "111101110000"
+    },
+    {
+      "symbol": 214,
+      "count": 29,
+      "prob": 0.00032830684236743194,
+      "code_len": 12,
+      "code": "111100001001"
+    },
+    {
+      "symbol": 342,
+      "count": 29,
+      "prob": 0.00032830684236743194,
+      "code_len": 12,
+      "code": "111100011111"
+    },
+    {
+      "symbol": 226,
+      "count": 28,
+      "prob": 0.000316985916768555,
+      "code_len": 12,
+      "code": "111100001011"
+    },
+    {
+      "symbol": 319,
+      "count": 28,
+      "prob": 0.000316985916768555,
+      "code_len": 12,
+      "code": "111100001101"
+    },
+    {
+      "symbol": 320,
+      "count": 28,
+      "prob": 0.000316985916768555,
+      "code_len": 12,
+      "code": "111100001110"
+    },
+    {
+      "symbol": 324,
+      "count": 28,
+      "prob": 0.000316985916768555,
+      "code_len": 12,
+      "code": "111100010010"
+    },
+    {
+      "symbol": 329,
+      "count": 28,
+      "prob": 0.000316985916768555,
+      "code_len": 12,
+      "code": "111100010101"
+    },
+    {
+      "symbol": 645,
+      "count": 28,
+      "prob": 0.000316985916768555,
+      "code_len": 12,
+      "code": "111100110111"
+    },
+    {
+      "symbol": 647,
+      "count": 28,
+      "prob": 0.000316985916768555,
+      "code_len": 12,
+      "code": "111100111001"
+    },
+    {
+      "symbol": 652,
+      "count": 28,
+      "prob": 0.000316985916768555,
+      "code_len": 12,
+      "code": "111100111110"
+    },
+    {
+      "symbol": 663,
+      "count": 28,
+      "prob": 0.000316985916768555,
+      "code_len": 12,
+      "code": "111101001001"
+    },
+    {
+      "symbol": 675,
+      "count": 28,
+      "prob": 0.000316985916768555,
+      "code_len": 12,
+      "code": "111101010100"
+    },
+    {
+      "symbol": 690,
+      "count": 28,
+      "prob": 0.000316985916768555,
+      "code_len": 12,
+      "code": "111101100001"
+    },
+    {
+      "symbol": 694,
+      "count": 28,
+      "prob": 0.000316985916768555,
+      "code_len": 12,
+      "code": "111101100011"
+    },
+    {
+      "symbol": 807,
+      "count": 28,
+      "prob": 0.000316985916768555,
+      "code_len": 12,
+      "code": "111101110010"
+    },
+    {
+      "symbol": 811,
+      "count": 28,
+      "prob": 0.000316985916768555,
+      "code_len": 12,
+      "code": "111101110110"
+    },
+    {
+      "symbol": 197,
+      "count": 27,
+      "prob": 0.00030566499116967805,
+      "code_len": 12,
+      "code": "111011111010"
+    },
+    {
+      "symbol": 215,
+      "count": 27,
+      "prob": 0.00030566499116967805,
+      "code_len": 12,
+      "code": "111100001010"
+    },
+    {
+      "symbol": 316,
+      "count": 27,
+      "prob": 0.00030566499116967805,
+      "code_len": 12,
+      "code": "111100001100"
+    },
+    {
+      "symbol": 345,
+      "count": 27,
+      "prob": 0.00030566499116967805,
+      "code_len": 12,
+      "code": "111100100010"
+    },
+    {
+      "symbol": 349,
+      "count": 27,
+      "prob": 0.00030566499116967805,
+      "code_len": 12,
+      "code": "111100100101"
+    },
+    {
+      "symbol": 351,
+      "count": 27,
+      "prob": 0.00030566499116967805,
+      "code_len": 12,
+      "code": "111100100110"
+    },
+    {
+      "symbol": 374,
+      "count": 27,
+      "prob": 0.00030566499116967805,
+      "code_len": 12,
+      "code": "111100101110"
+    },
+    {
+      "symbol": 650,
+      "count": 27,
+      "prob": 0.00030566499116967805,
+      "code_len": 12,
+      "code": "111100111100"
+    },
+    {
+      "symbol": 661,
+      "count": 27,
+      "prob": 0.00030566499116967805,
+      "code_len": 12,
+      "code": "111101000111"
+    },
+    {
+      "symbol": 685,
+      "count": 27,
+      "prob": 0.00030566499116967805,
+      "code_len": 12,
+      "code": "111101011100"
+    },
+    {
+      "symbol": 691,
+      "count": 27,
+      "prob": 0.00030566499116967805,
+      "code_len": 12,
+      "code": "111101100010"
+    },
+    {
+      "symbol": 178,
+      "count": 26,
+      "prob": 0.00029434406557080105,
+      "code_len": 12,
+      "code": "111011101011"
+    },
+    {
+      "symbol": 322,
+      "count": 26,
+      "prob": 0.00029434406557080105,
+      "code_len": 12,
+      "code": "111100010000"
+    },
+    {
+      "symbol": 646,
+      "count": 26,
+      "prob": 0.00029434406557080105,
+      "code_len": 12,
+      "code": "111100111000"
+    },
+    {
+      "symbol": 818,
+      "count": 26,
+      "prob": 0.00029434406557080105,
+      "code_len": 12,
+      "code": "111101111100"
+    },
+    {
+      "symbol": 155,
+      "count": 25,
+      "prob": 0.0002830231399719241,
+      "code_len": 12,
+      "code": "111011011010"
+    },
+    {
+      "symbol": 198,
+      "count": 25,
+      "prob": 0.0002830231399719241,
+      "code_len": 12,
+      "code": "111011111011"
+    },
+    {
+      "symbol": 325,
+      "count": 25,
+      "prob": 0.0002830231399719241,
+      "code_len": 12,
+      "code": "111100010011"
+    },
+    {
+      "symbol": 337,
+      "count": 25,
+      "prob": 0.0002830231399719241,
+      "code_len": 12,
+      "code": "111100011100"
+    },
+    {
+      "symbol": 341,
+      "count": 25,
+      "prob": 0.0002830231399719241,
+      "code_len": 12,
+      "code": "111100011110"
+    },
+    {
+      "symbol": 360,
+      "count": 25,
+      "prob": 0.0002830231399719241,
+      "code_len": 12,
+      "code": "111100101001"
+    },
+    {
+      "symbol": 655,
+      "count": 25,
+      "prob": 0.0002830231399719241,
+      "code_len": 12,
+      "code": "111101000001"
+    },
+    {
+      "symbol": 667,
+      "count": 25,
+      "prob": 0.0002830231399719241,
+      "code_len": 12,
+      "code": "111101001101"
+    },
+    {
+      "symbol": 673,
+      "count": 25,
+      "prob": 0.0002830231399719241,
+      "code_len": 12,
+      "code": "111101010010"
+    },
+    {
+      "symbol": 681,
+      "count": 25,
+      "prob": 0.0002830231399719241,
+      "code_len": 12,
+      "code": "111101011001"
+    },
+    {
+      "symbol": 695,
+      "count": 25,
+      "prob": 0.0002830231399719241,
+      "code_len": 12,
+      "code": "111101100100"
+    },
+    {
+      "symbol": 809,
+      "count": 25,
+      "prob": 0.0002830231399719241,
+      "code_len": 12,
+      "code": "111101110100"
+    },
+    {
+      "symbol": 149,
+      "count": 24,
+      "prob": 0.0002717022143730471,
+      "code_len": 12,
+      "code": "111011010110"
+    },
+    {
+      "symbol": 209,
+      "count": 24,
+      "prob": 0.0002717022143730471,
+      "code_len": 12,
+      "code": "111100000100"
+    },
+    {
+      "symbol": 210,
+      "count": 24,
+      "prob": 0.0002717022143730471,
+      "code_len": 12,
+      "code": "111100000101"
+    },
+    {
+      "symbol": 211,
+      "count": 24,
+      "prob": 0.0002717022143730471,
+      "code_len": 12,
+      "code": "111100000110"
+    },
+    {
+      "symbol": 333,
+      "count": 24,
+      "prob": 0.0002717022143730471,
+      "code_len": 12,
+      "code": "111100011001"
+    },
+    {
+      "symbol": 334,
+      "count": 24,
+      "prob": 0.0002717022143730471,
+      "code_len": 12,
+      "code": "111100011010"
+    },
+    {
+      "symbol": 344,
+      "count": 24,
+      "prob": 0.0002717022143730471,
+      "code_len": 12,
+      "code": "111100100001"
+    },
+    {
+      "symbol": 662,
+      "count": 24,
+      "prob": 0.0002717022143730471,
+      "code_len": 12,
+      "code": "111101001000"
+    },
+    {
+      "symbol": 664,
+      "count": 24,
+      "prob": 0.0002717022143730471,
+      "code_len": 12,
+      "code": "111101001010"
+    },
+    {
+      "symbol": 668,
+      "count": 24,
+      "prob": 0.0002717022143730471,
+      "code_len": 12,
+      "code": "111101001110"
+    },
+    {
+      "symbol": 679,
+      "count": 24,
+      "prob": 0.0002717022143730471,
+      "code_len": 12,
+      "code": "111101010111"
+    },
+    {
+      "symbol": 689,
+      "count": 24,
+      "prob": 0.0002717022143730471,
+      "code_len": 12,
+      "code": "111101100000"
+    },
+    {
+      "symbol": 704,
+      "count": 24,
+      "prob": 0.0002717022143730471,
+      "code_len": 12,
+      "code": "111101101000"
+    },
+    {
+      "symbol": 321,
+      "count": 23,
+      "prob": 0.00026038128877417017,
+      "code_len": 12,
+      "code": "111100001111"
+    },
+    {
+      "symbol": 332,
+      "count": 23,
+      "prob": 0.00026038128877417017,
+      "code_len": 12,
+      "code": "111100011000"
+    },
+    {
+      "symbol": 688,
+      "count": 23,
+      "prob": 0.00026038128877417017,
+      "code_len": 12,
+      "code": "111101011111"
+    },
+    {
+      "symbol": 699,
+      "count": 23,
+      "prob": 0.00026038128877417017,
+      "code_len": 12,
+      "code": "111101100110"
+    },
+    {
+      "symbol": 813,
+      "count": 23,
+      "prob": 0.00026038128877417017,
+      "code_len": 12,
+      "code": "111101111000"
+    },
+    {
+      "symbol": 823,
+      "count": 23,
+      "prob": 0.00026038128877417017,
+      "code_len": 12,
+      "code": "111110000000"
+    },
+    {
+      "symbol": 165,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111011100001"
+    },
+    {
+      "symbol": 168,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111011100100"
+    },
+    {
+      "symbol": 177,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111011101010"
+    },
+    {
+      "symbol": 182,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111011101101"
+    },
+    {
+      "symbol": 187,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111011110010"
+    },
+    {
+      "symbol": 206,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111100000001"
+    },
+    {
+      "symbol": 208,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111100000011"
+    },
+    {
+      "symbol": 212,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111100000111"
+    },
+    {
+      "symbol": 330,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111100010110"
+    },
+    {
+      "symbol": 331,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111100010111"
+    },
+    {
+      "symbol": 338,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111100011101"
+    },
+    {
+      "symbol": 380,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111100110001"
+    },
+    {
+      "symbol": 651,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111100111101"
+    },
+    {
+      "symbol": 671,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111101010000"
+    },
+    {
+      "symbol": 696,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111101100101"
+    },
+    {
+      "symbol": 806,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111101110001"
+    },
+    {
+      "symbol": 812,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111101110111"
+    },
+    {
+      "symbol": 822,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111101111111"
+    },
+    {
+      "symbol": 829,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111110000011"
+    },
+    {
+      "symbol": 840,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111110001001"
+    },
+    {
+      "symbol": 846,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111110001100"
+    },
+    {
+      "symbol": 854,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111110010010"
+    },
+    {
+      "symbol": 871,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111110011011"
+    },
+    {
+      "symbol": 877,
+      "count": 22,
+      "prob": 0.00024906036317529323,
+      "code_len": 12,
+      "code": "111110011100"
+    },
+    {
+      "symbol": 196,
+      "count": 21,
+      "prob": 0.00023773943757641626,
+      "code_len": 12,
+      "code": "111011111001"
+    },
+    {
+      "symbol": 204,
+      "count": 21,
+      "prob": 0.00023773943757641626,
+      "code_len": 12,
+      "code": "111011111111"
+    },
+    {
+      "symbol": 207,
+      "count": 21,
+      "prob": 0.00023773943757641626,
+      "code_len": 12,
+      "code": "111100000010"
+    },
+    {
+      "symbol": 213,
+      "count": 21,
+      "prob": 0.00023773943757641626,
+      "code_len": 12,
+      "code": "111100001000"
+    },
+    {
+      "symbol": 363,
+      "count": 21,
+      "prob": 0.00023773943757641626,
+      "code_len": 12,
+      "code": "111100101100"
+    },
+    {
+      "symbol": 644,
+      "count": 21,
+      "prob": 0.00023773943757641626,
+      "code_len": 12,
+      "code": "111100110110"
+    },
+    {
+      "symbol": 665,
+      "count": 21,
+      "prob": 0.00023773943757641626,
+      "code_len": 12,
+      "code": "111101001011"
+    },
+    {
+      "symbol": 674,
+      "count": 21,
+      "prob": 0.00023773943757641626,
+      "code_len": 12,
+      "code": "111101010011"
+    },
+    {
+      "symbol": 676,
+      "count": 21,
+      "prob": 0.00023773943757641626,
+      "code_len": 12,
+      "code": "111101010101"
+    },
+    {
+      "symbol": 850,
+      "count": 21,
+      "prob": 0.00023773943757641626,
+      "code_len": 12,
+      "code": "111110010000"
+    },
+    {
+      "symbol": 162,
+      "count": 20,
+      "prob": 0.0002264185119775393,
+      "code_len": 12,
+      "code": "111011011110"
+    },
+    {
+      "symbol": 169,
+      "count": 20,
+      "prob": 0.0002264185119775393,
+      "code_len": 12,
+      "code": "111011100101"
+    },
+    {
+      "symbol": 173,
+      "count": 20,
+      "prob": 0.0002264185119775393,
+      "code_len": 12,
+      "code": "111011101001"
+    },
+    {
+      "symbol": 191,
+      "count": 20,
+      "prob": 0.0002264185119775393,
+      "code_len": 12,
+      "code": "111011110101"
+    },
+    {
+      "symbol": 199,
+      "count": 20,
+      "prob": 0.0002264185119775393,
+      "code_len": 12,
+      "code": "111011111100"
+    },
+    {
+      "symbol": 205,
+      "count": 20,
+      "prob": 0.0002264185119775393,
+      "code_len": 12,
+      "code": "111100000000"
+    },
+    {
+      "symbol": 343,
+      "count": 20,
+      "prob": 0.0002264185119775393,
+      "code_len": 12,
+      "code": "111100100000"
+    },
+    {
+      "symbol": 352,
+      "count": 20,
+      "prob": 0.0002264185119775393,
+      "code_len": 12,
+      "code": "111100100111"
+    },
+    {
+      "symbol": 666,
+      "count": 20,
+      "prob": 0.0002264185119775393,
+      "code_len": 12,
+      "code": "111101001100"
+    },
+    {
+      "symbol": 680,
+      "count": 20,
+      "prob": 0.0002264185119775393,
+      "code_len": 12,
+      "code": "111101011000"
+    },
+    {
+      "symbol": 686,
+      "count": 20,
+      "prob": 0.0002264185119775393,
+      "code_len": 12,
+      "code": "111101011101"
+    },
+    {
+      "symbol": 808,
+      "count": 20,
+      "prob": 0.0002264185119775393,
+      "code_len": 12,
+      "code": "111101110011"
+    },
+    {
+      "symbol": 814,
+      "count": 20,
+      "prob": 0.0002264185119775393,
+      "code_len": 12,
+      "code": "111101111001"
+    },
+    {
+      "symbol": 820,
+      "count": 20,
+      "prob": 0.0002264185119775393,
+      "code_len": 12,
+      "code": "111101111110"
+    },
+    {
+      "symbol": 844,
+      "count": 20,
+      "prob": 0.0002264185119775393,
+      "code_len": 12,
+      "code": "111110001010"
+    },
+    {
+      "symbol": 864,
+      "count": 20,
+      "prob": 0.0002264185119775393,
+      "code_len": 12,
+      "code": "111110010111"
+    },
+    {
+      "symbol": 867,
+      "count": 20,
+      "prob": 0.0002264185119775393,
+      "code_len": 12,
+      "code": "111110011001"
+    },
+    {
+      "symbol": 141,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111011010001"
+    },
+    {
+      "symbol": 148,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111011010101"
+    },
+    {
+      "symbol": 160,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111011011100"
+    },
+    {
+      "symbol": 181,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111011101100"
+    },
+    {
+      "symbol": 186,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111011110001"
+    },
+    {
+      "symbol": 188,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111011110011"
+    },
+    {
+      "symbol": 189,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111011110100"
+    },
+    {
+      "symbol": 193,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111011110111"
+    },
+    {
+      "symbol": 200,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111011111101"
+    },
+    {
+      "symbol": 353,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111100101000"
+    },
+    {
+      "symbol": 659,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111101000101"
+    },
+    {
+      "symbol": 669,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111101001111"
+    },
+    {
+      "symbol": 672,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111101010001"
+    },
+    {
+      "symbol": 684,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111101011011"
+    },
+    {
+      "symbol": 816,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111101111010"
+    },
+    {
+      "symbol": 827,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111110000010"
+    },
+    {
+      "symbol": 856,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111110010011"
+    },
+    {
+      "symbol": 866,
+      "count": 19,
+      "prob": 0.00021509758637866232,
+      "code_len": 12,
+      "code": "111110011000"
+    },
+    {
+      "symbol": 125,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111011001100"
+    },
+    {
+      "symbol": 136,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111011001111"
+    },
+    {
+      "symbol": 145,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111011010010"
+    },
+    {
+      "symbol": 147,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111011010100"
+    },
+    {
+      "symbol": 163,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111011011111"
+    },
+    {
+      "symbol": 164,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111011100000"
+    },
+    {
+      "symbol": 171,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111011100111"
+    },
+    {
+      "symbol": 172,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111011101000"
+    },
+    {
+      "symbol": 183,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111011101110"
+    },
+    {
+      "symbol": 185,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111011110000"
+    },
+    {
+      "symbol": 192,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111011110110"
+    },
+    {
+      "symbol": 194,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111011111000"
+    },
+    {
+      "symbol": 361,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111100101010"
+    },
+    {
+      "symbol": 817,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111101111011"
+    },
+    {
+      "symbol": 833,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111110000101"
+    },
+    {
+      "symbol": 837,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111110000111"
+    },
+    {
+      "symbol": 851,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111110010001"
+    },
+    {
+      "symbol": 858,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111110010100"
+    },
+    {
+      "symbol": 883,
+      "count": 18,
+      "prob": 0.00020377666077978535,
+      "code_len": 12,
+      "code": "111110011110"
+    },
+    {
+      "symbol": 103,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111011001010"
+    },
+    {
+      "symbol": 132,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111011001101"
+    },
+    {
+      "symbol": 134,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111011001110"
+    },
+    {
+      "symbol": 138,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111011010000"
+    },
+    {
+      "symbol": 151,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111011011000"
+    },
+    {
+      "symbol": 154,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111011011001"
+    },
+    {
+      "symbol": 156,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111011011011"
+    },
+    {
+      "symbol": 166,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111011100010"
+    },
+    {
+      "symbol": 167,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111011100011"
+    },
+    {
+      "symbol": 170,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111011100110"
+    },
+    {
+      "symbol": 184,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111011101111"
+    },
+    {
+      "symbol": 656,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111101000010"
+    },
+    {
+      "symbol": 657,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111101000011"
+    },
+    {
+      "symbol": 677,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111101010110"
+    },
+    {
+      "symbol": 801,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111101101100"
+    },
+    {
+      "symbol": 804,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111101101111"
+    },
+    {
+      "symbol": 824,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111110000001"
+    },
+    {
+      "symbol": 845,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111110001011"
+    },
+    {
+      "symbol": 847,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111110001101"
+    },
+    {
+      "symbol": 859,
+      "count": 17,
+      "prob": 0.00019245573518090838,
+      "code_len": 12,
+      "code": "111110010101"
+    },
+    {
+      "symbol": 111,
+      "count": 16,
+      "prob": 0.00018113480958203144,
+      "code_len": 12,
+      "code": "111011001011"
+    },
+    {
+      "symbol": 146,
+      "count": 16,
+      "prob": 0.00018113480958203144,
+      "code_len": 12,
+      "code": "111011010011"
+    },
+    {
+      "symbol": 150,
+      "count": 16,
+      "prob": 0.00018113480958203144,
+      "code_len": 12,
+      "code": "111011010111"
+    },
+    {
+      "symbol": 161,
+      "count": 16,
+      "prob": 0.00018113480958203144,
+      "code_len": 12,
+      "code": "111011011101"
+    },
+    {
+      "symbol": 201,
+      "count": 16,
+      "prob": 0.00018113480958203144,
+      "code_len": 12,
+      "code": "111011111110"
+    },
+    {
+      "symbol": 810,
+      "count": 16,
+      "prob": 0.00018113480958203144,
+      "code_len": 12,
+      "code": "111101110101"
+    },
+    {
+      "symbol": 819,
+      "count": 16,
+      "prob": 0.00018113480958203144,
+      "code_len": 12,
+      "code": "111101111101"
+    },
+    {
+      "symbol": 830,
+      "count": 16,
+      "prob": 0.00018113480958203144,
+      "code_len": 12,
+      "code": "111110000100"
+    },
+    {
+      "symbol": 836,
+      "count": 16,
+      "prob": 0.00018113480958203144,
+      "code_len": 12,
+      "code": "111110000110"
+    },
+    {
+      "symbol": 839,
+      "count": 16,
+      "prob": 0.00018113480958203144,
+      "code_len": 12,
+      "code": "111110001000"
+    },
+    {
+      "symbol": 848,
+      "count": 16,
+      "prob": 0.00018113480958203144,
+      "code_len": 12,
+      "code": "111110001110"
+    },
+    {
+      "symbol": 849,
+      "count": 16,
+      "prob": 0.00018113480958203144,
+      "code_len": 12,
+      "code": "111110001111"
+    },
+    {
+      "symbol": 860,
+      "count": 16,
+      "prob": 0.00018113480958203144,
+      "code_len": 12,
+      "code": "111110010110"
+    },
+    {
+      "symbol": 870,
+      "count": 16,
+      "prob": 0.00018113480958203144,
+      "code_len": 12,
+      "code": "111110011010"
+    },
+    {
+      "symbol": 878,
+      "count": 16,
+      "prob": 0.00018113480958203144,
+      "code_len": 12,
+      "code": "111110011101"
+    },
+    {
+      "symbol": 886,
+      "count": 16,
+      "prob": 0.00018113480958203144,
+      "code_len": 12,
+      "code": "111110011111"
+    },
+    {
+      "symbol": 908,
+      "count": 16,
+      "prob": 0.00018113480958203144,
+      "code_len": 12,
+      "code": "111110100000"
+    },
+    {
+      "symbol": 110,
+      "count": 15,
+      "prob": 0.00016981388398315447,
+      "code_len": 13,
+      "code": "1111101001111"
+    },
+    {
+      "symbol": 137,
+      "count": 15,
+      "prob": 0.00016981388398315447,
+      "code_len": 13,
+      "code": "1111101100001"
+    },
+    {
+      "symbol": 143,
+      "count": 15,
+      "prob": 0.00016981388398315447,
+      "code_len": 13,
+      "code": "1111101100100"
+    },
+    {
+      "symbol": 180,
+      "count": 15,
+      "prob": 0.00016981388398315447,
+      "code_len": 13,
+      "code": "1111101101111"
+    },
+    {
+      "symbol": 195,
+      "count": 15,
+      "prob": 0.00016981388398315447,
+      "code_len": 13,
+      "code": "1111101110001"
+    },
+    {
+      "symbol": 203,
+      "count": 15,
+      "prob": 0.00016981388398315447,
+      "code_len": 13,
+      "code": "1111101110011"
+    },
+    {
+      "symbol": 821,
+      "count": 15,
+      "prob": 0.00016981388398315447,
+      "code_len": 13,
+      "code": "1111101110111"
+    },
+    {
+      "symbol": 825,
+      "count": 15,
+      "prob": 0.00016981388398315447,
+      "code_len": 13,
+      "code": "1111101111000"
+    },
+    {
+      "symbol": 826,
+      "count": 15,
+      "prob": 0.00016981388398315447,
+      "code_len": 13,
+      "code": "1111101111001"
+    },
+    {
+      "symbol": 831,
+      "count": 15,
+      "prob": 0.00016981388398315447,
+      "code_len": 13,
+      "code": "1111101111011"
+    },
+    {
+      "symbol": 832,
+      "count": 15,
+      "prob": 0.00016981388398315447,
+      "code_len": 13,
+      "code": "1111101111100"
+    },
+    {
+      "symbol": 843,
+      "count": 15,
+      "prob": 0.00016981388398315447,
+      "code_len": 13,
+      "code": "1111110000010"
+    },
+    {
+      "symbol": 857,
+      "count": 15,
+      "prob": 0.00016981388398315447,
+      "code_len": 13,
+      "code": "1111110000110"
+    },
+    {
+      "symbol": 881,
+      "count": 15,
+      "prob": 0.00016981388398315447,
+      "code_len": 13,
+      "code": "1111110010100"
+    },
+    {
+      "symbol": 892,
+      "count": 15,
+      "prob": 0.00016981388398315447,
+      "code_len": 13,
+      "code": "1111110011101"
+    },
+    {
+      "symbol": 118,
+      "count": 14,
+      "prob": 0.0001584929583842775,
+      "code_len": 13,
+      "code": "1111101010101"
+    },
+    {
+      "symbol": 131,
+      "count": 14,
+      "prob": 0.0001584929583842775,
+      "code_len": 13,
+      "code": "1111101011110"
+    },
+    {
+      "symbol": 139,
+      "count": 14,
+      "prob": 0.0001584929583842775,
+      "code_len": 13,
+      "code": "1111101100010"
+    },
+    {
+      "symbol": 152,
+      "count": 14,
+      "prob": 0.0001584929583842775,
+      "code_len": 13,
+      "code": "1111101100110"
+    },
+    {
+      "symbol": 190,
+      "count": 14,
+      "prob": 0.0001584929583842775,
+      "code_len": 13,
+      "code": "1111101110000"
+    },
+    {
+      "symbol": 202,
+      "count": 14,
+      "prob": 0.0001584929583842775,
+      "code_len": 13,
+      "code": "1111101110010"
+    },
+    {
+      "symbol": 678,
+      "count": 14,
+      "prob": 0.0001584929583842775,
+      "code_len": 13,
+      "code": "1111101110101"
+    },
+    {
+      "symbol": 815,
+      "count": 14,
+      "prob": 0.0001584929583842775,
+      "code_len": 13,
+      "code": "1111101110110"
+    },
+    {
+      "symbol": 835,
+      "count": 14,
+      "prob": 0.0001584929583842775,
+      "code_len": 13,
+      "code": "1111101111110"
+    },
+    {
+      "symbol": 838,
+      "count": 14,
+      "prob": 0.0001584929583842775,
+      "code_len": 13,
+      "code": "1111101111111"
+    },
+    {
+      "symbol": 852,
+      "count": 14,
+      "prob": 0.0001584929583842775,
+      "code_len": 13,
+      "code": "1111110000011"
+    },
+    {
+      "symbol": 861,
+      "count": 14,
+      "prob": 0.0001584929583842775,
+      "code_len": 13,
+      "code": "1111110000111"
+    },
+    {
+      "symbol": 873,
+      "count": 14,
+      "prob": 0.0001584929583842775,
+      "code_len": 13,
+      "code": "1111110001110"
+    },
+    {
+      "symbol": 875,
+      "count": 14,
+      "prob": 0.0001584929583842775,
+      "code_len": 13,
+      "code": "1111110010000"
+    },
+    {
+      "symbol": 885,
+      "count": 14,
+      "prob": 0.0001584929583842775,
+      "code_len": 13,
+      "code": "1111110010111"
+    },
+    {
+      "symbol": 893,
+      "count": 14,
+      "prob": 0.0001584929583842775,
+      "code_len": 13,
+      "code": "1111110011110"
+    },
+    {
+      "symbol": 907,
+      "count": 14,
+      "prob": 0.0001584929583842775,
+      "code_len": 13,
+      "code": "1111110101001"
+    },
+    {
+      "symbol": 107,
+      "count": 13,
+      "prob": 0.00014717203278540053,
+      "code_len": 13,
+      "code": "1111101001101"
+    },
+    {
+      "symbol": 113,
+      "count": 13,
+      "prob": 0.00014717203278540053,
+      "code_len": 13,
+      "code": "1111101010001"
+    },
+    {
+      "symbol": 123,
+      "count": 13,
+      "prob": 0.00014717203278540053,
+      "code_len": 13,
+      "code": "1111101011000"
+    },
+    {
+      "symbol": 128,
+      "count": 13,
+      "prob": 0.00014717203278540053,
+      "code_len": 13,
+      "code": "1111101011011"
+    },
+    {
+      "symbol": 142,
+      "count": 13,
+      "prob": 0.00014717203278540053,
+      "code_len": 13,
+      "code": "1111101100011"
+    },
+    {
+      "symbol": 157,
+      "count": 13,
+      "prob": 0.00014717203278540053,
+      "code_len": 13,
+      "code": "1111101101000"
+    },
+    {
+      "symbol": 158,
+      "count": 13,
+      "prob": 0.00014717203278540053,
+      "code_len": 13,
+      "code": "1111101101001"
+    },
+    {
+      "symbol": 174,
+      "count": 13,
+      "prob": 0.00014717203278540053,
+      "code_len": 13,
+      "code": "1111101101011"
+    },
+    {
+      "symbol": 670,
+      "count": 13,
+      "prob": 0.00014717203278540053,
+      "code_len": 13,
+      "code": "1111101110100"
+    },
+    {
+      "symbol": 828,
+      "count": 13,
+      "prob": 0.00014717203278540053,
+      "code_len": 13,
+      "code": "1111101111010"
+    },
+    {
+      "symbol": 855,
+      "count": 13,
+      "prob": 0.00014717203278540053,
+      "code_len": 13,
+      "code": "1111110000101"
+    },
+    {
+      "symbol": 862,
+      "count": 13,
+      "prob": 0.00014717203278540053,
+      "code_len": 13,
+      "code": "1111110001000"
+    },
+    {
+      "symbol": 872,
+      "count": 13,
+      "prob": 0.00014717203278540053,
+      "code_len": 13,
+      "code": "1111110001101"
+    },
+    {
+      "symbol": 889,
+      "count": 13,
+      "prob": 0.00014717203278540053,
+      "code_len": 13,
+      "code": "1111110011010"
+    },
+    {
+      "symbol": 891,
+      "count": 13,
+      "prob": 0.00014717203278540053,
+      "code_len": 13,
+      "code": "1111110011100"
+    },
+    {
+      "symbol": 896,
+      "count": 13,
+      "prob": 0.00014717203278540053,
+      "code_len": 13,
+      "code": "1111110011111"
+    },
+    {
+      "symbol": 917,
+      "count": 13,
+      "prob": 0.00014717203278540053,
+      "code_len": 13,
+      "code": "1111110110001"
+    },
+    {
+      "symbol": 91,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111101000101"
+    },
+    {
+      "symbol": 95,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111101000111"
+    },
+    {
+      "symbol": 120,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111101010110"
+    },
+    {
+      "symbol": 124,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111101011001"
+    },
+    {
+      "symbol": 130,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111101011101"
+    },
+    {
+      "symbol": 133,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111101011111"
+    },
+    {
+      "symbol": 159,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111101101010"
+    },
+    {
+      "symbol": 175,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111101101100"
+    },
+    {
+      "symbol": 179,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111101101110"
+    },
+    {
+      "symbol": 834,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111101111101"
+    },
+    {
+      "symbol": 841,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111110000000"
+    },
+    {
+      "symbol": 853,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111110000100"
+    },
+    {
+      "symbol": 863,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111110001001"
+    },
+    {
+      "symbol": 869,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111110001100"
+    },
+    {
+      "symbol": 876,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111110010001"
+    },
+    {
+      "symbol": 887,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111110011000"
+    },
+    {
+      "symbol": 888,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111110011001"
+    },
+    {
+      "symbol": 890,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111110011011"
+    },
+    {
+      "symbol": 899,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111110100010"
+    },
+    {
+      "symbol": 900,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111110100011"
+    },
+    {
+      "symbol": 918,
+      "count": 12,
+      "prob": 0.00013585110718652356,
+      "code_len": 13,
+      "code": "1111110110010"
+    },
+    {
+      "symbol": 88,
+      "count": 11,
+      "prob": 0.00012453018158764661,
+      "code_len": 13,
+      "code": "1111101000100"
+    },
+    {
+      "symbol": 102,
+      "count": 11,
+      "prob": 0.00012453018158764661,
+      "code_len": 13,
+      "code": "1111101001010"
+    },
+    {
+      "symbol": 112,
+      "count": 11,
+      "prob": 0.00012453018158764661,
+      "code_len": 13,
+      "code": "1111101010000"
+    },
+    {
+      "symbol": 127,
+      "count": 11,
+      "prob": 0.00012453018158764661,
+      "code_len": 13,
+      "code": "1111101011010"
+    },
+    {
+      "symbol": 176,
+      "count": 11,
+      "prob": 0.00012453018158764661,
+      "code_len": 13,
+      "code": "1111101101101"
+    },
+    {
+      "symbol": 842,
+      "count": 11,
+      "prob": 0.00012453018158764661,
+      "code_len": 13,
+      "code": "1111110000001"
+    },
+    {
+      "symbol": 868,
+      "count": 11,
+      "prob": 0.00012453018158764661,
+      "code_len": 13,
+      "code": "1111110001011"
+    },
+    {
+      "symbol": 880,
+      "count": 11,
+      "prob": 0.00012453018158764661,
+      "code_len": 13,
+      "code": "1111110010011"
+    },
+    {
+      "symbol": 884,
+      "count": 11,
+      "prob": 0.00012453018158764661,
+      "code_len": 13,
+      "code": "1111110010110"
+    },
+    {
+      "symbol": 897,
+      "count": 11,
+      "prob": 0.00012453018158764661,
+      "code_len": 13,
+      "code": "1111110100000"
+    },
+    {
+      "symbol": 909,
+      "count": 11,
+      "prob": 0.00012453018158764661,
+      "code_len": 13,
+      "code": "1111110101010"
+    },
+    {
+      "symbol": 914,
+      "count": 11,
+      "prob": 0.00012453018158764661,
+      "code_len": 13,
+      "code": "1111110101110"
+    },
+    {
+      "symbol": 916,
+      "count": 11,
+      "prob": 0.00012453018158764661,
+      "code_len": 13,
+      "code": "1111110110000"
+    },
+    {
+      "symbol": 101,
+      "count": 10,
+      "prob": 0.00011320925598876964,
+      "code_len": 13,
+      "code": "1111101001001"
+    },
+    {
+      "symbol": 129,
+      "count": 10,
+      "prob": 0.00011320925598876964,
+      "code_len": 13,
+      "code": "1111101011100"
+    },
+    {
+      "symbol": 153,
+      "count": 10,
+      "prob": 0.00011320925598876964,
+      "code_len": 13,
+      "code": "1111101100111"
+    },
+    {
+      "symbol": 882,
+      "count": 10,
+      "prob": 0.00011320925598876964,
+      "code_len": 13,
+      "code": "1111110010101"
+    },
+    {
+      "symbol": 898,
+      "count": 10,
+      "prob": 0.00011320925598876964,
+      "code_len": 13,
+      "code": "1111110100001"
+    },
+    {
+      "symbol": 902,
+      "count": 10,
+      "prob": 0.00011320925598876964,
+      "code_len": 13,
+      "code": "1111110100101"
+    },
+    {
+      "symbol": 915,
+      "count": 10,
+      "prob": 0.00011320925598876964,
+      "code_len": 13,
+      "code": "1111110101111"
+    },
+    {
+      "symbol": 49,
+      "count": 9,
+      "prob": 0.00010188833038989267,
+      "code_len": 13,
+      "code": "1111101000010"
+    },
+    {
+      "symbol": 84,
+      "count": 9,
+      "prob": 0.00010188833038989267,
+      "code_len": 13,
+      "code": "1111101000011"
+    },
+    {
+      "symbol": 104,
+      "count": 9,
+      "prob": 0.00010188833038989267,
+      "code_len": 13,
+      "code": "1111101001011"
+    },
+    {
+      "symbol": 108,
+      "count": 9,
+      "prob": 0.00010188833038989267,
+      "code_len": 13,
+      "code": "1111101001110"
+    },
+    {
+      "symbol": 117,
+      "count": 9,
+      "prob": 0.00010188833038989267,
+      "code_len": 13,
+      "code": "1111101010100"
+    },
+    {
+      "symbol": 135,
+      "count": 9,
+      "prob": 0.00010188833038989267,
+      "code_len": 13,
+      "code": "1111101100000"
+    },
+    {
+      "symbol": 874,
+      "count": 9,
+      "prob": 0.00010188833038989267,
+      "code_len": 13,
+      "code": "1111110001111"
+    },
+    {
+      "symbol": 879,
+      "count": 9,
+      "prob": 0.00010188833038989267,
+      "code_len": 13,
+      "code": "1111110010010"
+    },
+    {
+      "symbol": 906,
+      "count": 9,
+      "prob": 0.00010188833038989267,
+      "code_len": 13,
+      "code": "1111110101000"
+    },
+    {
+      "symbol": 910,
+      "count": 9,
+      "prob": 0.00010188833038989267,
+      "code_len": 13,
+      "code": "1111110101011"
+    },
+    {
+      "symbol": 913,
+      "count": 9,
+      "prob": 0.00010188833038989267,
+      "code_len": 13,
+      "code": "1111110101101"
+    },
+    {
+      "symbol": 927,
+      "count": 9,
+      "prob": 0.00010188833038989267,
+      "code_len": 13,
+      "code": "1111110110101"
+    },
+    {
+      "symbol": 83,
+      "count": 8,
+      "prob": 9.056740479101572e-05,
+      "code_len": 14,
+      "code": "11111110010000"
+    },
+    {
+      "symbol": 92,
+      "count": 8,
+      "prob": 9.056740479101572e-05,
+      "code_len": 13,
+      "code": "1111101000110"
+    },
+    {
+      "symbol": 97,
+      "count": 8,
+      "prob": 9.056740479101572e-05,
+      "code_len": 13,
+      "code": "1111101001000"
+    },
+    {
+      "symbol": 105,
+      "count": 8,
+      "prob": 9.056740479101572e-05,
+      "code_len": 13,
+      "code": "1111101001100"
+    },
+    {
+      "symbol": 114,
+      "count": 8,
+      "prob": 9.056740479101572e-05,
+      "code_len": 13,
+      "code": "1111101010010"
+    },
+    {
+      "symbol": 116,
+      "count": 8,
+      "prob": 9.056740479101572e-05,
+      "code_len": 13,
+      "code": "1111101010011"
+    },
+    {
+      "symbol": 122,
+      "count": 8,
+      "prob": 9.056740479101572e-05,
+      "code_len": 13,
+      "code": "1111101010111"
+    },
+    {
+      "symbol": 144,
+      "count": 8,
+      "prob": 9.056740479101572e-05,
+      "code_len": 13,
+      "code": "1111101100101"
+    },
+    {
+      "symbol": 865,
+      "count": 8,
+      "prob": 9.056740479101572e-05,
+      "code_len": 13,
+      "code": "1111110001010"
+    },
+    {
+      "symbol": 901,
+      "count": 8,
+      "prob": 9.056740479101572e-05,
+      "code_len": 13,
+      "code": "1111110100100"
+    },
+    {
+      "symbol": 904,
+      "count": 8,
+      "prob": 9.056740479101572e-05,
+      "code_len": 13,
+      "code": "1111110100110"
+    },
+    {
+      "symbol": 905,
+      "count": 8,
+      "prob": 9.056740479101572e-05,
+      "code_len": 13,
+      "code": "1111110100111"
+    },
+    {
+      "symbol": 911,
+      "count": 8,
+      "prob": 9.056740479101572e-05,
+      "code_len": 13,
+      "code": "1111110101100"
+    },
+    {
+      "symbol": 920,
+      "count": 8,
+      "prob": 9.056740479101572e-05,
+      "code_len": 13,
+      "code": "1111110110011"
+    },
+    {
+      "symbol": 923,
+      "count": 8,
+      "prob": 9.056740479101572e-05,
+      "code_len": 13,
+      "code": "1111110110100"
+    },
+    {
+      "symbol": 930,
+      "count": 8,
+      "prob": 9.056740479101572e-05,
+      "code_len": 13,
+      "code": "1111110110110"
+    },
+    {
+      "symbol": 932,
+      "count": 8,
+      "prob": 9.056740479101572e-05,
+      "code_len": 13,
+      "code": "1111110110111"
+    },
+    {
+      "symbol": 50,
+      "count": 7,
+      "prob": 7.924647919213875e-05,
+      "code_len": 14,
+      "code": "11111101111101"
+    },
+    {
+      "symbol": 77,
+      "count": 7,
+      "prob": 7.924647919213875e-05,
+      "code_len": 14,
+      "code": "11111110001011"
+    },
+    {
+      "symbol": 94,
+      "count": 7,
+      "prob": 7.924647919213875e-05,
+      "code_len": 14,
+      "code": "11111110010111"
+    },
+    {
+      "symbol": 96,
+      "count": 7,
+      "prob": 7.924647919213875e-05,
+      "code_len": 14,
+      "code": "11111110011000"
+    },
+    {
+      "symbol": 119,
+      "count": 7,
+      "prob": 7.924647919213875e-05,
+      "code_len": 14,
+      "code": "11111110011111"
+    },
+    {
+      "symbol": 126,
+      "count": 7,
+      "prob": 7.924647919213875e-05,
+      "code_len": 14,
+      "code": "11111110100001"
+    },
+    {
+      "symbol": 140,
+      "count": 7,
+      "prob": 7.924647919213875e-05,
+      "code_len": 14,
+      "code": "11111110100010"
+    },
+    {
+      "symbol": 895,
+      "count": 7,
+      "prob": 7.924647919213875e-05,
+      "code_len": 14,
+      "code": "11111110100100"
+    },
+    {
+      "symbol": 912,
+      "count": 7,
+      "prob": 7.924647919213875e-05,
+      "code_len": 14,
+      "code": "11111110100110"
+    },
+    {
+      "symbol": 922,
+      "count": 7,
+      "prob": 7.924647919213875e-05,
+      "code_len": 14,
+      "code": "11111110101001"
+    },
+    {
+      "symbol": 929,
+      "count": 7,
+      "prob": 7.924647919213875e-05,
+      "code_len": 14,
+      "code": "11111110101101"
+    },
+    {
+      "symbol": 933,
+      "count": 7,
+      "prob": 7.924647919213875e-05,
+      "code_len": 14,
+      "code": "11111110101110"
+    },
+    {
+      "symbol": 934,
+      "count": 7,
+      "prob": 7.924647919213875e-05,
+      "code_len": 14,
+      "code": "11111110101111"
+    },
+    {
+      "symbol": 996,
+      "count": 7,
+      "prob": 7.924647919213875e-05,
+      "code_len": 14,
+      "code": "11111111001001"
+    },
+    {
+      "symbol": 13,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111101110010"
+    },
+    {
+      "symbol": 19,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111101110011"
+    },
+    {
+      "symbol": 26,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111101110110"
+    },
+    {
+      "symbol": 56,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110000000"
+    },
+    {
+      "symbol": 60,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110000010"
+    },
+    {
+      "symbol": 66,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110000110"
+    },
+    {
+      "symbol": 79,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110001101"
+    },
+    {
+      "symbol": 89,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110010100"
+    },
+    {
+      "symbol": 93,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110010110"
+    },
+    {
+      "symbol": 98,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110011001"
+    },
+    {
+      "symbol": 100,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110011011"
+    },
+    {
+      "symbol": 109,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110011101"
+    },
+    {
+      "symbol": 121,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110100000"
+    },
+    {
+      "symbol": 894,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110100011"
+    },
+    {
+      "symbol": 919,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110100111"
+    },
+    {
+      "symbol": 921,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110101000"
+    },
+    {
+      "symbol": 942,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110110101"
+    },
+    {
+      "symbol": 945,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110110111"
+    },
+    {
+      "symbol": 947,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110111000"
+    },
+    {
+      "symbol": 957,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110111100"
+    },
+    {
+      "symbol": 966,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111110111111"
+    },
+    {
+      "symbol": 1014,
+      "count": 6,
+      "prob": 6.792555359326178e-05,
+      "code_len": 14,
+      "code": "11111111010000"
+    },
+    {
+      "symbol": 33,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111101111001"
+    },
+    {
+      "symbol": 39,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111101111010"
+    },
+    {
+      "symbol": 59,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110000001"
+    },
+    {
+      "symbol": 61,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110000011"
+    },
+    {
+      "symbol": 62,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110000100"
+    },
+    {
+      "symbol": 65,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110000101"
+    },
+    {
+      "symbol": 75,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110001001"
+    },
+    {
+      "symbol": 76,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110001010"
+    },
+    {
+      "symbol": 82,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110001111"
+    },
+    {
+      "symbol": 85,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110010001"
+    },
+    {
+      "symbol": 86,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110010010"
+    },
+    {
+      "symbol": 87,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110010011"
+    },
+    {
+      "symbol": 90,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110010101"
+    },
+    {
+      "symbol": 99,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110011010"
+    },
+    {
+      "symbol": 115,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110011110"
+    },
+    {
+      "symbol": 924,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110101010"
+    },
+    {
+      "symbol": 925,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110101011"
+    },
+    {
+      "symbol": 938,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110110010"
+    },
+    {
+      "symbol": 940,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110110100"
+    },
+    {
+      "symbol": 948,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110111001"
+    },
+    {
+      "symbol": 949,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110111010"
+    },
+    {
+      "symbol": 962,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111110111101"
+    },
+    {
+      "symbol": 976,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111111000001"
+    },
+    {
+      "symbol": 985,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111111000100"
+    },
+    {
+      "symbol": 998,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111111001011"
+    },
+    {
+      "symbol": 1009,
+      "count": 5,
+      "prob": 5.660462799438482e-05,
+      "code_len": 14,
+      "code": "11111111001101"
+    },
+    {
+      "symbol": 8,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 15,
+      "code": "111111110101010"
+    },
+    {
+      "symbol": 11,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111101110000"
+    },
+    {
+      "symbol": 12,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111101110001"
+    },
+    {
+      "symbol": 20,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111101110100"
+    },
+    {
+      "symbol": 21,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111101110101"
+    },
+    {
+      "symbol": 29,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111101110111"
+    },
+    {
+      "symbol": 32,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111101111000"
+    },
+    {
+      "symbol": 43,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111101111011"
+    },
+    {
+      "symbol": 44,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111101111100"
+    },
+    {
+      "symbol": 51,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111101111110"
+    },
+    {
+      "symbol": 54,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111101111111"
+    },
+    {
+      "symbol": 71,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111110000111"
+    },
+    {
+      "symbol": 72,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111110001000"
+    },
+    {
+      "symbol": 78,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111110001100"
+    },
+    {
+      "symbol": 80,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111110001110"
+    },
+    {
+      "symbol": 106,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111110011100"
+    },
+    {
+      "symbol": 903,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111110100101"
+    },
+    {
+      "symbol": 926,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111110101100"
+    },
+    {
+      "symbol": 935,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111110110000"
+    },
+    {
+      "symbol": 937,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111110110001"
+    },
+    {
+      "symbol": 939,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111110110011"
+    },
+    {
+      "symbol": 943,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111110110110"
+    },
+    {
+      "symbol": 952,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111110111011"
+    },
+    {
+      "symbol": 963,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111110111110"
+    },
+    {
+      "symbol": 968,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111111000000"
+    },
+    {
+      "symbol": 981,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111111000010"
+    },
+    {
+      "symbol": 984,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111111000011"
+    },
+    {
+      "symbol": 986,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111111000101"
+    },
+    {
+      "symbol": 987,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111111000110"
+    },
+    {
+      "symbol": 988,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111111000111"
+    },
+    {
+      "symbol": 994,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111111001000"
+    },
+    {
+      "symbol": 997,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111111001010"
+    },
+    {
+      "symbol": 1003,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111111001100"
+    },
+    {
+      "symbol": 1010,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111111001110"
+    },
+    {
+      "symbol": 1013,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111111001111"
+    },
+    {
+      "symbol": 1018,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111111010001"
+    },
+    {
+      "symbol": 1021,
+      "count": 4,
+      "prob": 4.528370239550786e-05,
+      "code_len": 14,
+      "code": "11111111010010"
+    },
+    {
+      "symbol": 6,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111110101000"
+    },
+    {
+      "symbol": 7,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111110101001"
+    },
+    {
+      "symbol": 15,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111110101110"
+    },
+    {
+      "symbol": 24,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111110110010"
+    },
+    {
+      "symbol": 27,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111110110100"
+    },
+    {
+      "symbol": 31,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111110110111"
+    },
+    {
+      "symbol": 37,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111110111001"
+    },
+    {
+      "symbol": 42,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111110111100"
+    },
+    {
+      "symbol": 46,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111110111110"
+    },
+    {
+      "symbol": 52,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111000001"
+    },
+    {
+      "symbol": 53,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111000010"
+    },
+    {
+      "symbol": 55,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111000011"
+    },
+    {
+      "symbol": 57,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111000100"
+    },
+    {
+      "symbol": 68,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111000110"
+    },
+    {
+      "symbol": 74,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111001001"
+    },
+    {
+      "symbol": 81,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111001010"
+    },
+    {
+      "symbol": 931,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111001011"
+    },
+    {
+      "symbol": 936,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111001100"
+    },
+    {
+      "symbol": 941,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111001101"
+    },
+    {
+      "symbol": 944,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111001110"
+    },
+    {
+      "symbol": 946,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111001111"
+    },
+    {
+      "symbol": 950,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111010000"
+    },
+    {
+      "symbol": 951,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111010001"
+    },
+    {
+      "symbol": 953,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111010010"
+    },
+    {
+      "symbol": 959,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111010101"
+    },
+    {
+      "symbol": 960,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111010110"
+    },
+    {
+      "symbol": 961,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111010111"
+    },
+    {
+      "symbol": 964,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111011000"
+    },
+    {
+      "symbol": 965,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111011001"
+    },
+    {
+      "symbol": 967,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111011010"
+    },
+    {
+      "symbol": 973,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111011100"
+    },
+    {
+      "symbol": 978,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111011111"
+    },
+    {
+      "symbol": 982,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111100001"
+    },
+    {
+      "symbol": 983,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111100010"
+    },
+    {
+      "symbol": 990,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111100100"
+    },
+    {
+      "symbol": 992,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111100110"
+    },
+    {
+      "symbol": 993,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111100111"
+    },
+    {
+      "symbol": 999,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111101001"
+    },
+    {
+      "symbol": 1001,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111101011"
+    },
+    {
+      "symbol": 1002,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111101100"
+    },
+    {
+      "symbol": 1005,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111101101"
+    },
+    {
+      "symbol": 1008,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111110000"
+    },
+    {
+      "symbol": 1011,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111110001"
+    },
+    {
+      "symbol": 1016,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111110100"
+    },
+    {
+      "symbol": 1019,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111110110"
+    },
+    {
+      "symbol": 1022,
+      "count": 3,
+      "prob": 3.396277679663089e-05,
+      "code_len": 15,
+      "code": "111111111110111"
+    },
+    {
+      "symbol": 3,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 16,
+      "code": "1111111111110010"
+    },
+    {
+      "symbol": 4,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111110100110"
+    },
+    {
+      "symbol": 5,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111110100111"
+    },
+    {
+      "symbol": 9,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111110101011"
+    },
+    {
+      "symbol": 10,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111110101100"
+    },
+    {
+      "symbol": 14,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111110101101"
+    },
+    {
+      "symbol": 16,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111110101111"
+    },
+    {
+      "symbol": 17,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111110110000"
+    },
+    {
+      "symbol": 22,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111110110001"
+    },
+    {
+      "symbol": 25,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111110110011"
+    },
+    {
+      "symbol": 28,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111110110101"
+    },
+    {
+      "symbol": 30,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111110110110"
+    },
+    {
+      "symbol": 36,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111110111000"
+    },
+    {
+      "symbol": 38,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111110111010"
+    },
+    {
+      "symbol": 40,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111110111011"
+    },
+    {
+      "symbol": 45,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111110111101"
+    },
+    {
+      "symbol": 47,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111110111111"
+    },
+    {
+      "symbol": 48,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111000000"
+    },
+    {
+      "symbol": 67,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111000101"
+    },
+    {
+      "symbol": 69,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111000111"
+    },
+    {
+      "symbol": 70,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111001000"
+    },
+    {
+      "symbol": 954,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111010011"
+    },
+    {
+      "symbol": 958,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111010100"
+    },
+    {
+      "symbol": 971,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111011011"
+    },
+    {
+      "symbol": 974,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111011101"
+    },
+    {
+      "symbol": 975,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111011110"
+    },
+    {
+      "symbol": 979,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111100000"
+    },
+    {
+      "symbol": 989,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111100011"
+    },
+    {
+      "symbol": 991,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111100101"
+    },
+    {
+      "symbol": 995,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111101000"
+    },
+    {
+      "symbol": 1000,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111101010"
+    },
+    {
+      "symbol": 1006,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111101110"
+    },
+    {
+      "symbol": 1007,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111101111"
+    },
+    {
+      "symbol": 1012,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111110010"
+    },
+    {
+      "symbol": 1015,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111110011"
+    },
+    {
+      "symbol": 1017,
+      "count": 2,
+      "prob": 2.264185119775393e-05,
+      "code_len": 15,
+      "code": "111111111110101"
+    },
+    {
+      "symbol": 1,
+      "count": 1,
+      "prob": 1.1320925598876965e-05,
+      "code_len": 16,
+      "code": "1111111111110000"
+    },
+    {
+      "symbol": 2,
+      "count": 1,
+      "prob": 1.1320925598876965e-05,
+      "code_len": 16,
+      "code": "1111111111110001"
+    },
+    {
+      "symbol": 18,
+      "count": 1,
+      "prob": 1.1320925598876965e-05,
+      "code_len": 16,
+      "code": "1111111111110011"
+    },
+    {
+      "symbol": 23,
+      "count": 1,
+      "prob": 1.1320925598876965e-05,
+      "code_len": 16,
+      "code": "1111111111110100"
+    },
+    {
+      "symbol": 34,
+      "count": 1,
+      "prob": 1.1320925598876965e-05,
+      "code_len": 16,
+      "code": "1111111111110101"
+    },
+    {
+      "symbol": 58,
+      "count": 1,
+      "prob": 1.1320925598876965e-05,
+      "code_len": 16,
+      "code": "1111111111110110"
+    },
+    {
+      "symbol": 73,
+      "count": 1,
+      "prob": 1.1320925598876965e-05,
+      "code_len": 16,
+      "code": "1111111111110111"
+    },
+    {
+      "symbol": 928,
+      "count": 1,
+      "prob": 1.1320925598876965e-05,
+      "code_len": 16,
+      "code": "1111111111111000"
+    },
+    {
+      "symbol": 955,
+      "count": 1,
+      "prob": 1.1320925598876965e-05,
+      "code_len": 16,
+      "code": "1111111111111001"
+    },
+    {
+      "symbol": 969,
+      "count": 1,
+      "prob": 1.1320925598876965e-05,
+      "code_len": 16,
+      "code": "1111111111111010"
+    },
+    {
+      "symbol": 970,
+      "count": 1,
+      "prob": 1.1320925598876965e-05,
+      "code_len": 16,
+      "code": "1111111111111011"
+    },
+    {
+      "symbol": 972,
+      "count": 1,
+      "prob": 1.1320925598876965e-05,
+      "code_len": 16,
+      "code": "1111111111111100"
+    },
+    {
+      "symbol": 977,
+      "count": 1,
+      "prob": 1.1320925598876965e-05,
+      "code_len": 16,
+      "code": "1111111111111101"
+    },
+    {
+      "symbol": 1004,
+      "count": 1,
+      "prob": 1.1320925598876965e-05,
+      "code_len": 16,
+      "code": "1111111111111110"
+    },
+    {
+      "symbol": 1020,
+      "count": 1,
+      "prob": 1.1320925598876965e-05,
+      "code_len": 16,
+      "code": "1111111111111111"
+    }
+  ]
+}
