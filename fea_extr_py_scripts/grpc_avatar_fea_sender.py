@@ -12,6 +12,7 @@ from client import THStreamClient
 from THStreamData import THStreamDataPayload, THDataWarehouse
 import os
 import argparse  # 添加此行
+import json
 
 class FrameDataManager:
     """管理帧数据，整合同一帧的姿势和面部特征"""
@@ -48,13 +49,19 @@ class FrameDataManager:
             if hasattr(self, 'client'):
                 # 平滑处理姿势数据
                 smoothed_pose = self._smooth_pose_data(frame["pose"])
+                # t_encode: 发送端完成特征处理、即将进入gRPC发送队列的时刻
+                t_encode_ms = int(time.time() * 1000)
+                timing_meta = {
+                    "t_begin": int(timestamp_ms),
+                    "t_encode": t_encode_ms
+                }
                 
                 payload_send = THStreamDataPayload(
                     rgb_data=b'\x00', 
                     point_data=b'\x00',
                     face_data=frame["face"],
                     limb_data=smoothed_pose,    
-                    ext_data=b'\x00', 
+                    ext_data=json.dumps(timing_meta).encode('utf-8'), 
                     ext_desc=f"{str(timestamp_ms)}"
                 )
                 self.client.send_data_buffer.add_item(payload_send)

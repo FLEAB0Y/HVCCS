@@ -15,8 +15,6 @@ public class FaceDataReceiver : MonoBehaviour
     
     // 新增：延迟反馈配置
     [SerializeField] private int feedbackPort = 9890; // 反馈端口
-    [SerializeField] private float feedbackInterval = 1.0f; // 发送反馈的时间间隔(秒)
-    private float lastFeedbackTime = 0f;
     
     // 引用BlendShape控制器
     [SerializeField] private BSCtrl blendShapeController;
@@ -99,27 +97,14 @@ public class FaceDataReceiver : MonoBehaviour
             }
         }
         
-        // 新增：定期发送延迟反馈
-        if (blendShapeController != null && blendShapeController.HasLatencyData)
-        {
-            if (Time.time - lastFeedbackTime >= feedbackInterval)
-            {
-                SendLatencyFeedback();
-                lastFeedbackTime = Time.time;
-            }
-        }
     }
-    
-    // 新增：发送延迟反馈的方法
-    private void SendLatencyFeedback()
+
+    // 严格逐帧回传：timing:t_begin,t_final
+    private void SendFrameTimingFeedback(long tBeginMs, long tFinalMs)
     {
-        if (blendShapeController == null || !blendShapeController.HasLatencyData)
-            return;
-            
         try
         {
-            float latency = blendShapeController.Latency;
-            string feedbackData = $"latency:{latency.ToString("F3")}";
+            string feedbackData = $"timing:{tBeginMs},{tFinalMs}";
             
             using (TcpClient client = new TcpClient())
             {
@@ -130,13 +115,13 @@ public class FaceDataReceiver : MonoBehaviour
                     NetworkStream stream = client.GetStream();
                     byte[] data = Encoding.UTF8.GetBytes(feedbackData);
                     stream.Write(data, 0, data.Length);
-                    Debug.Log($"【延迟反馈】已发送延迟数据: {latency.ToString("F3")}秒");
+                    Debug.Log($"【延迟反馈】已发送逐帧时间戳: t_begin={tBeginMs}, t_final={tFinalMs}");
                 }
             }
         }
         catch (Exception e)
         {
-            Debug.LogWarning($"【延迟反馈】发送延迟数据失败: {e.Message}");
+            Debug.LogWarning($"【延迟反馈】发送逐帧时间戳失败: {e.Message}");
         }
     }
     
@@ -223,6 +208,9 @@ public class FaceDataReceiver : MonoBehaviour
                 Debug.LogError("【控制器缺失】BDCtrl控制器未找到");
             }
             
+            long tFinalMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            SendFrameTimingFeedback(timestamp, tFinalMs);
+
             Debug.Log($"【处理完成】处理了52个面部数据和{limbData.Length}个姿势数据");
         }
         catch (Exception e)
