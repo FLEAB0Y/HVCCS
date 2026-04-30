@@ -28,7 +28,7 @@ class FrameDataManager:
     def update_pose_data(self, timestamp_ms, pose_data):
         with self.lock:
             if timestamp_ms not in self.frame_data:
-                self.frame_data[timestamp_ms] = {"pose": None, "face": None}
+                self.frame_data[timestamp_ms] = {"pose": None, "face": None, "t_encode": None}
             self.frame_data[timestamp_ms]["pose"] = pose_data
             self._try_send_complete_frame(timestamp_ms)
             self._cleanup_old_frames()
@@ -36,7 +36,7 @@ class FrameDataManager:
     def update_face_data(self, timestamp_ms, face_data):
         with self.lock:
             if timestamp_ms not in self.frame_data:
-                self.frame_data[timestamp_ms] = {"pose": None, "face": None}
+                self.frame_data[timestamp_ms] = {"pose": None, "face": None, "t_encode": None}
             self.frame_data[timestamp_ms]["face"] = face_data
             self._try_send_complete_frame(timestamp_ms)
             self._cleanup_old_frames()
@@ -49,7 +49,7 @@ class FrameDataManager:
             if hasattr(self, 'client'):
                 # 平滑处理姿势数据
                 smoothed_pose = self._smooth_pose_data(frame["pose"])
-                # t_encode: 发送端完成特征处理、即将进入gRPC发送队列的时刻
+                # t_encode: 即将放入发送缓冲区的时刻
                 t_encode_ms = int(time.time() * 1000)
                 timing_meta = {
                     "t_begin": int(timestamp_ms),
@@ -222,10 +222,23 @@ def process_face_result(result, timestamp_ms, frame_data_manager, debug=False, r
             frame_data_manager.update_face_data(timestamp_ms, default_face_bytes)
 
 def main(server_addr='127.0.0.1', port_num=50051, 
-         pose_model_path=None, face_model_path=None, 
+         pose_model_path="E:\\ztw\\HVCCS\\data\\pose_landmarker_full.task", face_model_path="E:\\ztw\\HVCCS\\data\\face_landmarker_v2_with_blendshapes.task", 
          debug=False, res_path=None):
     """主函数：设置并运行姿势和面部表情检测"""
     VisionRunningMode = mp.tasks.vision.RunningMode
+
+    # 当命令行未传模型路径时，回退到项目内默认路径。
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    default_pose_model = os.path.join(project_root, 'data', 'pose_landmarker_full.task')
+    default_face_model = os.path.join(project_root, 'data', 'face_landmarker_v2_with_blendshapes.task')
+
+    pose_model_path = pose_model_path or default_pose_model
+    face_model_path = face_model_path or default_face_model
+
+    if not os.path.exists(pose_model_path):
+        raise FileNotFoundError(f"姿势模型文件不存在: {pose_model_path}")
+    if not os.path.exists(face_model_path):
+        raise FileNotFoundError(f"面部模型文件不存在: {face_model_path}")
     
     # 创建客户端
     client = THStreamClient(host=server_addr, port=port_num)
@@ -274,6 +287,9 @@ def main(server_addr='127.0.0.1', port_num=50051,
             if not ret:
                 break
             
+            # 在当前第k帧捕获后、输入姿势估计器前打上t_begin时间戳
+            frame_timestamp_ms = int(time.time() * 1000)
+            
             # 缓冲区满了就等待
             buffer_size = client.send_data_buffer.get_size()
             while buffer_size >= 5:
@@ -290,7 +306,6 @@ def main(server_addr='127.0.0.1', port_num=50051,
             
             if debug:
                 print(f"帧时间戳: {frame_timestamp_ms}")
-            frame_timestamp_ms = int(time.time() * 1000)
             
     except KeyboardInterrupt:
         print('程序被用户中断')

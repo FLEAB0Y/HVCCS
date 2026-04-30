@@ -31,20 +31,24 @@ class LatencyMonitor(QMainWindow):
         super().__init__()
         self.port_mappings = port_mappings
         self.point_cloud_grpc_port = point_cloud_grpc_port
-        self.latency_data = {}  # 存储各用户的延迟数据
-        self.sender_latency_data = {}  # 发送端处理时延 (t_encode - t_begin)
-        self.network_latency_data = {}  # 网络收发时延 (t_transit - t_encode)
-        self.unity_latency_data = {}  # Unity时延 (t_final - t_transit)
-        self.bandwidth_data = {}  # 存储各用户的带宽数据 (bytes/sec)
+        self.latency_data = {}  # Stores total latency samples as (timestamp, value)
+        self.network_latency_data = {}  # Network transit latency samples as (timestamp, value)
+        self.decoding_latency_data = {}  # Decoding and fitting latency samples as (timestamp, value)
+        self.rendering_latency_data = {}  # Rendering latency samples as (timestamp, value)
+        self.sender_latency_data = {}  # Sender processing latency (t_encode - t_begin)
+        self.bandwidth_data = {}  # Stores bandwidth samples as (timestamp, bytes/sec)
         self.packet_stats = {}  # 存储各用户的数据包统计信息
-        self.max_points = 300  # 30秒 * 10个点/秒
+        self.max_points = 300  # 保留用于带宽统计，不用于延迟主图裁剪
+        self.avg_window_seconds = 10
+        self.plot_window_seconds = 3
         
         # 初始化每个用户的数据
         for grpc_port, socket_port in port_mappings:
             self.latency_data[grpc_port] = []
-            self.sender_latency_data[grpc_port] = []
             self.network_latency_data[grpc_port] = []
-            self.unity_latency_data[grpc_port] = []
+            self.decoding_latency_data[grpc_port] = []
+            self.rendering_latency_data[grpc_port] = []
+            self.sender_latency_data[grpc_port] = []
             self.bandwidth_data[grpc_port] = []
             self.packet_stats[grpc_port] = {
                 'total_packets': 0,
@@ -63,7 +67,7 @@ class LatencyMonitor(QMainWindow):
         self.timer.start()
     
     def init_ui(self):
-        self.setWindowTitle('延迟和带宽监控')
+        self.setWindowTitle('Latency and Bandwidth Monitor')
         self.setGeometry(100, 100, 1200, 800)
         
         scroll_area = QScrollArea()
@@ -80,8 +84,8 @@ class LatencyMonitor(QMainWindow):
         self.plots = {}
         self.sender_plots = {}
         self.network_plots = {}
-        self.unity_plots = {}
-        self.bandwidth_plots = {}
+        self.decoding_plots = {}
+        self.rendering_plots = {}
         self.stats_labels = {}
         
         # 计数器用于跟踪B类用户的位置
@@ -94,93 +98,55 @@ class LatencyMonitor(QMainWindow):
             
             # 创建用户标题标签
             if grpc_port == 50055:
-                user_title = QLabel(f"全息教师：点云数据，访问端口号：{grpc_port}/{socket_port}")
+                user_title = QLabel(f"Teacher: Point Cloud Data, Ports {grpc_port}/{socket_port}")
             else:
                 if self.point_cloud_grpc_port and grpc_port == self.point_cloud_grpc_port:
-                    user_title = QLabel(f"点云用户：gRPC {grpc_port} / Socket {socket_port}")
+                    user_title = QLabel(f"Point Cloud User: gRPC {grpc_port} / Socket {socket_port}")
                 else:
                     b_user_count += 1
-                    user_title = QLabel(f"全息学生{b_user_count}：gRPC {grpc_port} / Socket {socket_port}")
+                    user_title = QLabel(f"Avatar {b_user_count}: gRPC {grpc_port} / Socket {socket_port}")
                 
             user_title.setFont(QFont('Arial', 11, QFont.Bold))
             user_title.setStyleSheet("color: #003366; background-color: #e6f2ff; padding: 5px; border-radius: 4px;")
             user_title.setAlignment(cast(Any, qt_align('AlignCenter')))
             user_layout.addWidget(user_title)
             
-            # 创建延迟图表
+            # 创建单窗口多曲线延迟图表
             latency_widget = pg.PlotWidget()
             latency_widget.setBackground('w')
-            latency_widget.setTitle('延迟监测')
-            latency_widget.setLabel('left', '延迟 (ms)')
-            latency_widget.setLabel('bottom', '时间 (s)')
+            latency_widget.setTitle('End-to-End Latency')
+            latency_widget.setLabel('left', 'Latency (ms)')
+            latency_widget.setLabel('bottom', 'Time (s)')
             latency_widget.showGrid(x=True, y=True)
-            latency_widget.setFixedHeight(180)
+            latency_widget.setFixedHeight(460)
+            self._configure_time_axis(latency_widget)
+            latency_widget.addLegend(offset=(10, -460))
             
-            # 添加延迟曲线
-            pen = pg.mkPen(color=(255, 0, 0), width=2)
-            plot_item = latency_widget.plot(pen=pen)
-            self.plots[grpc_port] = plot_item
-            
-            # 创建带宽图表
-            bandwidth_widget = pg.PlotWidget()
-            bandwidth_widget.setBackground('w')
-            bandwidth_widget.setTitle('带宽使用')
-            bandwidth_widget.setLabel('left', '带宽 (KB/s)')
-            bandwidth_widget.setLabel('bottom', '时间 (s)')
-            bandwidth_widget.showGrid(x=True, y=True)
-            bandwidth_widget.setFixedHeight(150)
-            
-            # 添加带宽曲线
-            bw_pen = pg.mkPen(color=(0, 128, 255), width=2)
-            bw_plot_item = bandwidth_widget.plot(pen=bw_pen)
-            self.bandwidth_plots[grpc_port] = bw_plot_item
+            # 添加不同时延曲线（单窗口）
+            total_pen = pg.mkPen(color=(255, 0, 0), width=2)
+            self.plots[grpc_port] = latency_widget.plot(pen=total_pen, name='Total')
 
-            # 创建发送端处理时延图表
-            sender_widget = pg.PlotWidget()
-            sender_widget.setBackground('w')
-            sender_widget.setTitle('发送端处理时延')
-            sender_widget.setLabel('left', '延迟 (ms)')
-            sender_widget.setLabel('bottom', '时间 (s)')
-            sender_widget.showGrid(x=True, y=True)
-            sender_widget.setFixedHeight(140)
             sender_pen = pg.mkPen(color=(0, 180, 0), width=2)
-            self.sender_plots[grpc_port] = sender_widget.plot(pen=sender_pen)
+            self.sender_plots[grpc_port] = latency_widget.plot(pen=sender_pen, name='Sender')
 
-            # 创建网络收发时延图表
-            network_widget = pg.PlotWidget()
-            network_widget.setBackground('w')
-            network_widget.setTitle('网络收发时延')
-            network_widget.setLabel('left', '延迟 (ms)')
-            network_widget.setLabel('bottom', '时间 (s)')
-            network_widget.showGrid(x=True, y=True)
-            network_widget.setFixedHeight(140)
             network_pen = pg.mkPen(color=(255, 140, 0), width=2)
-            self.network_plots[grpc_port] = network_widget.plot(pen=network_pen)
+            self.network_plots[grpc_port] = latency_widget.plot(pen=network_pen, name='Network')
 
-            # 创建Unity时延图表
-            unity_widget = pg.PlotWidget()
-            unity_widget.setBackground('w')
-            unity_widget.setTitle('Unity时延')
-            unity_widget.setLabel('left', '延迟 (ms)')
-            unity_widget.setLabel('bottom', '时间 (s)')
-            unity_widget.showGrid(x=True, y=True)
-            unity_widget.setFixedHeight(140)
-            unity_pen = pg.mkPen(color=(160, 32, 240), width=2)
-            self.unity_plots[grpc_port] = unity_widget.plot(pen=unity_pen)
+            decoding_pen = pg.mkPen(color=(0, 128, 255), width=2)
+            self.decoding_plots[grpc_port] = latency_widget.plot(pen=decoding_pen, name='Decoding&Fitting')
+
+            rendering_pen = pg.mkPen(color=(160, 32, 240), width=2)
+            self.rendering_plots[grpc_port] = latency_widget.plot(pen=rendering_pen, name='Rendering')
             
             # 添加统计信息标签
             stats_label = QLabel()
             stats_label.setFont(QFont('Arial', 10))
             stats_label.setAlignment(cast(Any, qt_align('AlignLeft')))
-            stats_label.setText("正在收集数据...")
+            stats_label.setText("Collecting data...")
             self.stats_labels[grpc_port] = stats_label
             
             # 将控件添加到用户容器
             user_layout.addWidget(latency_widget)
-            user_layout.addWidget(sender_widget)
-            user_layout.addWidget(network_widget)
-            user_layout.addWidget(unity_widget)
-            user_layout.addWidget(bandwidth_widget)
             user_layout.addWidget(stats_label)
             
             # 根据用户类型放置在对应的网格位置
@@ -198,110 +164,149 @@ class LatencyMonitor(QMainWindow):
     # 添加状态栏
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage('监控已启动')
+        self.status_bar.showMessage('Monitoring started')
+
+    def _trim_sample_window(self, samples):
+        if len(samples) > self.max_points:
+            del samples[:-self.max_points]
+
+    def _recent_samples(self, samples):
+        if not samples:
+            return []
+
+        cutoff = time.time() - self.avg_window_seconds
+        recent_samples = [sample for sample in samples if sample[0] >= cutoff]
+        if recent_samples:
+            return recent_samples
+        return [samples[-1]]
+
+    def _extract_plot_series(self, samples, base_time=None):
+        if not samples:
+            return [], []
+        # 只保留最近30秒的点绘图
+        now = time.time()
+        window_cutoff = now - 30.0
+        visible = [(t, v) for t, v in samples if t >= window_cutoff]
+        if not visible:
+            visible = [samples[-1]]
+        start_time = base_time if base_time is not None else visible[0][0]
+        x_values = [t - start_time for t, _ in visible]
+        y_values = [v for _, v in visible]
+        return x_values, y_values
+
+    def _average_recent_samples(self, samples):
+        recent_values = [value for _, value in self._recent_samples(samples)]
+        if not recent_values:
+            return 0
+        return sum(recent_values) / len(recent_values)
+
+    def _configure_time_axis(self, plot_widget):
+        plot_widget.enableAutoRange(y=True)
+        plot_widget.setXRange(0, 30)
     
     def update_plots(self):
         # 更新每个用户的图表和统计信息
         for grpc_port in self.plots.keys():
+            # 统一x轴起点：用当前时制30s前作为滚动窗口左端，保证各曲线严格对齐
+            base_time = time.time() - 30.0
+
             # 更新延迟图表
             latency_data = self.latency_data.get(grpc_port, [])
             if latency_data:
-                # 只显示最近30秒的数据
-                if len(latency_data) > self.max_points:
-                    latency_data = latency_data[-self.max_points:]
-                    self.latency_data[grpc_port] = latency_data
-                
-                # 更新延迟图表
-                self.plots[grpc_port].setData(range(len(latency_data)), latency_data)
+                latency_x, latency_values = self._extract_plot_series(latency_data, base_time)
+                self.plots[grpc_port].setData(latency_x, latency_values)
+            else:
+                latency_values = []
 
             # 更新发送端处理时延图表
             sender_data = self.sender_latency_data.get(grpc_port, [])
             if sender_data:
-                if len(sender_data) > self.max_points:
-                    sender_data = sender_data[-self.max_points:]
-                    self.sender_latency_data[grpc_port] = sender_data
-                self.sender_plots[grpc_port].setData(range(len(sender_data)), sender_data)
+                sender_x, sender_values = self._extract_plot_series(sender_data, base_time)
+                self.sender_plots[grpc_port].setData(sender_x, sender_values)
+            else:
+                sender_values = []
 
-            # 更新网络收发时延图表
+            # 更新网络时延图表
             network_data = self.network_latency_data.get(grpc_port, [])
             if network_data:
-                if len(network_data) > self.max_points:
-                    network_data = network_data[-self.max_points:]
-                    self.network_latency_data[grpc_port] = network_data
-                self.network_plots[grpc_port].setData(range(len(network_data)), network_data)
+                network_x, network_values = self._extract_plot_series(network_data, base_time)
+                self.network_plots[grpc_port].setData(network_x, network_values)
+            else:
+                network_values = []
 
-            # 更新Unity时延图表
-            unity_data = self.unity_latency_data.get(grpc_port, [])
-            if unity_data:
-                if len(unity_data) > self.max_points:
-                    unity_data = unity_data[-self.max_points:]
-                    self.unity_latency_data[grpc_port] = unity_data
-                self.unity_plots[grpc_port].setData(range(len(unity_data)), unity_data)
-            
-            # 更新带宽图表
+            # 更新解码拟合时延图表
+            decoding_data = self.decoding_latency_data.get(grpc_port, [])
+            if decoding_data:
+                decoding_x, decoding_values = self._extract_plot_series(decoding_data, base_time)
+                self.decoding_plots[grpc_port].setData(decoding_x, decoding_values)
+            else:
+                decoding_values = []
+
+            # 更新渲染时延图表
+            rendering_data = self.rendering_latency_data.get(grpc_port, [])
+            if rendering_data:
+                rendering_x, rendering_values = self._extract_plot_series(rendering_data, base_time)
+                self.rendering_plots[grpc_port].setData(rendering_x, rendering_values)
+            else:
+                rendering_values = []
+
             bandwidth_data = self.bandwidth_data.get(grpc_port, [])
-            if bandwidth_data:
-                # 只显示最近30秒的数据
-                if len(bandwidth_data) > self.max_points:
-                    bandwidth_data = bandwidth_data[-self.max_points:]
-                    self.bandwidth_data[grpc_port] = bandwidth_data
-                
-                # 更新带宽图表 (转换为KB/s)
-                kb_data = [b/1024 for b in bandwidth_data]
-                self.bandwidth_plots[grpc_port].setData(range(len(kb_data)), kb_data)
+            bandwidth_values = [value for _, value in bandwidth_data] if bandwidth_data else []
             
             # 更新统计信息
             stats = self.packet_stats.get(grpc_port, {})
             if stats:
                 # 计算当前延迟和平均延迟
-                current_latency = latency_data[-1] if latency_data else 0
-                avg_latency = sum(latency_data) / len(latency_data) if latency_data else 0
+                current_latency = latency_values[-1] if latency_values else 0
+                avg_latency = self._average_recent_samples(latency_data)
                 
                 # 计算当前带宽和平均带宽
-                current_bandwidth = bandwidth_data[-1] if bandwidth_data else 0
-                avg_bandwidth = sum(bandwidth_data) / len(bandwidth_data) if bandwidth_data else 0
+                current_bandwidth = bandwidth_values[-1] if bandwidth_values else 0
+                avg_bandwidth = self._average_recent_samples(bandwidth_data)
 
                 # 计算分段时延统计
-                current_sender = sender_data[-1] if sender_data else 0
-                avg_sender = sum(sender_data) / len(sender_data) if sender_data else 0
-                current_network = network_data[-1] if network_data else 0
-                avg_network = sum(network_data) / len(network_data) if network_data else 0
-                current_unity = unity_data[-1] if unity_data else 0
-                avg_unity = sum(unity_data) / len(unity_data) if unity_data else 0
+                current_sender = sender_values[-1] if sender_values else 0
+                avg_sender = self._average_recent_samples(self.sender_latency_data.get(grpc_port, []))
+                current_network = network_values[-1] if network_values else 0
+                avg_network = self._average_recent_samples(network_data)
+                current_decoding = decoding_values[-1] if decoding_values else 0
+                avg_decoding = self._average_recent_samples(decoding_data)
+                current_rendering = rendering_values[-1] if rendering_values else 0
+                avg_rendering = self._average_recent_samples(rendering_data)
+                current_bandwidth_kbps = current_bandwidth * 8.0 / 1000.0
+                avg_bandwidth_kbps = avg_bandwidth * 8.0 / 1000.0
                 
                 # 更新统计信息标签
                 stats_text = (
-                    f"<b>延迟统计:</b> 当前: {current_latency:.1f} ms | 平均: {avg_latency:.1f} ms<br>"
-                    f"<b>分段统计:</b> 发送: {current_sender:.1f}/{avg_sender:.1f} ms | 网络: {current_network:.1f}/{avg_network:.1f} ms | Unity: {current_unity:.1f}/{avg_unity:.1f} ms<br>"
-                    f"<b>带宽统计:</b> 当前: {current_bandwidth/1024:.2f} KB/s | 平均: {avg_bandwidth/1024:.2f} KB/s<br>"
-                    f"<b>数据统计:</b> 总包数: {stats['total_packets']} | 总数据量: {stats['total_bytes']/1024:.2f} KB"
+                    f"<b>Total Latency:</b> Current: {current_latency:.1f} ms | Avg (last {self.avg_window_seconds}s): {avg_latency:.1f} ms<br>"
+                    f"<b>Sender Latency:</b> Current: {current_sender:.1f} ms | Avg: {avg_sender:.1f} ms<br>"
+                    f"<b>Network Latency:</b> Current: {current_network:.1f} ms | Avg: {avg_network:.1f} ms<br>"
+                    f"<b>Decoding&Fitting Latency:</b> Current: {current_decoding:.1f} ms | Avg: {avg_decoding:.1f} ms<br>"
+                    f"<b>Rendering Latency:</b> Current: {current_rendering:.1f} ms | Avg: {avg_rendering:.1f} ms<br>"
+                    f"<b>Bandwidth:</b> Current: {current_bandwidth_kbps:.2f} kbps | Average: {avg_bandwidth_kbps:.2f} kbps<br>"
+                    f"<b>Data:</b> Total Packets: {stats['total_packets']} | Total Size: {stats['total_bytes']/1024:.2f} KB"
                 )
                 self.stats_labels[grpc_port].setText(stats_text)
     
     def add_latency_data(self, grpc_port, latency):
         """添加新的延迟数据点"""
         if grpc_port in self.latency_data:
-            self.latency_data[grpc_port].append(latency)
-            # 保持数据点不超过最大值
-            if len(self.latency_data[grpc_port]) > self.max_points:
-                self.latency_data[grpc_port].pop(0)
+            self.latency_data[grpc_port].append((time.time(), latency))
 
-    def add_segment_data(self, grpc_port, sender_ms=None, network_ms=None, unity_ms=None):
+    def add_segment_data(self, grpc_port, sender_ms=None, network_ms=None, decoding_ms=None, rendering_ms=None):
         """添加分段时延数据点"""
+        sample_time = time.time()
         if sender_ms is not None and grpc_port in self.sender_latency_data:
-            self.sender_latency_data[grpc_port].append(sender_ms)
-            if len(self.sender_latency_data[grpc_port]) > self.max_points:
-                self.sender_latency_data[grpc_port].pop(0)
+            self.sender_latency_data[grpc_port].append((sample_time, sender_ms))
 
         if network_ms is not None and grpc_port in self.network_latency_data:
-            self.network_latency_data[grpc_port].append(network_ms)
-            if len(self.network_latency_data[grpc_port]) > self.max_points:
-                self.network_latency_data[grpc_port].pop(0)
+            self.network_latency_data[grpc_port].append((sample_time, network_ms))
 
-        if unity_ms is not None and grpc_port in self.unity_latency_data:
-            self.unity_latency_data[grpc_port].append(unity_ms)
-            if len(self.unity_latency_data[grpc_port]) > self.max_points:
-                self.unity_latency_data[grpc_port].pop(0)
+        if decoding_ms is not None and grpc_port in self.decoding_latency_data:
+            self.decoding_latency_data[grpc_port].append((sample_time, decoding_ms))
+
+        if rendering_ms is not None and grpc_port in self.rendering_latency_data:
+            self.rendering_latency_data[grpc_port].append((sample_time, rendering_ms))
     
     def add_packet_data(self, grpc_port, data_size):
         """添加新的数据包信息"""
@@ -323,7 +328,7 @@ class LatencyMonitor(QMainWindow):
                 current_bandwidth = total_bytes
                 
                 # 添加到带宽数据
-                self.bandwidth_data[grpc_port].append(current_bandwidth)
+                self.bandwidth_data[grpc_port].append((current_time, current_bandwidth))
                 if len(self.bandwidth_data[grpc_port]) > self.max_points:
                     self.bandwidth_data[grpc_port].pop(0)
                     
@@ -356,7 +361,7 @@ def send_combined_data(face_data_str, limb_data_str, timestamp, socket_port):
     client.connect(("127.0.0.1", socket_port))
     
     # 发送数据
-    client.send(data_str.encode('utf-8'))
+    client.sendall(data_str.encode('utf-8'))
     
     # 关闭连接
     client.close()
@@ -461,6 +466,33 @@ def grpc_thread(grpc_port, socket_port, latency_monitor=None, point_cloud_grpc_p
     if is_point_cloud_port:
         print(f"[点云数据] 启动点云数据专用服务: gRPC端口 {grpc_port}, Socket端口 {socket_port}")
 
+    # 持久化 TCP 连接：避免每帧建立新连接带来的握手延迟
+    persistent_sock = None
+
+    def _send_persistent(data_str):
+        nonlocal persistent_sock
+        encoded = (data_str + "\n").encode('utf-8')
+        for _ in range(2):  # 失败时重连一次
+            if persistent_sock is None:
+                try:
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s.connect(("127.0.0.1", socket_port))
+                    persistent_sock = s
+                    print(f"[Socket Port {socket_port}] 持久连接已建立")
+                except Exception as e:
+                    print(f"[Socket Port {socket_port}] 连接失败: {e}")
+                    return
+            try:
+                persistent_sock.sendall(encoded)
+                return
+            except Exception:
+                try:
+                    persistent_sock.close()
+                except Exception:
+                    pass
+                persistent_sock = None
+                print(f"[Socket Port {socket_port}] 连接断开，尝试重连")
+
     while True:    
         # 缓冲区空了就等待
         buffer_size = servicer.receive_data_buffer.get_size()
@@ -473,7 +505,6 @@ def grpc_thread(grpc_port, socket_port, latency_monitor=None, point_cloud_grpc_p
             try:
                 # 获取时间戳
                 timestamp = getattr(payload_rec, 'extDesc', '')
-                t_transit_ms = int(time.time() * 1000)
                 
                 # 判断是否为点云数据
                 if is_point_cloud_port:
@@ -505,25 +536,23 @@ def grpc_thread(grpc_port, socket_port, latency_monitor=None, point_cloud_grpc_p
                         latency_monitor.add_packet_data(grpc_port, data_size)
 
                     # 计算分段时延
-                    sender_ms = None
-                    network_ms = None
                     t_begin_ms = None
                     t_encode_ms = None
+                    t_net_ms = None
                     if timing_meta:
                         t_begin_ms = timing_meta.get('t_begin')
                         t_encode_ms = timing_meta.get('t_encode')
-                        if isinstance(t_begin_ms, int) and isinstance(t_encode_ms, int):
-                            sender_ms = max(0, t_encode_ms - t_begin_ms)
-                            network_ms = max(0, t_transit_ms - t_encode_ms)
+                    if isinstance(t_encode_ms, int):
+                        t_net_ms = int(time.time() * 1000)
                     
-                    # 发送合并后的数据
-                    send_combined_data(face_data_str, limb_data_str, timestamp, socket_port)
+                    # 通过持久化连接发送合并后的数据（换行符分隔帧）
+                    _send_persistent(str(timestamp) + "," + face_data_str + "," + limb_data_str)
 
                     if segment_cache is not None and t_begin_ms is not None:
                         snapshot = {
                             't_begin': t_begin_ms,
                             't_encode': t_encode_ms,
-                            't_transit': t_transit_ms
+                            't_net': t_net_ms
                         }
                         if cache_lock:
                             with cache_lock:
@@ -575,9 +604,10 @@ def latency_feedback_server(feedback_port, port_mappings, latency_monitor=None,
                 if feedback.startswith("timing:"):
                     payload = feedback[len("timing:"):]
                     parts = payload.split(',')
-                    if len(parts) == 2:
+                    if len(parts) == 3:
                         t_begin_ms = int(parts[0])
-                        t_final_ms = int(parts[1])
+                        t_transit_ms = int(parts[1])
+                        t_final_ms = int(parts[2])
 
                         segment_snapshot = None
                         if segment_cache is not None and grpc_port:
@@ -591,11 +621,12 @@ def latency_feedback_server(feedback_port, port_mappings, latency_monitor=None,
 
                         if segment_snapshot and latency_monitor and grpc_port:
                             t_encode_ms = segment_snapshot.get('t_encode')
-                            t_transit_ms = segment_snapshot.get('t_transit')
-                            if isinstance(t_encode_ms, int) and isinstance(t_transit_ms, int):
+                            t_net_ms = segment_snapshot.get('t_net')
+                            if isinstance(t_encode_ms, int) and isinstance(t_net_ms, int):
                                 sender_ms = max(0, t_encode_ms - t_begin_ms)
-                                network_ms = max(0, t_transit_ms - t_encode_ms)
-                                unity_ms = max(0, t_final_ms - t_transit_ms)
+                                network_ms = max(0, t_net_ms - t_encode_ms)
+                                decoding_ms = max(0, t_transit_ms - t_net_ms)
+                                rendering_ms = max(0, t_final_ms - t_transit_ms)
                                 total_ms = max(0, t_final_ms - t_begin_ms - compensation)
 
                                 latency_monitor.add_latency_data(grpc_port, total_ms)
@@ -603,7 +634,8 @@ def latency_feedback_server(feedback_port, port_mappings, latency_monitor=None,
                                     grpc_port,
                                     sender_ms=sender_ms,
                                     network_ms=network_ms,
-                                    unity_ms=unity_ms
+                                    decoding_ms=decoding_ms,
+                                    rendering_ms=rendering_ms
                                 )
                     
             client.close()

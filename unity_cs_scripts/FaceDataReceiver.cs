@@ -29,8 +29,22 @@ public class FaceDataReceiver : MonoBehaviour
     private bool isRunning = false;
     
     // 消息队列
-    private readonly Queue<string> messageQueue = new Queue<string>();
+    private class QueuedMessage
+    {
+        public string Data;
+        public long tTransitMs;
+    }
+    private readonly Queue<QueuedMessage> messageQueue = new Queue<QueuedMessage>();
     private readonly object queueLock = new object();
+    
+    // 待反馈队列：存储 (t_begin, t_transit) 对，待 LateUpdate 补充 t_final
+    private class PendingFeedback
+    {
+        public long tBeginMs;
+        public long tTransitMs;
+    }
+    private readonly Queue<PendingFeedback> pendingFeedbacks = new Queue<PendingFeedback>();
+    private readonly object feedbackLock = new object();
 
     void Start()
     {
@@ -91,20 +105,34 @@ public class FaceDataReceiver : MonoBehaviour
             {
                 while (messageQueue.Count > 0)
                 {
-                    string message = messageQueue.Dequeue();
-                    ProcessReceivedData(message);
+                    QueuedMessage message = messageQueue.Dequeue();
+                    ProcessReceivedData(message.Data, message.tTransitMs);
                 }
             }
         }
-        
+    }
+    
+    // 在帧渲染结束后发送反馈
+    void LateUpdate()
+    {
+        // 在帧渲染结束时补充 t_final 并发送待反馈的数据
+        lock (feedbackLock)
+        {
+            while (pendingFeedbacks.Count > 0)
+            {
+                PendingFeedback pending = pendingFeedbacks.Dequeue();
+                long tFinalMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                SendFrameTimingFeedback(pending.tBeginMs, pending.tTransitMs, tFinalMs);
+            }
+        }
     }
 
-    // 严格逐帧回传：timing:t_begin,t_final
-    private void SendFrameTimingFeedback(long tBeginMs, long tFinalMs)
+    // 严格逐帧回传：timing:t_begin,t_transit,t_final
+    private void SendFrameTimingFeedback(long tBeginMs, long tTransitMs, long tFinalMs)
     {
         try
         {
-            string feedbackData = $"timing:{tBeginMs},{tFinalMs}";
+            string feedbackData = $"timing:{tBeginMs},{tTransitMs},{tFinalMs}";
             
             using (TcpClient client = new TcpClient())
             {
@@ -115,7 +143,7 @@ public class FaceDataReceiver : MonoBehaviour
                     NetworkStream stream = client.GetStream();
                     byte[] data = Encoding.UTF8.GetBytes(feedbackData);
                     stream.Write(data, 0, data.Length);
-                    Debug.Log($"【延迟反馈】已发送逐帧时间戳: t_begin={tBeginMs}, t_final={tFinalMs}");
+                    Debug.Log($"【延迟反馈】已发送逐帧时间戳: t_begin={tBeginMs}, t_transit={tTransitMs}, t_final={tFinalMs}");
                 }
             }
         }
@@ -126,7 +154,7 @@ public class FaceDataReceiver : MonoBehaviour
     }
     
     // 处理接收到的数据
-    private void ProcessReceivedData(string data)
+    private void ProcessReceivedData(string data, long tTransitMs)
     {
         try
         {
@@ -208,10 +236,13 @@ public class FaceDataReceiver : MonoBehaviour
                 Debug.LogError("【控制器缺失】BDCtrl控制器未找到");
             }
             
-            long tFinalMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            SendFrameTimingFeedback(timestamp, tFinalMs);
+            // 将待反馈数据加入队列，等待 LateUpdate 在帧渲染结束时补充 t_final
+            lock (feedbackLock)
+            {
+                pendingFeedbacks.Enqueue(new PendingFeedback { tBeginMs = timestamp, tTransitMs = tTransitMs });
+            }
 
-            Debug.Log($"【处理完成】处理了52个面部数据和{limbData.Length}个姿势数据");
+            Debug.Log($"【处理完成】处理了52个面部数据和{limbData.Length}个姿势数据，等待帧渲染结束后发送反馈");
         }
         catch (Exception e)
         {
@@ -249,20 +280,19 @@ public class FaceDataReceiver : MonoBehaviour
             
             while (isRunning)
             {
-                // 等待客户端连接
-                if (tcpListener.Pending())
+                TcpClient client;
+                try
                 {
-                    // 接受客户端连接
-                    clientConnection = tcpListener.AcceptTcpClient();
-                    Debug.Log("客户端已连接");
-                    
-                    // 开始接收数据
-                    HandleClientConnection(clientConnection);
+                    // 阻塞式 Accept，无需轮询 Sleep
+                    client = tcpListener.AcceptTcpClient();
                 }
-                else
+                catch (Exception)
                 {
-                    Thread.Sleep(100); // 等待一小段时间再次检查
+                    if (!isRunning) break;
+                    continue;
                 }
+                Debug.Log("客户端已连接");
+                HandleClientConnection(client);
             }
         }
         catch (SocketException socketException)
@@ -279,24 +309,50 @@ public class FaceDataReceiver : MonoBehaviour
         }
     }
     
-    // 处理客户端连接和数据接收
+    // 处理客户端连接和数据接收（持久化连接，换行符分隔消息帧）
     private void HandleClientConnection(TcpClient client)
     {
         try
         {
             NetworkStream stream = client.GetStream();
-            byte[] buffer = new byte[bufferSize];
-            int bytesRead;
-            
-            // 读取客户端发送的数据
-            while (isRunning && client.Connected && (bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
+            byte[] buffer = new byte[bufferSize * 4];
+            System.Text.StringBuilder lineBuffer = new System.Text.StringBuilder();
+
+            while (isRunning)
             {
-                string data = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                // 将数据添加到队列
-                lock (queueLock)
+                int bytesRead;
+                try
                 {
-                    messageQueue.Enqueue(data);
+                    bytesRead = stream.Read(buffer, 0, buffer.Length);
                 }
+                catch (Exception)
+                {
+                    break;
+                }
+                if (bytesRead == 0) break;
+
+                // t_transit: 数据刚从 socket 读到的时刻
+                long tTransitMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                lineBuffer.Append(Encoding.UTF8.GetString(buffer, 0, bytesRead));
+
+                // 按换行符切分完整消息帧
+                string bufStr = lineBuffer.ToString();
+                int start = 0, idx;
+                while ((idx = bufStr.IndexOf('\n', start)) >= 0)
+                {
+                    string message = bufStr.Substring(start, idx - start).Trim();
+                    if (message.Length > 0)
+                    {
+                        lock (queueLock)
+                        {
+                            messageQueue.Enqueue(new QueuedMessage { Data = message, tTransitMs = tTransitMs });
+                        }
+                    }
+                    start = idx + 1;
+                }
+                lineBuffer.Clear();
+                if (start < bufStr.Length)
+                    lineBuffer.Append(bufStr.Substring(start));
             }
         }
         catch (Exception e)
@@ -305,10 +361,7 @@ public class FaceDataReceiver : MonoBehaviour
         }
         finally
         {
-            if (client != null)
-            {
-                client.Close();
-            }
+            if (client != null) client.Close();
         }
     }
 
