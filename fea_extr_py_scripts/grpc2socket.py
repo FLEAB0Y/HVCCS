@@ -16,6 +16,7 @@ from plyfile import PlyData
 import struct
 import numpy as np
 from typing import Any, cast
+from realtime_offline_splines_fit import cubic_hermite_coefficients
 
 
 def qt_align(name):
@@ -352,6 +353,75 @@ def parse_timing_meta(ext_data_bytes):
         return {}
 
 
+class StreamingBaselineSplineUpsampler:
+    """流式 baseline 样条：收到第 k 帧后拟合 [k-1,k]，并仅发送 [k-1,k) 段内上采样点。"""
+
+    def __init__(self, upsample_factor=1):
+        self.upsample_factor = max(1, int(upsample_factor))
+        self.prev_vec = None
+        self.prev_prev_vec = None
+        self.prev_ts_ms = None
+        self.prev_seg_right_v = None
+
+    def _parse_limb(self, limb_data_str):
+        vec = np.fromstring(limb_data_str, sep=',', dtype=np.float64)
+        if vec.size == 0:
+            raise ValueError("empty limb data")
+        return vec
+
+    def _vec_to_csv(self, vec):
+        return ','.join(f"{float(v):.6f}" for v in vec)
+
+    def generate_upsampled_frames(self, curr_ts_ms, limb_data_str):
+        """返回[(ts_ms, limb_csv), ...]。首帧无可拟合区间时返回空列表。"""
+        curr_vec = self._parse_limb(limb_data_str)
+
+        # 首帧：仅缓存，不输出。
+        if self.prev_vec is None or self.prev_ts_ms is None:
+            self.prev_vec = curr_vec
+            self.prev_ts_ms = int(curr_ts_ms)
+            return []
+
+        dt = max((int(curr_ts_ms) - int(self.prev_ts_ms)) / 1000.0, 1e-6)
+
+        if self.prev_prev_vec is None:
+            v_prev_seg = (curr_vec - self.prev_vec) / dt
+        else:
+            v_prev_seg = self.prev_seg_right_v if self.prev_seg_right_v is not None else (curr_vec - self.prev_vec) / dt
+
+        if self.prev_prev_vec is None:
+            v_curr_seg = v_prev_seg
+        else:
+            # baseline(history accel extrapolation): (3*x_k - 4*x_{k-1} + x_{k-2}) / (2*dt)
+            v_curr_seg = (3.0 * curr_vec - 4.0 * self.prev_vec + self.prev_prev_vec) / (2.0 * dt)
+
+        coeff = cubic_hermite_coefficients(
+            self.prev_vec,
+            v_prev_seg,
+            curr_vec,
+            v_curr_seg,
+            dt,
+        ).T  # (channels, 4)
+
+        # 严格一帧延迟：只发 [k-1, k) 点，不发右端点 k。
+        # 当 upsample_factor=1 时，仅发送 ratio=0 的左端点（即 k-1 帧）。
+        out_frames = []
+        for i in range(self.upsample_factor):
+            ratio = i / float(self.upsample_factor)
+            tau = dt * ratio
+            # y(tau) = a*tau^3 + b*tau^2 + c*tau + d
+            y = ((coeff[:, 0] * tau + coeff[:, 1]) * tau + coeff[:, 2]) * tau + coeff[:, 3]
+            ts_i = int(self.prev_ts_ms + (int(curr_ts_ms) - int(self.prev_ts_ms)) * ratio)
+            out_frames.append((ts_i, self._vec_to_csv(y)))
+
+        self.prev_prev_vec = self.prev_vec
+        self.prev_vec = curr_vec
+        self.prev_ts_ms = int(curr_ts_ms)
+        self.prev_seg_right_v = v_curr_seg.copy()
+
+        return out_frames
+
+
 def send_combined_data(face_data_str, limb_data_str, timestamp, socket_port):
     """将extDesc(时间戳)、facedata和limbdata拼接到一起，用逗号分隔"""
     # 直接拼接时间戳、face_data和limb_data，用逗号分隔
@@ -457,7 +527,7 @@ def send_formatted_point_cloud(points, socket_port):
         return False
 
 def grpc_thread(grpc_port, socket_port, latency_monitor=None, point_cloud_grpc_port=None,
-                segment_cache=None, cache_lock=None):
+                segment_cache=None, cache_lock=None, spline_upsample=1):
     servicer = THStreamServiceServicer()
     server_thread = threading.Thread(target=serve, args=(servicer, grpc_port))
     server_thread.start()
@@ -465,6 +535,11 @@ def grpc_thread(grpc_port, socket_port, latency_monitor=None, point_cloud_grpc_p
     is_point_cloud_port = (point_cloud_grpc_port is not None and grpc_port == point_cloud_grpc_port)
     if is_point_cloud_port:
         print(f"[点云数据] 启动点云数据专用服务: gRPC端口 {grpc_port}, Socket端口 {socket_port}")
+
+    spline_upsampler = None
+    if (not is_point_cloud_port) and int(spline_upsample) >= 1:
+        spline_upsampler = StreamingBaselineSplineUpsampler(upsample_factor=int(spline_upsample))
+        print(f"[gRPC Port {grpc_port}] baseline 样条上采样已启用: x{int(spline_upsample)}")
 
     # 持久化 TCP 连接：避免每帧建立新连接带来的握手延迟
     persistent_sock = None
@@ -542,11 +617,35 @@ def grpc_thread(grpc_port, socket_port, latency_monitor=None, point_cloud_grpc_p
                     if timing_meta:
                         t_begin_ms = timing_meta.get('t_begin')
                         t_encode_ms = timing_meta.get('t_encode')
+
+                    # 统一当前帧时间戳，优先使用 t_begin（用于与反馈匹配）
+                    frame_ts_ms = None
+                    if isinstance(t_begin_ms, int):
+                        frame_ts_ms = t_begin_ms
+                    else:
+                        ts_text = str(timestamp)
+                        if ts_text.isdigit():
+                            frame_ts_ms = int(ts_text)
+
+                    # t_net：收到第 k 帧后，进入样条拟合/上采样之前。
                     if isinstance(t_encode_ms, int):
                         t_net_ms = int(time.time() * 1000)
-                    
+
+                    send_items = []
+                    if spline_upsampler is not None and frame_ts_ms is not None:
+                        try:
+                            send_items = spline_upsampler.generate_upsampled_frames(frame_ts_ms, limb_data_str)
+                        except Exception as e:
+                            print(f"[gRPC Port {grpc_port}] 样条拟合失败，回退原始数据: {e}")
+                            send_items = [(frame_ts_ms, limb_data_str)]
+                    else:
+                        if frame_ts_ms is None:
+                            frame_ts_ms = int(time.time() * 1000)
+                        send_items = [(frame_ts_ms, limb_data_str)]
+
                     # 通过持久化连接发送合并后的数据（换行符分隔帧）
-                    _send_persistent(str(timestamp) + "," + face_data_str + "," + limb_data_str)
+                    for send_ts_ms, send_limb_data_str in send_items:
+                        _send_persistent(str(send_ts_ms) + "," + face_data_str + "," + send_limb_data_str)
 
                     if segment_cache is not None and t_begin_ms is not None:
                         snapshot = {
@@ -648,6 +747,7 @@ def main():
     parser.add_argument("--socket_ports", nargs='+', type=int, help="Socket端口列表")
     parser.add_argument("--point_cloud_grpc_port", type=int, help="点云数据gRPC端口")
     parser.add_argument("--feedback_offset", type=int, default=1000, help="反馈端口与Socket端口的偏移量")
+    parser.add_argument("--spline_upsample", type=int, default=1, help="baseline样条段内上采样倍数（>=1）")
     args = parser.parse_args()
 
     default_mappings = [
@@ -691,7 +791,7 @@ def main():
     for grpc_port, socket_port in port_mappings:
         t = threading.Thread(target=grpc_thread,
                              args=(grpc_port, socket_port, latency_monitor, point_cloud_grpc_port,
-                                   segment_cache, cache_lock))
+                                   segment_cache, cache_lock, args.spline_upsample))
         t.start()
         threads.append(t)
 
