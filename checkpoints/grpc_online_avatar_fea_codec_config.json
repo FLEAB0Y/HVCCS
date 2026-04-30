@@ -1,0 +1,37 @@
+{
+	"common": {
+		"packet_tag": "AVATAR_FEA_RES_V1",
+		"num_keypoints": 33,
+		"coord_dims": 3,
+		"face_dims": 52,
+		"i_frame_interval": 30,
+		"face_i_frame_interval": 30,
+		"quantize": true,
+		"quantize_i_frame": false,
+		"quantize_p_frame": true,
+		"face_quantize_i_frame": false,
+		"face_quantize_p_frame": true,
+		"quant_scale": 100.0,
+		"face_quant_scale": 100.0,
+		"quant_bits": 12,
+		"face_quant_bits": 12,
+		"clip_abs": 256.0,
+		"face_clip_abs": 1.0,
+		"entropy_enabled": true,
+		"face_entropy_enabled": true,
+		"entropy_codec": "huffman",
+		"face_entropy_codec": "huffman",
+		"entropy_codebook_path": "checkpoints/grpc_online_splines_entropy_codebook_q12.json",
+		"face_entropy_codebook_path": "checkpoints/grpc_online_splines_entropy_codebook_q12.json"
+	},
+	"sender": {
+		"server_addr": "127.0.0.1",
+		"port_num": 50051,
+		"buffer_limit": 5,
+		"channel": 0,
+		"debug": false
+	},
+	"receiver": {
+		"debug": false
+	}
+}

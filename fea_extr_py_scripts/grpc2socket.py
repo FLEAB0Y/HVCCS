@@ -6,6 +6,8 @@ import socket
 import json
 import sys
 import io
+import os
+import re
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout, QHBoxLayout,
                            QPushButton, QWidget, QStatusBar, QGroupBox, QGridLayout, QScrollArea)
 from PyQt5.QtCore import Qt, QTimer, pyqtSlot
@@ -17,6 +19,365 @@ import struct
 import numpy as np
 from typing import Any, cast
 from realtime_offline_splines_fit import cubic_hermite_coefficients
+
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+DEFAULT_CODEC_CONFIG_PATH = os.path.join(
+    PROJECT_ROOT,
+    "checkpoints",
+    "grpc_online_avatar_fea_codec_config.json",
+)
+
+
+def load_runtime_config(config_path: str) -> dict:
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"codec config not found: {config_path}")
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        cfg = json.load(f)
+
+    if not isinstance(cfg, dict):
+        raise ValueError("config root must be JSON object")
+
+    for key in ("common",):
+        if key not in cfg or not isinstance(cfg[key], dict):
+            raise ValueError(f"missing required config section: {key}")
+
+    return cfg
+
+
+def _is_within_root(path_value: str, root_dir: str) -> bool:
+    try:
+        return os.path.commonpath([os.path.abspath(path_value), os.path.abspath(root_dir)]) == os.path.abspath(root_dir)
+    except ValueError:
+        return False
+
+
+def resolve_runtime_path(path_value: str, project_root: str = PROJECT_ROOT) -> str:
+    if os.path.isabs(path_value):
+        return os.path.abspath(path_value)
+
+    resolved = os.path.abspath(os.path.join(project_root, path_value))
+    if not _is_within_root(resolved, project_root):
+        raise ValueError(
+            f"relative path escapes HVCCS root: {path_value}. "
+            "Use an absolute path for resources outside HVCCS."
+        )
+    return resolved
+
+
+def resolve_codebook_path_by_bits(codebook_path: str, quant_bits: int) -> str:
+    codebook_path = resolve_runtime_path(codebook_path)
+
+    root, ext = os.path.splitext(codebook_path)
+    ext = ext if ext else ".json"
+
+    candidates = []
+    if "{quant_bits}" in codebook_path:
+        candidates.append(codebook_path.format(quant_bits=int(quant_bits)))
+
+    candidates.append(codebook_path)
+
+    replaced_root = re.sub(r"_q\d+$", f"_q{int(quant_bits)}", root)
+    candidates.append(replaced_root + ext)
+
+    if not root.endswith(f"_q{int(quant_bits)}"):
+        candidates.append(f"{root}_q{int(quant_bits)}{ext}")
+
+    uniq_candidates = []
+    for p in candidates:
+        if p not in uniq_candidates:
+            uniq_candidates.append(p)
+
+    for p in uniq_candidates:
+        if os.path.exists(p):
+            return p
+
+    tried = "\n".join(uniq_candidates)
+    raise FileNotFoundError(
+        f"entropy codebook not found for quant_bits={quant_bits}. tried:\n{tried}"
+    )
+
+
+def load_huffman_codebook(codebook_path: str):
+    codebook_path = resolve_runtime_path(codebook_path)
+
+    if not os.path.exists(codebook_path):
+        raise FileNotFoundError(f"entropy codebook not found: {codebook_path}")
+
+    with open(codebook_path, "r", encoding="utf-8") as f:
+        obj = json.load(f)
+
+    symbols = obj.get("symbols", [])
+    if not isinstance(symbols, list) or not symbols:
+        raise ValueError("invalid codebook: symbols must be a non-empty list")
+
+    encode_map = {}
+    for item in symbols:
+        sym = int(item.get("symbol"))
+        code = str(item.get("code", ""))
+        if not code:
+            continue
+        encode_map[sym] = code
+
+    if not encode_map:
+        raise ValueError("invalid codebook: no valid symbol->code entries")
+
+    meta = obj.get("meta", {})
+    quant_bits = int(meta.get("quant_bits", 8))
+    clip_abs = float(meta.get("clip_abs", 1.0))
+    levels = 1 << quant_bits
+    for sym in encode_map.keys():
+        if sym < 0 or sym >= levels:
+            raise ValueError(f"symbol out of quant_bits range: sym={sym}, quant_bits={quant_bits}")
+
+    return {
+        "path": codebook_path,
+        "encode_map": encode_map,
+        "quant_bits": quant_bits,
+        "clip_abs": clip_abs,
+    }
+
+
+def build_huffman_decode_tree(encode_map: dict) -> dict:
+    root = {}
+    for sym, code in encode_map.items():
+        node = root
+        for bit in code:
+            node = node.setdefault(bit, {})
+        if "sym" in node:
+            raise ValueError("invalid codebook: duplicated huffman code")
+        node["sym"] = int(sym)
+    return root
+
+
+def dequantize_uniform(q_values: np.ndarray, quant_bits: int, clip_abs: float) -> np.ndarray:
+    levels = 1 << quant_bits
+    scale = (2.0 * clip_abs) / (levels - 1)
+    return q_values.astype(np.float32) * scale - clip_abs
+
+
+def decode_payload(
+    payload_bytes: bytes,
+    payload_dtype: str,
+    entropy_codec: str,
+    quant_scale: float,
+    quant_bits: int,
+    clip_abs: float,
+    entropy_bit_length: int,
+    huffman_decode_tree: dict | None,
+    expected_dims: int,
+):
+    if payload_dtype == "qint16":
+        if quant_scale <= 0:
+            raise ValueError(f"quant_scale must be > 0, got {quant_scale}")
+        values = np.frombuffer(payload_bytes, dtype=np.int16).astype(np.float32) / quant_scale
+    elif payload_dtype == "qidx_huff":
+        if entropy_codec != "huffman":
+            raise ValueError(f"qidx_huff requires entropy_codec='huffman', got {entropy_codec}")
+        if huffman_decode_tree is None:
+            raise ValueError("huffman decode tree is required for qidx_huff")
+        if entropy_bit_length < 0:
+            raise ValueError(f"invalid entropy_bit_length: {entropy_bit_length}")
+
+        bit_str = "".join(format(b, "08b") for b in payload_bytes)
+        if entropy_bit_length > len(bit_str):
+            raise ValueError("entropy_bit_length exceeds payload bits")
+        bit_str = bit_str[:entropy_bit_length]
+
+        decoded_symbols = []
+        node = huffman_decode_tree
+        for bit in bit_str:
+            if bit not in node:
+                raise ValueError("invalid huffman stream")
+            node = node[bit]
+            if "sym" in node:
+                decoded_symbols.append(int(node["sym"]))
+                node = huffman_decode_tree
+
+        if len(decoded_symbols) != expected_dims:
+            raise ValueError(
+                f"decoded symbol dims mismatch: got {len(decoded_symbols)}, expected {expected_dims}"
+            )
+
+        values = dequantize_uniform(
+            np.asarray(decoded_symbols, dtype=np.int32),
+            quant_bits=quant_bits,
+            clip_abs=clip_abs,
+        )
+    elif payload_dtype == "float32":
+        values = np.frombuffer(payload_bytes, dtype=np.float32)
+    else:
+        raise ValueError(f"unsupported payload dtype: {payload_dtype}")
+
+    return values.astype(np.float32, copy=False)
+
+
+def parse_meta(ext_desc: str):
+    if not ext_desc:
+        return {}
+    text = ext_desc.strip()
+    if not text:
+        return {}
+    if text.startswith("{") and text.endswith("}"):
+        try:
+            meta = json.loads(text)
+            if isinstance(meta, dict):
+                return meta
+        except Exception:
+            return {}
+    return {}
+
+
+def build_decoder_context(config_path: str) -> dict:
+    cfg = load_runtime_config(config_path)
+    common_cfg = cfg["common"]
+
+    default_quant_scale = float(common_cfg.get("quant_scale", 1000.0))
+    default_quant_bits = int(common_cfg.get("quant_bits", 8))
+    default_clip_abs = float(common_cfg.get("clip_abs", 0.0))
+    entropy_enabled = bool(common_cfg.get("entropy_enabled", True))
+    entropy_codec = str(common_cfg.get("entropy_codec", "huffman" if entropy_enabled else "none"))
+
+    huffman_decode_tree = None
+    if entropy_enabled and entropy_codec == "huffman":
+        codebook_path_base = str(
+            common_cfg.get(
+                "entropy_codebook_path",
+                "checkpoints/grpc_online_splines_entropy_codebook.json",
+            )
+        )
+        codebook_path = resolve_codebook_path_by_bits(codebook_path_base, quant_bits=default_quant_bits)
+        codebook = load_huffman_codebook(codebook_path)
+        if "quant_bits" in common_cfg and int(common_cfg["quant_bits"]) != int(codebook["quant_bits"]):
+            raise ValueError(
+                f"quant_bits mismatch: config={int(common_cfg['quant_bits'])}, "
+                f"codebook={int(codebook['quant_bits'])}, path={codebook['path']}"
+            )
+        if default_clip_abs <= 0:
+            default_clip_abs = float(codebook["clip_abs"])
+        if "quant_bits" not in common_cfg:
+            default_quant_bits = int(codebook["quant_bits"])
+        huffman_decode_tree = build_huffman_decode_tree(codebook["encode_map"])
+
+    if entropy_enabled and entropy_codec not in ("huffman",):
+        raise ValueError(f"unsupported entropy_codec: {entropy_codec}; zlib has been removed")
+
+    face_quant_scale = float(common_cfg.get("face_quant_scale", default_quant_scale))
+    face_quant_bits = int(common_cfg.get("face_quant_bits", default_quant_bits))
+    face_clip_abs = float(common_cfg.get("face_clip_abs", default_clip_abs))
+    face_entropy_enabled = bool(common_cfg.get("face_entropy_enabled", entropy_enabled))
+    face_entropy_codec = str(common_cfg.get("face_entropy_codec", entropy_codec if face_entropy_enabled else "none"))
+
+    face_huffman_decode_tree = None
+    if face_entropy_enabled and face_entropy_codec == "huffman":
+        face_codebook_path_base = str(
+            common_cfg.get(
+                "face_entropy_codebook_path",
+                common_cfg.get(
+                    "entropy_codebook_path",
+                    "checkpoints/grpc_online_splines_entropy_codebook.json",
+                ),
+            )
+        )
+        face_codebook_path = resolve_codebook_path_by_bits(face_codebook_path_base, quant_bits=face_quant_bits)
+        face_codebook = load_huffman_codebook(face_codebook_path)
+        if "face_quant_bits" in common_cfg and int(common_cfg["face_quant_bits"]) != int(face_codebook["quant_bits"]):
+            raise ValueError(
+                f"face_quant_bits mismatch: config={int(common_cfg['face_quant_bits'])}, "
+                f"codebook={int(face_codebook['quant_bits'])}, path={face_codebook['path']}"
+            )
+        if face_clip_abs <= 0:
+            face_clip_abs = float(face_codebook["clip_abs"])
+        if "face_quant_bits" not in common_cfg:
+            face_quant_bits = int(face_codebook["quant_bits"])
+        face_huffman_decode_tree = build_huffman_decode_tree(face_codebook["encode_map"])
+
+    if face_entropy_enabled and face_entropy_codec not in ("huffman",):
+        raise ValueError(f"unsupported face_entropy_codec: {face_entropy_codec}; zlib has been removed")
+
+    return {
+        "default_quant_scale": default_quant_scale,
+        "default_quant_bits": default_quant_bits,
+        "default_clip_abs": default_clip_abs,
+        "default_num_keypoints": int(common_cfg.get("num_keypoints", 33)),
+        "default_coord_dims": int(common_cfg.get("coord_dims", 3)),
+        "huffman_decode_tree": huffman_decode_tree,
+        "entropy_codec": entropy_codec,
+        "default_face_dims": int(common_cfg.get("face_dims", 52)),
+        "face_quant_scale": face_quant_scale,
+        "face_quant_bits": face_quant_bits,
+        "face_clip_abs": face_clip_abs,
+        "face_huffman_decode_tree": face_huffman_decode_tree,
+        "face_entropy_codec": face_entropy_codec,
+    }
+
+
+def decode_avatar_feature_payload(
+    payload_bytes: bytes,
+    ext_desc: str,
+    decoder_ctx: dict,
+    prev_recon_by_channel: dict,
+    feature_name: str,
+) -> tuple[str, dict]:
+    meta = parse_meta(ext_desc)
+    nested = meta.get(feature_name, {}) if isinstance(meta, dict) else {}
+    if not isinstance(nested, dict):
+        nested = {}
+
+    if feature_name == "limb":
+        payload_dtype = str(nested.get("payload_dtype", meta.get("payload_dtype", "csv")))
+        entropy_codec = str(nested.get("entropy_codec", meta.get("entropy_codec", decoder_ctx["entropy_codec"])))
+        quant_scale = float(nested.get("quant_scale", meta.get("quant_scale", decoder_ctx["default_quant_scale"])))
+        quant_bits = int(nested.get("quant_bits", meta.get("quant_bits", decoder_ctx["default_quant_bits"])))
+        clip_abs = float(nested.get("clip_abs", meta.get("clip_abs", decoder_ctx["default_clip_abs"])))
+        entropy_bit_length = int(nested.get("entropy_bit_length", meta.get("entropy_bit_length", 0)))
+        num_keypoints = int(nested.get("num_keypoints", meta.get("num_keypoints", decoder_ctx["default_num_keypoints"])))
+        coord_dims = int(nested.get("coord_dims", meta.get("coord_dims", decoder_ctx["default_coord_dims"])))
+        expected_dims = int(num_keypoints * coord_dims)
+        packet_kind = str(nested.get("kind", meta.get("kind", "I")))
+        decode_tree = decoder_ctx["huffman_decode_tree"]
+    else:
+        payload_dtype = str(nested.get("payload_dtype", "csv"))
+        entropy_codec = str(nested.get("entropy_codec", decoder_ctx["face_entropy_codec"]))
+        quant_scale = float(nested.get("quant_scale", decoder_ctx["face_quant_scale"]))
+        quant_bits = int(nested.get("quant_bits", decoder_ctx["face_quant_bits"]))
+        clip_abs = float(nested.get("clip_abs", decoder_ctx["face_clip_abs"]))
+        entropy_bit_length = int(nested.get("entropy_bit_length", 0))
+        expected_dims = int(nested.get("face_dims", decoder_ctx["default_face_dims"]))
+        packet_kind = str(nested.get("kind", "I"))
+        decode_tree = decoder_ctx["face_huffman_decode_tree"]
+
+    if payload_dtype == "csv":
+        return payload_bytes.decode("utf-8"), meta
+
+    channel = int(meta.get("channel", 0))
+    decoded_values = decode_payload(
+        payload_bytes,
+        payload_dtype=payload_dtype,
+        entropy_codec=entropy_codec,
+        quant_scale=quant_scale,
+        quant_bits=quant_bits,
+        clip_abs=clip_abs,
+        entropy_bit_length=entropy_bit_length,
+        huffman_decode_tree=decode_tree,
+        expected_dims=expected_dims,
+    )
+
+    if decoded_values.size != expected_dims:
+        raise ValueError(
+            f"decoded dims mismatch: got {decoded_values.size}, expected {expected_dims}"
+        )
+
+    prev_recon = prev_recon_by_channel.get(channel)
+    if packet_kind == "P" and prev_recon is not None:
+        recon_flat = (prev_recon + decoded_values).astype(np.float32, copy=False)
+    else:
+        recon_flat = decoded_values.astype(np.float32, copy=False)
+    prev_recon_by_channel[channel] = recon_flat
+
+    data_str = ",".join(f"{float(v):.6f}" for v in recon_flat.tolist())
+    return data_str, meta
 
 
 def qt_align(name):
@@ -527,7 +888,7 @@ def send_formatted_point_cloud(points, socket_port):
         return False
 
 def grpc_thread(grpc_port, socket_port, latency_monitor=None, point_cloud_grpc_port=None,
-                segment_cache=None, cache_lock=None, spline_upsample=1):
+                segment_cache=None, cache_lock=None, spline_upsample=1, decoder_ctx=None):
     servicer = THStreamServiceServicer()
     server_thread = threading.Thread(target=serve, args=(servicer, grpc_port))
     server_thread.start()
@@ -540,6 +901,9 @@ def grpc_thread(grpc_port, socket_port, latency_monitor=None, point_cloud_grpc_p
     if (not is_point_cloud_port) and int(spline_upsample) >= 1:
         spline_upsampler = StreamingBaselineSplineUpsampler(upsample_factor=int(spline_upsample))
         print(f"[gRPC Port {grpc_port}] baseline 样条上采样已启用: x{int(spline_upsample)}")
+
+    prev_limb_recon_by_channel = {}
+    prev_face_recon_by_channel = {}
 
     # 持久化 TCP 连接：避免每帧建立新连接带来的握手延迟
     persistent_sock = None
@@ -597,11 +961,41 @@ def grpc_thread(grpc_port, socket_port, latency_monitor=None, point_cloud_grpc_p
                     # 处理常规数据（面部和肢体数据）
                     face_data_bytes = getattr(payload_rec, 'faceData', b'')
                     limb_data_bytes = getattr(payload_rec, 'limbData', b'')
+                    ext_desc = getattr(payload_rec, 'extDesc', '')
                     timing_meta = parse_timing_meta(getattr(payload_rec, 'extData', b''))
-                    
-                    # 直接解码字节串为字符串
-                    face_data_str = face_data_bytes.decode('utf-8')
-                    limb_data_str = limb_data_bytes.decode('utf-8')
+
+                    # 计算分段时延基准
+                    t_begin_ms = None
+                    t_encode_ms = None
+                    t_net_ms = None
+                    if timing_meta:
+                        t_begin_ms = timing_meta.get('t_begin')
+                        t_encode_ms = timing_meta.get('t_encode')
+
+                    # t_net 打在进入本地解码/样条前，确保 (t_transit - t_net)
+                    # 覆盖本地解码、样条拟合、socket发送和Unity接收过程。
+                    if isinstance(t_encode_ms, int):
+                        t_net_ms = int(time.time() * 1000)
+
+                    if decoder_ctx is not None:
+                        limb_data_str, meta = decode_avatar_feature_payload(
+                            limb_data_bytes,
+                            ext_desc,
+                            decoder_ctx,
+                            prev_limb_recon_by_channel,
+                            "limb",
+                        )
+                        face_data_str, _ = decode_avatar_feature_payload(
+                            face_data_bytes,
+                            ext_desc,
+                            decoder_ctx,
+                            prev_face_recon_by_channel,
+                            "face",
+                        )
+                    else:
+                        limb_data_str = limb_data_bytes.decode('utf-8')
+                        face_data_str = face_data_bytes.decode('utf-8')
+                        meta = {}
                     
                     # 计算数据大小
                     data_size = len(face_data_bytes) + len(limb_data_bytes)
@@ -610,26 +1004,17 @@ def grpc_thread(grpc_port, socket_port, latency_monitor=None, point_cloud_grpc_p
                     if latency_monitor:
                         latency_monitor.add_packet_data(grpc_port, data_size)
 
-                    # 计算分段时延
-                    t_begin_ms = None
-                    t_encode_ms = None
-                    t_net_ms = None
-                    if timing_meta:
-                        t_begin_ms = timing_meta.get('t_begin')
-                        t_encode_ms = timing_meta.get('t_encode')
-
                     # 统一当前帧时间戳，优先使用 t_begin（用于与反馈匹配）
                     frame_ts_ms = None
                     if isinstance(t_begin_ms, int):
                         frame_ts_ms = t_begin_ms
                     else:
+                        meta_ts = meta.get('timestamp_ms') if isinstance(meta, dict) else None
+                        if isinstance(meta_ts, int):
+                            frame_ts_ms = meta_ts
                         ts_text = str(timestamp)
                         if ts_text.isdigit():
                             frame_ts_ms = int(ts_text)
-
-                    # t_net：收到第 k 帧后，进入样条拟合/上采样之前。
-                    if isinstance(t_encode_ms, int):
-                        t_net_ms = int(time.time() * 1000)
 
                     send_items = []
                     if spline_upsampler is not None and frame_ts_ms is not None:
@@ -669,6 +1054,9 @@ def grpc_thread(grpc_port, socket_port, latency_monitor=None, point_cloud_grpc_p
                             if len(segment_cache[grpc_port]) > 300:
                                 oldest_key = min(segment_cache[grpc_port].keys())
                                 del segment_cache[grpc_port][oldest_key]
+
+                    # 注意：本地解码耗时不再写入 decoding 曲线，避免与
+                    # 反馈链路中的 (t_transit - t_net) 口径混用。
 
             except AttributeError as e:
                 print(f"[gRPC Port {grpc_port}] AttributeError: {e}")
@@ -748,7 +1136,10 @@ def main():
     parser.add_argument("--point_cloud_grpc_port", type=int, help="点云数据gRPC端口")
     parser.add_argument("--feedback_offset", type=int, default=1000, help="反馈端口与Socket端口的偏移量")
     parser.add_argument("--spline_upsample", type=int, default=1, help="baseline样条段内上采样倍数（>=1）")
+    parser.add_argument("--codec_config_path", type=str, default=DEFAULT_CODEC_CONFIG_PATH, help="编解码配置路径")
     args = parser.parse_args()
+
+    decoder_ctx = build_decoder_context(args.codec_config_path)
 
     default_mappings = [
         (50051, 8890),
@@ -791,7 +1182,7 @@ def main():
     for grpc_port, socket_port in port_mappings:
         t = threading.Thread(target=grpc_thread,
                              args=(grpc_port, socket_port, latency_monitor, point_cloud_grpc_port,
-                                   segment_cache, cache_lock, args.spline_upsample))
+                                   segment_cache, cache_lock, args.spline_upsample, decoder_ctx))
         t.start()
         threads.append(t)
 
