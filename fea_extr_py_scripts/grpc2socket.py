@@ -21,6 +21,27 @@ from typing import Any, cast
 from realtime_offline_splines_fit import cubic_hermite_coefficients
 
 
+PLOT_FONT_SIZE = 23
+PLOT_TITLE_SIZE = PLOT_FONT_SIZE + 2
+PLOT_FONT_FAMILY = "DejaVu Sans"
+PLOT_LINE_WIDTH = 2.2
+PLOT_AXIS_WIDTH = 2.0
+PLOT_TICK_LENGTH = 7
+PLOT_Y_MIN_MS = 0.0
+PLOT_Y_MAX_MS = 200.0
+PLOT_X_MIN_S = 0.0
+PLOT_X_MAX_S = 30.0
+PLOT_X_EDGE_PAD_S = 0.6
+PLOT_AXIS_LABEL_SIZE = PLOT_TITLE_SIZE
+PLOT_AXIS_LABEL_WEIGHT = 600
+AXIS_LABEL_STYLE = {
+    'color': 'black',
+    'font-size': f'{PLOT_AXIS_LABEL_SIZE}pt',
+    'font-family': PLOT_FONT_FAMILY,
+    'font-weight': str(PLOT_AXIS_LABEL_WEIGHT),
+}
+
+
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DEFAULT_CODEC_CONFIG_PATH = os.path.join(
     PROJECT_ROOT,
@@ -476,33 +497,71 @@ class LatencyMonitor(QMainWindow):
             # 创建单窗口多曲线延迟图表
             latency_widget = pg.PlotWidget()
             latency_widget.setBackground('w')
-            latency_widget.setTitle('End-to-End Latency')
-            latency_widget.setLabel('left', 'Latency (ms)')
-            latency_widget.setLabel('bottom', 'Time (s)')
+            latency_widget.setTitle('')
+            latency_widget.setLabel('left', 'Latency (ms)', **AXIS_LABEL_STYLE)
+            latency_widget.setLabel('bottom', 'Time Window (s)', **AXIS_LABEL_STYLE)
             latency_widget.showGrid(x=True, y=True)
             latency_widget.setFixedHeight(460)
             self._configure_time_axis(latency_widget)
-            latency_widget.addLegend(offset=(10, -460))
+            legend = latency_widget.addLegend(offset=(10, -460))
+            if legend is not None:
+                legend.setPen(pg.mkPen(color=(0, 0, 0), width=PLOT_AXIS_WIDTH))
+                legend.setBrush(pg.mkBrush(255, 255, 255, 220))
+                if hasattr(legend, 'setLabelTextColor'):
+                    legend.setLabelTextColor('black')
+                if hasattr(legend, 'setLabelTextSize'):
+                    legend.setLabelTextSize(f'{PLOT_FONT_SIZE}pt')
+
+            plot_item = latency_widget.getPlotItem()
+            if plot_item is not None:
+                view_box = plot_item.getViewBox()
+                if view_box is not None:
+                    view_box.setBorder(pg.mkPen(color=(0, 0, 0), width=PLOT_AXIS_WIDTH))
+
+                for axis_name in ('left', 'bottom'):
+                    axis = plot_item.getAxis(axis_name)
+                    if axis is None:
+                        continue
+                    axis.setPen(pg.mkPen(color=(0, 0, 0), width=PLOT_AXIS_WIDTH))
+                    axis.setTextPen(pg.mkPen(color=(0, 0, 0), width=PLOT_AXIS_WIDTH))
+                    axis.setTickFont(QFont(PLOT_FONT_FAMILY, PLOT_FONT_SIZE))
+                    axis.setStyle(tickLength=-PLOT_TICK_LENGTH)
+
+                left_axis = plot_item.getAxis('left')
+                bottom_axis = plot_item.getAxis('bottom')
+                if left_axis is not None:
+                    self._set_axis_label_exact_style(left_axis, 'Latency (ms)')
+                if bottom_axis is not None:
+                    self._set_axis_label_exact_style(bottom_axis, 'Time Window (s)')
+                    bottom_axis.setStyle(
+                        autoExpandTextSpace=True,
+                        hideOverlappingLabels=False,
+                        stopAxisAtTick=(False, False),
+                        tickTextWidth=80,
+                    )
+
+                # Add a bit more right/bottom margin so the max tick label (30) is not clipped.
+                cast(Any, plot_item.layout).setContentsMargins(34, 10, 42, 16)
             
             # 添加不同时延曲线（单窗口）
-            total_pen = pg.mkPen(color=(255, 0, 0), width=2)
+            total_pen = pg.mkPen(color=(255, 0, 0), width=PLOT_LINE_WIDTH)
             self.plots[grpc_port] = latency_widget.plot(pen=total_pen, name='Total')
 
-            sender_pen = pg.mkPen(color=(0, 180, 0), width=2)
+            sender_pen = pg.mkPen(color=(0, 180, 0), width=PLOT_LINE_WIDTH)
             self.sender_plots[grpc_port] = latency_widget.plot(pen=sender_pen, name='Sender')
 
-            network_pen = pg.mkPen(color=(255, 140, 0), width=2)
+            network_pen = pg.mkPen(color=(255, 140, 0), width=PLOT_LINE_WIDTH)
             self.network_plots[grpc_port] = latency_widget.plot(pen=network_pen, name='Network')
 
-            decoding_pen = pg.mkPen(color=(0, 128, 255), width=2)
+            decoding_pen = pg.mkPen(color=(0, 128, 255), width=PLOT_LINE_WIDTH)
             self.decoding_plots[grpc_port] = latency_widget.plot(pen=decoding_pen, name='Decoding&Fitting')
 
-            rendering_pen = pg.mkPen(color=(160, 32, 240), width=2)
+            rendering_pen = pg.mkPen(color=(160, 32, 240), width=PLOT_LINE_WIDTH)
             self.rendering_plots[grpc_port] = latency_widget.plot(pen=rendering_pen, name='Rendering')
             
             # 添加统计信息标签
             stats_label = QLabel()
-            stats_label.setFont(QFont('Arial', 10))
+            stats_label.setFont(QFont(PLOT_FONT_FAMILY, PLOT_FONT_SIZE))
             stats_label.setAlignment(cast(Any, qt_align('AlignLeft')))
             stats_label.setText("Collecting data...")
             self.stats_labels[grpc_port] = stats_label
@@ -563,8 +622,46 @@ class LatencyMonitor(QMainWindow):
         return sum(recent_values) / len(recent_values)
 
     def _configure_time_axis(self, plot_widget):
-        plot_widget.enableAutoRange(y=True)
-        plot_widget.setXRange(0, 30)
+        x_view_min = PLOT_X_MIN_S - PLOT_X_EDGE_PAD_S
+        x_view_max = PLOT_X_MAX_S + PLOT_X_EDGE_PAD_S
+
+        plot_widget.disableAutoRange(axis='x')
+        plot_widget.disableAutoRange(axis='y')
+        plot_widget.setLimits(
+            xMin=x_view_min,
+            xMax=x_view_max,
+            yMin=PLOT_Y_MIN_MS,
+            yMax=PLOT_Y_MAX_MS,
+        )
+        plot_widget.setRange(
+            xRange=(x_view_min, x_view_max),
+            yRange=(PLOT_Y_MIN_MS, PLOT_Y_MAX_MS),
+            padding=0,
+        )
+
+        plot_item = plot_widget.getPlotItem()
+        if plot_item is not None:
+            bottom_axis = plot_item.getAxis('bottom')
+            left_axis = plot_item.getAxis('left')
+            if bottom_axis is not None:
+                bottom_axis.setTicks([[(0.0, '0'), (10.0, '10'), (20.0, '20'), (30.0, '30')], []])
+                bottom_axis.setStyle(
+                    autoExpandTextSpace=True,
+                    hideOverlappingLabels=False,
+                    stopAxisAtTick=(False, False),
+                    tickTextWidth=80,
+                )
+            if left_axis is not None:
+                left_axis.setTicks([[(0.0, '0'), (50.0, '50'), (100.0, '100'), (150.0, '150'), (200.0, '200')], []])
+
+    def _set_axis_label_exact_style(self, axis, text):
+        """Force axis label style with identical HTML for x/y labels."""
+        axis.setLabel(text, **AXIS_LABEL_STYLE)
+        axis.label.setHtml(
+            f"<span style=\"color:black;font-family:{PLOT_FONT_FAMILY};"
+            f"font-size:{PLOT_AXIS_LABEL_SIZE}pt;font-weight:{PLOT_AXIS_LABEL_WEIGHT};\">"
+            f"{text}</span>"
+        )
     
     def update_plots(self):
         # 更新每个用户的图表和统计信息
@@ -1173,6 +1270,7 @@ def main():
         print(f"  - {label}（端口{grpc_port}）: 0ms")
 
     app = QApplication(sys.argv)
+    app.setFont(QFont(PLOT_FONT_FAMILY, PLOT_FONT_SIZE))
     latency_monitor = LatencyMonitor(port_mappings, point_cloud_grpc_port)
     latency_monitor.show()
     segment_cache = {}
