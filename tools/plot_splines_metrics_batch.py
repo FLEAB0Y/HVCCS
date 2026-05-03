@@ -13,7 +13,13 @@ from collections import defaultdict
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 from scipy.interpolate import make_interp_spline
+
+
+PLOT_BOX_ASPECT = 1.0 / 1.1
+MAIN_LINE_WIDTH = 2.2
+DEFAULT_FONT_SIZE = 23
 
 
 def parse_folder_name(folder_name):
@@ -151,7 +157,7 @@ def _set_uniform_compression_axis(ax, font_size, x_min=0, x_max=10):
     ax.set_xticks(ticks)
     ax.set_xticklabels([str(t) for t in ticks], fontsize=font_size)
     for t in ticks:
-        ax.axvline(float(t), color="gray", linestyle=":", linewidth=0.8, alpha=0.35, zorder=0)
+        ax.axvline(float(t), color="gray", linestyle=":", linewidth=1.2, alpha=0.4, zorder=0)
 
 
 def _apply_bitrate_axis_break(raw_x_vals, q_order, compress_scale=0.15):
@@ -188,8 +194,15 @@ def _configure_bitrate_axis(ax, raw_x_vals, disp_x_vals, q_order, font_size, bre
             tick_lbl.append(f"{x_raw:.1f}")
 
     if tick_pos:
-        ax.set_xticks(tick_pos)
-        ax.set_xticklabels(tick_lbl, fontsize=font_size)
+        sparse_idx = list(range(0, len(tick_pos), 2))
+        if (len(tick_pos) - 1) not in sparse_idx:
+            sparse_idx.append(len(tick_pos) - 1)
+
+        tick_pos_sparse = [tick_pos[idx] for idx in sparse_idx]
+        tick_lbl_sparse = [tick_lbl[idx] for idx in sparse_idx]
+
+        ax.set_xticks(tick_pos_sparse)
+        ax.set_xticklabels(tick_lbl_sparse, fontsize=font_size)
 
         x_min = min(tick_pos)
         x_max = max(tick_pos)
@@ -198,17 +211,39 @@ def _configure_bitrate_axis(ax, raw_x_vals, disp_x_vals, q_order, font_size, bre
         pad = (x_max - x_min) * 0.05
         ax.set_xlim(x_min - pad, x_max + pad)
 
-        for x in tick_pos:
-            ax.axvline(x, color="gray", linestyle=":", linewidth=0.8, alpha=0.35, zorder=0)
+        for x in tick_pos_sparse:
+            ax.axvline(x, color="gray", linestyle=":", linewidth=1.2, alpha=0.4, zorder=0)
 
     if break_center is not None:
         d = 0.012
-        kwargs = dict(transform=ax.get_xaxis_transform(), color="black", clip_on=False, linewidth=1.2)
+        kwargs = dict(transform=ax.get_xaxis_transform(), color="black", clip_on=False, linewidth=1.8)
         ax.plot([break_center - 0.04, break_center - 0.01], [-d, +d], **kwargs)
         ax.plot([break_center + 0.01, break_center + 0.04], [-d, +d], **kwargs)
 
 
-def _plot_smooth_series(ax, x_vals, y_vals, color, label, linestyle="-"):
+def _apply_fixed_axes_layout(fig, ax):
+    """Use a fixed square plot area regardless of labels and legends."""
+    fig.subplots_adjust(left=0.18, right=0.86, bottom=0.15, top=0.95)
+    ax.set_box_aspect(PLOT_BOX_ASPECT)
+
+
+def _style_axis_frame_and_ticks(ax, tick_label_size, spine_width=2.0, tick_width=1.8, tick_length=7):
+    """Apply thick black frame and ticks for consistent visual style."""
+    for spine in ax.spines.values():
+        spine.set_color("black")
+        spine.set_linewidth(spine_width)
+    ax.tick_params(
+        axis="both",
+        which="both",
+        color="black",
+        labelcolor="black",
+        width=tick_width,
+        length=tick_length,
+        labelsize=tick_label_size,
+    )
+
+
+def _plot_smooth_series(ax, x_vals, y_vals, color, label, linestyle="-", line_width=MAIN_LINE_WIDTH, marker_size=52):
     """Plot smoothed curve on arbitrary x-values and overlay scatter points."""
     valid = np.isfinite(x_vals) & np.isfinite(y_vals)
     x_valid = x_vals[valid]
@@ -233,11 +268,11 @@ def _plot_smooth_series(ax, x_vals, y_vals, color, label, linestyle="-"):
         spline = make_interp_spline(x_valid, y_valid, k=k)
         x_smooth = np.linspace(x_valid[0], x_valid[-1], 300)
         y_smooth = spline(x_smooth)
-        ax.plot(x_smooth, y_smooth, label=label, color=color, linewidth=2, linestyle=linestyle)
+        ax.plot(x_smooth, y_smooth, label=label, color=color, linewidth=line_width, linestyle=linestyle)
     else:
-        ax.plot(x_valid, y_valid, label=label, color=color, linewidth=2, linestyle=linestyle)
+        ax.plot(x_valid, y_valid, label=label, color=color, linewidth=line_width, linestyle=linestyle)
 
-    ax.scatter(x_valid, y_valid, color=color, s=50, zorder=5)
+    ax.scatter(x_valid, y_valid, color=color, s=marker_size, zorder=5)
 
 
 def get_stat_title(stat_name):
@@ -310,7 +345,7 @@ def plot_metric_stat(
         "baseline": "Ours",
         "abg": r"$\alpha$-$\beta$-$\gamma$ Filter",
         "kalman": "Kalman Filter",
-        "baseline_linear": "Linear Interpolation",
+        "baseline_linear": "Linear",
     }
     colors = {"baseline": "blue", "abg": "orange", "kalman": "green"}
     
@@ -329,6 +364,8 @@ def plot_metric_stat(
             np.asarray(values, dtype=np.float64),
             color=colors.get(predictor, "gray"),
             label=legend_labels[predictor],
+            line_width=MAIN_LINE_WIDTH,
+            marker_size=52,
         )
     
     # Plot baseline_linear separately
@@ -349,6 +386,8 @@ def plot_metric_stat(
             color="red",
             label=legend_labels["baseline_linear"],
             linestyle="--",
+            line_width=MAIN_LINE_WIDTH,
+            marker_size=52,
         )
     
     # Customize plot
@@ -360,14 +399,14 @@ def plot_metric_stat(
         font_size=font_size,
         break_center=break_center,
     )
-    ax.set_xlabel("Bitrate per Keypoint (kbps)", fontsize=font_size)
-    ax.set_ylabel(get_metric_ylabel(metric_name), fontsize=font_size)
-    ax.tick_params(axis="y", labelsize=font_size)
-    ax.tick_params(axis="x", labelsize=font_size)
+    ax.set_xlabel("Bitrate per Keypoint (kbps)", fontsize=font_size + 2, color="black")
+    ax.set_ylabel(get_metric_ylabel(metric_name), fontsize=font_size + 2, color="black")
+    ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
+    _style_axis_frame_and_ticks(ax, tick_label_size=font_size)
     handles, labels = ax.get_legend_handles_labels()
     label_to_handle = {label: handle for handle, label in zip(handles, labels)}
     preferred_order = [
-        "Linear Interpolation",
+        "Linear",
         r"$\alpha$-$\beta$-$\gamma$ Filter",
         "Kalman Filter",
         "Ours",
@@ -376,9 +415,10 @@ def plot_metric_stat(
     if ordered_labels:
         ordered_handles = [label_to_handle[label] for label in ordered_labels]
         ax.legend(ordered_handles, ordered_labels, fontsize=font_size)
-    ax.grid(True, alpha=0.3)
+    ax.grid(True, alpha=0.3, linewidth=1.0)
+
+    _apply_fixed_axes_layout(fig, ax)
     
-    plt.tight_layout()
     plt.savefig(output_path, dpi=150)
     plt.close()
     
@@ -389,7 +429,7 @@ def main():
     base_dir = "res/metrics_batch_test"
     pose_base_dir = "res/pose_metrics_batch_test"
     output_base_dir = "res/metrics_batch_plots"
-    font_size = 18
+    font_size = DEFAULT_FONT_SIZE
     fig_size = (8, 8)
     
     # Load all data

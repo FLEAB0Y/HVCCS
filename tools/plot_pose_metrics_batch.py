@@ -19,6 +19,11 @@ from matplotlib.ticker import FuncFormatter
 from scipy.interpolate import make_interp_spline
 
 
+PLOT_BOX_ASPECT = 1.0 / 1.1
+MAIN_LINE_WIDTH = 2.2
+DEFAULT_FONT_SIZE = 23
+
+
 def parse_folder_name(folder_name):
 	"""Extract predictor and quantization level from folder name like 'baseline_q8'."""
 	parts = folder_name.rsplit("_", 1)
@@ -75,27 +80,21 @@ def load_baseline_data(base_dir):
 	return data
 
 
-def _set_aligned_y_axes(ax_left, ax_right, left_series, right_series):
-	"""Set the same y-range on both axes so ticks are position-aligned."""
-	combined = np.concatenate([
-		left_series[np.isfinite(left_series)],
-		right_series[np.isfinite(right_series)],
-	])
-	if combined.size == 0:
+def _set_single_y_axis_from_series(ax, series_list):
+	"""Set one shared left y-axis with 0 as the baseline for all provided series."""
+	valid_chunks = [arr[np.isfinite(arr)] for arr in series_list]
+	valid_chunks = [arr for arr in valid_chunks if arr.size > 0]
+	if not valid_chunks:
 		return
 
-	y_min = min(0.0, float(np.min(combined)))
+	combined = np.concatenate(valid_chunks)
 	y_max = float(np.max(combined))
-	if y_max <= y_min:
-		y_max = y_min + 1.0
-
-	padding = (y_max - y_min) * 0.05
-	shared_ylim = (y_min - padding, y_max + padding)
-	ax_left.set_ylim(shared_ylim)
-	ax_right.set_ylim(shared_ylim)
+	if y_max <= 0.0:
+		y_max = 1.0
+	ax.set_ylim(0.0, y_max * 1.05)
 
 
-def _plot_smooth_series(ax, x_vals, y_vals, color, marker, label):
+def _plot_smooth_series(ax, x_vals, y_vals, color, marker, label, line_width=3.2):
 	"""Plot smooth curve and return line handle plus curve evaluator."""
 	valid = np.isfinite(y_vals)
 	valid_x = x_vals[valid]
@@ -127,7 +126,7 @@ def _plot_smooth_series(ax, x_vals, y_vals, color, marker, label):
 			x_smooth,
 			y_smooth,
 			color=color,
-			linewidth=2,
+			linewidth=line_width,
 			label=label,
 		)[0]
 	else:
@@ -137,24 +136,45 @@ def _plot_smooth_series(ax, x_vals, y_vals, color, marker, label):
 			valid_x,
 			valid_y,
 			color=color,
-			linewidth=2,
+			linewidth=line_width,
 			label=label,
 		)[0]
 	return line, valid_x, valid_y, eval_fn
 
 
-def _set_uniform_compression_axis(ax, font_size, x_min=0, x_max=10):
-	"""Set x-axis to uniform integer compression ticks with reference lines."""
-	ticks = np.arange(x_min, x_max + 1, dtype=np.int64)
+def _set_uniform_compression_axis(ax, font_size, x_min=0, x_max=10, tick_step=2):
+	"""Set x-axis to uniform compression ticks with reference lines."""
+	ticks = np.arange(float(x_min), float(x_max) + 1e-9, float(tick_step), dtype=np.float64)
 	ax.set_xlim(float(x_min), float(x_max))
 	ax.set_xticks(ticks)
-	ax.set_xticklabels([str(t) for t in ticks], fontsize=font_size)
+	ax.set_xticklabels([f"{int(t)}" for t in ticks], fontsize=font_size)
 	for t in ticks:
-		ax.axvline(float(t), color="gray", linestyle=":", linewidth=0.8, alpha=0.35, zorder=0)
+		ax.axvline(float(t), color="gray", linestyle=":", linewidth=1.2, alpha=0.4, zorder=0)
+
+
+def _apply_fixed_axes_layout(fig, ax_main, ax_secondary=None):
+	"""Use the same plot box for all figures, independent of label count."""
+	fig.subplots_adjust(left=0.18, right=0.86, bottom=0.15, top=0.95)
+	ax_main.set_box_aspect(PLOT_BOX_ASPECT)
+	if ax_secondary is not None:
+		ax_secondary.set_position(ax_main.get_position())
+
+
+def _style_axis_frame_and_ticks(ax, tick_label_size, spine_width=2.0, tick_width=1.8, tick_length=7):
+	"""Apply thick black frame and ticks for consistent visual style."""
+	for spine in ax.spines.values():
+		spine.set_color("black")
+		spine.set_linewidth(spine_width)
+	ax.tick_params(axis="both", which="both", color="black", width=tick_width, length=tick_length, labelsize=tick_label_size)
+
+
+def _hide_zero_y_tick_label(ax):
+	"""Hide y=0 label to avoid duplicated '0' at the axis origin."""
+	ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: "" if np.isclose(y, 0.0) else f"{y:g}"))
 
 
 def plot_stat_mpjpe_rmse(stat_name, baseline_data, output_dir, font_size=12, fig_size=(8, 8)):
-	"""Plot MPJPE and RMSE in one figure with dual y-axes."""
+	"""Plot MPJPE and RMSE in one figure using a single left y-axis."""
 	q_order = get_q_level_order()
 
 	mpjpe_vals = []
@@ -171,21 +191,21 @@ def plot_stat_mpjpe_rmse(stat_name, baseline_data, output_dir, font_size=12, fig
 	x_arr = np.asarray(cr_vals, dtype=np.float64)
 
 	fig, ax1 = plt.subplots(figsize=fig_size)
-	ax2 = ax1.twinx()
 
-	line1, _, _, _ = _plot_smooth_series(ax1, x_arr, mpjpe_arr, "tab:blue", "o", "MPJPE")
-	line2, _, _, _ = _plot_smooth_series(ax2, x_arr, rmse_arr, "tab:orange", "s", "RMSE")
+	line1, _, _, _ = _plot_smooth_series(ax1, x_arr, mpjpe_arr, "tab:blue", "o", "MPJPE", line_width=MAIN_LINE_WIDTH)
+	line2, _, _, _ = _plot_smooth_series(ax1, x_arr, rmse_arr, "tab:orange", "s", "RMSE", line_width=MAIN_LINE_WIDTH)
 
-	_set_uniform_compression_axis(ax1, font_size)
-	ax1.set_xlabel("Compression Ratio (x)", fontsize=font_size)
-	ax1.set_ylabel("MPJPE (mm)", color="tab:blue", fontsize=font_size)
-	ax2.set_ylabel("RMSE (mm)", color="tab:orange", fontsize=font_size)
-	ax1.tick_params(axis="y", labelcolor="tab:blue", labelsize=font_size)
-	ax2.tick_params(axis="y", labelcolor="tab:orange", labelsize=font_size)
+	_set_uniform_compression_axis(ax1, font_size, tick_step=2)
+	ax1.set_xlabel("Compression Ratio (x)", fontsize=font_size + 2)
+	ax1.set_ylabel("MPJPE & RMSE (mm)", color="black", fontsize=font_size + 2)
+	ax1.tick_params(axis="y", labelcolor="black", labelsize=font_size)
 	ax1.tick_params(axis="x", labelsize=font_size)
-	ax1.grid(True, alpha=0.3)
+	ax1.grid(True, alpha=0.3, linewidth=1.0)
 
-	_set_aligned_y_axes(ax1, ax2, mpjpe_arr, rmse_arr)
+	_set_single_y_axis_from_series(ax1, [mpjpe_arr, rmse_arr])
+	_hide_zero_y_tick_label(ax1)
+	_style_axis_frame_and_ticks(ax1, tick_label_size=font_size)
+	_apply_fixed_axes_layout(fig, ax1)
 
 	legend_entries = []
 	if line1 is not None:
@@ -201,7 +221,6 @@ def plot_stat_mpjpe_rmse(stat_name, baseline_data, output_dir, font_size=12, fig
 		)
 
 	output_path = Path(output_dir) / f"{stat_name}_mpjpe_rmse.png"
-	plt.tight_layout()
 	plt.savefig(output_path, dpi=150)
 	plt.close()
 	print(f"[PLOT] Saved: {output_path}")
@@ -239,26 +258,27 @@ def plot_stat_kd_cr(stat_name, baseline_data, output_dir, font_size=12, fig_size
 		"tab:green",
 		"o",
 		"Ours",
+		line_width=MAIN_LINE_WIDTH,
 	)
 
-	_set_uniform_compression_axis(ax1, font_size)
-	ax1.set_xlabel("Compression Ratio (x)", fontsize=font_size)
-	ax1.set_ylabel("KD (%)", color="tab:green", fontsize=font_size)
-	ax1.tick_params(axis="y", labelcolor="tab:green", labelsize=font_size)
+	_set_uniform_compression_axis(ax1, font_size, tick_step=2)
+	ax1.set_xlabel("Compression Ratio (x)", fontsize=font_size + 2)
+	ax1.set_ylabel("KD (%)", color="black", fontsize=font_size + 2)
+	ax1.tick_params(axis="y", labelcolor="black", labelsize=font_size)
 	ax1.tick_params(axis="x", labelsize=font_size)
-	ax1.grid(True, alpha=0.3)
+	ax1.grid(True, alpha=0.3, linewidth=1.0)
 
 	valid_kd = kd_scaled_arr[np.isfinite(kd_scaled_arr)]
 	if valid_kd.size > 0:
-		y_min = min(0.0, float(np.min(valid_kd)))
 		y_max = float(np.max(valid_kd))
-		if y_max <= y_min:
-			y_max = y_min + 1.0
-		pad = (y_max - y_min) * 0.05
-		ax1.set_ylim((y_min - pad, y_max + pad))
+		if y_max <= 0.0:
+			y_max = 1.0
+		ax1.set_ylim((0.0, y_max * 1.05))
 
 	# Keep KD tick labels as original values while plotting at 10x scale.
 	ax1.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y / kd_scale:g}"))
+	ax1.yaxis.set_major_formatter(FuncFormatter(lambda y, _: "" if np.isclose(y, 0.0) else f"{(y / kd_scale):g}"))
+	_style_axis_frame_and_ticks(ax1, tick_label_size=font_size)
 
 	# Add Zhen Lu's point and interpolate Ours at the same compression ratio.
 	zhen_x = np.asarray([7.1], dtype=np.float64)
@@ -269,7 +289,7 @@ def plot_stat_kd_cr(stat_name, baseline_data, output_dir, font_size=12, fig_size
 		zhen_kd_scaled,
 		linestyle="none",
 		marker="D",
-		markersize=6,
+		markersize=8,
 		color="black",
 		label="Zhen Lu's",
 	)[0]
@@ -283,7 +303,7 @@ def plot_stat_kd_cr(stat_name, baseline_data, output_dir, font_size=12, fig_size
 			textcoords="offset points",
 			ha="right",
 			va="center",
-			fontsize=max(8, font_size - 2),
+			fontsize=max(10, font_size - 1),
 			color="black",
 		)
 
@@ -294,8 +314,8 @@ def plot_stat_kd_cr(stat_name, baseline_data, output_dir, font_size=12, fig_size
 				continue
 
 			# Reference line for alignment at the same compression ratio.
-			ax1.axvline(xq, color="gray", linestyle="--", linewidth=1.0, alpha=0.6)
-			ax1.plot([xq, xq], [y_zhen_scaled, y_ours_scaled], color="gray", linestyle=":", linewidth=1.0, alpha=0.9)
+			ax1.axvline(xq, color="gray", linestyle="--", linewidth=1.6, alpha=0.65)
+			ax1.plot([xq, xq], [y_zhen_scaled, y_ours_scaled], color="gray", linestyle=":", linewidth=1.6, alpha=0.9)
 
 			y_ours_pct = y_ours_scaled / kd_scale
 			ax1.plot(
@@ -303,7 +323,7 @@ def plot_stat_kd_cr(stat_name, baseline_data, output_dir, font_size=12, fig_size
 				y_ours_scaled,
 				linestyle="none",
 				marker="o",
-				markersize=6,
+				markersize=8,
 				color="tab:green",
 			)
 			ax1.annotate(
@@ -313,9 +333,11 @@ def plot_stat_kd_cr(stat_name, baseline_data, output_dir, font_size=12, fig_size
 				textcoords="offset points",
 				ha="right",
 				va="center",
-				fontsize=max(8, font_size - 2),
+				fontsize=max(10, font_size - 1),
 				color="tab:green",
 			)
+
+	_apply_fixed_axes_layout(fig, ax1)
 
 	legend_entries = []
 	if line1 is not None:
@@ -330,7 +352,6 @@ def plot_stat_kd_cr(stat_name, baseline_data, output_dir, font_size=12, fig_size
 		)
 
 	output_path = Path(output_dir) / f"{stat_name}_kd_cr.png"
-	plt.tight_layout()
 	plt.savefig(output_path, dpi=150)
 	plt.close()
 	print(f"[PLOT] Saved: {output_path}")
@@ -339,7 +360,7 @@ def plot_stat_kd_cr(stat_name, baseline_data, output_dir, font_size=12, fig_size
 def main():
 	base_dir = "res/pose_metrics_batch_test"
 	output_dir = "res/pose_metrics_batch_plots"
-	font_size = 20
+	font_size = DEFAULT_FONT_SIZE
 	fig_size = (8, 8)
 
 	print("Loading baseline codec metrics...")
