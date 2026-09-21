@@ -187,110 +187,146 @@ npm install
 - 在Server中弹出用户网络参数监控画面，Sender对应用户的统计表中不断更新折线图。
 - unity中对应数字人做出相应动作。如果画面中未找到数字人，可以切换Scend窗口，双击左侧Hierarchy窗口的Avatar对象，视角会自动追踪到该数字人，通过修改偏移量可以调整位置（而不是数字人本身的位置和旋转）。
 
-### 3 splines codec
+### 3 splines codec（仿真实验）
 
-本节对应脚本：
-- `fea_extr_py_scripts/grpc_online_splines_sender.py`
-- `fea_extr_py_scripts/grpc_online_splines_receiver.py`
-- `checkpoints/grpc_online_splines_codec_config.json`
+本节是离线特征回放、残差编解码和样条拟合的仿真实验流程，**与前文的实时数字人链路无关**。实时数字人仍然使用 `grpc_avatar_fea_sender.py`、`grpc2socket.py` 和 Unity；不要用本节脚本替换实时链路。
 
-#### 3.1 发送端模块组成与工作顺序
+当前仓库实际使用的实验入口是：
 
-`grpc_online_splines_sender.py`内部模块及执行顺序如下：
+- `fea_extr_py_scripts/grpc_offline_splines_sender.py`：从 `.npy` 或文本特征文件读取姿势帧，按指定 `fps` 发送 gRPC 数据。
+- `fea_extr_py_scripts/grpc_offline_splines_receiver.py`：接收数据、解码、统计，并对每个通道执行样条拟合后保存结果。
+- `fea_extr_py_scripts/splines_entropy_codec_train.py`：根据实验数据训练 Huffman 熵编码码本，可选执行。
+- `fea_extr_py_scripts/realtime_offline_splines_fit.py`：提供样条 predictor 和拟合函数，被 receiver 调用，也可用于后续离线拟合和指标计算。
+- `checkpoints/grpc_offline_splines_codec_config.json`：sender、receiver 和码本训练的统一配置。
 
-1. 配置加载模块
-- 读取 `checkpoints/grpc_online_splines_codec_config.json`。
-- 校验 `common/sender/receiver` 三个 section 是否存在。
+README 旧版本中提到的 `grpc_online_splines_sender.py` 和 `grpc_online_splines_receiver.py` 已从仓库删除，不要再按旧命令运行。
 
-2. 数据读取模块
-- `iter_h36m_frames()` 支持 `.npy` 与文本输入。
-- 输出统一为每帧 `num_keypoints x coord_dims`，默认 `17 x 3`。
-- 在“数据输入残差编码模块之前”按 `fps` 做节拍控制（不是在编码结束后再 sleep），用于稳定统计编码/量化时延。
+#### 3.1 仿真实验数据流
 
-3. 输入打点模块（t0）
-- 每帧进入残差编码前记录时间戳 `t0_ms`。
-- `t0_ms` 会写入数据包元数据 `ext_desc`。
-
-4. 残差编码模块
-- 第1帧或满足 `i_frame_interval` 的帧作为 I 帧，直接发送当前姿态。
-- 其余为 P 帧，发送 `当前帧 - 上一重建帧` 的残差。
-
-5. 量化与熵编码模块
-- 支持 I/P 帧独立量化开关：`quantize_i_frame`、`quantize_p_frame`。
-- 量化：`float32 -> int16`（对应帧类型量化开关为 `true` 时）。
-- 熵编码：可选 `zlib` 压缩（`entropy_enabled=true` 时）。
-- 发送端会对“已编码载荷”做一次本地解码，再更新历史重建帧，保证与接收端重建基准一致。
-
-6. 打包发送模块
-- 将编码后的字节放入 gRPC 的 `limb_data`。
-- 将 `kind/channel/timestamp/payload_dtype/entropy_codec/quant_scale/t0_ms` 等元数据写入 `ext_desc`（JSON）。
-
-7. 发送缓存模块
-- 发送缓存达到 `buffer_limit` 时等待，防止缓存爆满。
-
-#### 3.2 接收端工作顺序
-
-`grpc_online_splines_receiver.py`执行顺序：
-
-1. 读取同一份 JSON 配置并启动 gRPC 服务。
-2. 从接收缓冲区取包，统计时延与带宽。
-3. 从 `ext_desc` 解析编码元数据。
-4. 对 `limb_data` 进行反熵编码（若有）与反量化。
-5. 若为 P 帧则执行残差解码：`重建帧 = 上一重建帧 + 当前残差`。
-6. 残差解码完成后立即记录 `t1_ms`，并统计时延 `t1_ms - t0_ms`（包含编码、量化、解码路径）。
-7. 将重建结果 reshape 为 `(num_keypoints, coord_dims)`。
-8. 不区分通道，所有可解码帧统一追加保存，最终落盘为 `.npy`，形状为 `(T, num_keypoints, coord_dims)`。
-
-#### 3.3 JSON 参数说明（含单位与取值范围）
-
-配置文件：`checkpoints/grpc_online_splines_codec_config.json`
-
-`common`：
-- `packet_tag`：数据包标签；类型 `string`；建议固定为 `POSE_RES_V1`。
-- `num_keypoints`：关键点数；类型 `int`；单位 `个`；范围 `>0`，当前任务为 `17`。
-- `coord_dims`：每个关键点坐标维度；类型 `int`；单位 `维`；范围 `>0`，当前任务为 `3`。
-- `i_frame_interval`：I 帧间隔；类型 `int`；单位 `帧`；范围 `>=1`（建议 10-120）。
-- `quantize`：是否量化；类型 `bool`；取值 `true/false`。
-- `quantize_i_frame`：I 帧是否量化；类型 `bool`；取值 `true/false`。
-- `quantize_p_frame`：P 帧是否量化；类型 `bool`；取值 `true/false`。
-- `quant_scale`：量化缩放系数；类型 `float`；单位 `无`；范围 `>0`（建议 100-5000）。
-- `entropy_enabled`：是否启用 zlib 压缩；类型 `bool`；取值 `true/false`。
-- `entropy_level`：zlib 压缩等级；类型 `int`；范围 `0-9`，值越大压缩率通常越高、CPU开销越大。
-
-量化与包大小说明：
-- 当 `entropy_enabled=false` 且数据类型固定为 `int16` 时，单帧字节数主要由“维度数量”决定，与 `quant_scale` 取值基本无关。
-- `quant_scale` 主要影响量化误差，不直接改变定长 `int16` 载荷字节数。
-- 若希望码率随数据分布变化，通常需要启用熵编码（如 `zlib`）或可变长编码策略。
-
-`sender`：
-- `feature_file`：输入特征文件路径；类型 `string`；支持 `.npy` 或文本。
-- `server_addr`：接收端地址；类型 `string`；如 `127.0.0.1`。
-- `port_num`：发送目标 gRPC 端口；类型 `int`；范围 `1-65535`。
-- `fps`：发送帧率；类型 `float`；单位 `fps`；范围 `>0`（建议 1-240）。
-- `start_col`：文本特征起始列；类型 `int`；单位 `列索引`；范围 `>=0`。
-- `max_frames`：最大发送帧数；类型 `int`；单位 `帧`；`0` 表示不限制。
-- `buffer_limit`：发送缓冲上限；类型 `int`；单位 `包`；范围 `>=1`。
-- `channel`：发送通道号；类型 `int`；范围 `0-50`。
-- `debug`：是否打印调试日志；类型 `bool`。
-
-`receiver`：
-- `grpc_port`：本地监听端口；类型 `int`；范围 `1-65535`。
-- `report_interval`：统计打印周期；类型 `float`；单位 `秒`；范围 `>0`。
-- `poll_interval`：缓冲轮询周期；类型 `float`；单位 `秒`；范围 `>0`。
-- `debug`：是否打印逐包日志；类型 `bool`。
-- `save_enabled`：是否保存解码结果；类型 `bool`。
-- `save_max_frames`：最多保存帧数；类型 `int`；单位 `帧`；`0` 表示不限制。
-- `save_dir`：解码结果目录；类型 `string`；相对路径默认相对于项目根。
-- `save_file`：解码结果文件名；类型 `string`；建议后缀 `.npy`。
-
-#### 3.4 运行方式
-
-两个脚本都不再依赖命令行参数，直接运行即可：
-
-```bash
-cd HVCCS/fea_extr_py_scripts
-python grpc_online_splines_receiver.py
-python grpc_online_splines_sender.py
+```text
+特征文件（.npy / 文本）
+    ↓
+grpc_offline_splines_sender.py
+    ├── I/P 帧残差编码
+    ├── 可选量化
+    └── Huffman 熵编码
+    ↓ gRPC
+grpc_offline_splines_receiver.py
+    ├── Huffman 解码、反量化
+    ├── P 帧残差重建
+    ├── 按 channel 分组
+    └── predictor 样条拟合
+    ↓
+res/ 下的 .npz 样条结果
 ```
 
-如果需要改发送速率、端口、是否压缩、保存位置等，只修改 `checkpoints/grpc_online_splines_codec_config.json` 即可。
+sender 和 receiver 必须使用一致的 `common` 编解码参数、同一份码本和相同的 gRPC 端口。sender 会在输入残差编码前按 `sender.fps` 节拍发送；receiver 在收到数据后按 `receiver.fps` 执行拟合。receiver 默认在发送结束后空闲 `idle_timeout_sec` 秒自动停止并保存结果。
+
+#### 3.2 配置文件
+
+配置文件：`checkpoints/grpc_offline_splines_codec_config.json`
+
+`common` 控制数据形状和编解码：
+
+- `packet_tag`：数据包标签，通常为 `POSE_RES_V1`。
+- `num_keypoints`、`coord_dims`：输入姿势形状；当前默认是 `17 x 3`。
+- `i_frame_interval`：I 帧间隔，其他帧使用相对上一重建帧的 P 帧残差。
+- `quantize`：量化总开关；未单独设置 I/P 帧开关时，作为它们的默认值。
+- `quantize_i_frame`、`quantize_p_frame`：分别控制 I/P 帧是否量化。
+- `quant_scale`：非熵编码路径的缩放系数。
+- `quant_bits`、`clip_abs`：均匀量化的位数和裁剪范围。
+- `entropy_enabled`、`entropy_codec`：当前实现支持 Huffman；启用时应设为 `true` 和 `huffman`。
+- `entropy_codebook_path`：Huffman 码本路径，例如 `checkpoints/grpc_online_splines_entropy_codebook_q8.json`。
+
+当前 receiver/sender 不支持 README 旧版本描述的 zlib 路径；代码对非 Huffman 熵编码会报错。
+
+`sender` 控制输入和发送：
+
+- `feature_file`：输入文件，支持 `.npy` 和文本；`.npy` 默认按 `(T, 17, 3)` 或可推断的扁平布局读取。
+- `server_addr`、`port_num`：receiver 地址和 gRPC 端口。
+- `fps`：发送节拍，例如 `30.0`。
+- `start_col`：文本输入的起始列。
+- `max_frames`：最大帧数，`0` 表示发送全部帧。
+- `buffer_limit`：发送缓存上限。
+- `channel`：通道号，范围为 `0-50`；多通道实验应为每个输入流设置不同的值。
+- `debug`：是否打印逐包调试信息。
+
+`receiver` 控制接收、拟合和保存：
+
+- `grpc_port`：监听端口，应与 `sender.port_num` 一致。
+- `report_interval`、`poll_interval`：统计和缓冲区轮询周期，单位为秒。
+- `idle_timeout_sec`：发送结束后的自动退出等待时间；设为 `0` 或负数可关闭自动退出。
+- `debug`：是否打印逐包解码和接收调试信息。
+- `save_max_frames`：最多接收的帧数，`0` 表示不限制。
+- `save_dir`：结果目录，相对路径以项目根目录为基准。
+- `spline_fit_enabled`：是否执行样条拟合。
+- `spline_save_file`：输出 `.npz` 文件名；多通道时会自动追加 `_ch<channel>`。
+- `predictor_type`：样条 predictor，可选 `baseline`、`kalman`、`abg` 或 `mamba`。
+- `fps`：样条拟合帧率；通常与 sender 的 `fps` 一致。
+- `process_acc_var`、`measurement_var`、`init_pos_var`、`init_vel_var`：Kalman/Mamba 等 predictor 的噪声和初始方差参数。
+- `alpha`、`beta`、`gamma`：`abg` predictor 参数。
+- `mamba_checkpoint_path`、`mamba_history_len`、`mamba_cuda_device`：Mamba predictor 参数。
+
+`train` 控制码本训练：
+
+- `input_path`：用于统计符号分布的 `.npy` 文件或目录。若填写单个 `.npy` 文件，训练代码会改为扫描该文件所在目录中的 `.npy` 文件。
+- `output_json`：码本输出路径。
+- `quant_bits_list`：要训练的量化位数列表，例如 `[4, 6, 8, 10, 12, 14, 16]`。
+- `clip_percentile`：计算 `clip_abs` 时使用的百分位数。
+- `include_i_frames`：是否将 I 帧纳入码本训练。
+
+修改 `num_keypoints`、`coord_dims`、量化位数、码本路径、端口或 predictor 参数时，应同步检查 sender 和 receiver 的配置是否仍然匹配。
+
+#### 3.3 可选：训练熵编码码本
+
+如果已有匹配的码本，可以直接运行 sender/receiver；只有在更换训练数据、量化位数或需要重新估计裁剪范围时，才运行码本训练：
+
+```bash
+conda activate face_detec
+cd /Users/twz/demo_sys_user/HVCCS
+python fea_extr_py_scripts/splines_entropy_codec_train.py \
+  --config-path checkpoints/grpc_offline_splines_codec_config.json
+```
+
+训练结果由 `train.output_json` 和 `train.quant_bits_list` 决定。若要让训练器按 `train.clip_percentile` 重新估计 `clip_abs`，应先将 `common.clip_abs` 设为 `0`（或删除该字段）；当前配置中的正值会被直接复用。运行实验前，还应确认 `common.entropy_codebook_path` 能解析到与 `common.quant_bits` 一致的码本文件。
+
+#### 3.4 手动运行仿真实验
+
+sender 和 receiver 不依赖命令行参数，运行参数全部从 JSON 配置读取。必须先启动 receiver，再启动 sender，建议使用两个终端：
+
+终端一：
+
+```bash
+conda activate face_detec
+cd /Users/twz/demo_sys_user/HVCCS
+python fea_extr_py_scripts/grpc_offline_splines_receiver.py
+```
+
+终端二：
+
+```bash
+conda activate face_detec
+cd /Users/twz/demo_sys_user/HVCCS
+python fea_extr_py_scripts/grpc_offline_splines_sender.py
+```
+
+receiver 会在 sender 结束并达到 `idle_timeout_sec` 后停止，然后将每个通道的样条结果保存到 `receiver.save_dir`。单通道输出使用 `receiver.spline_save_file`；多通道输出会按通道追加文件名。
+
+#### 3.5 一键实验脚本
+
+`test.sh` 封装了完整的仿真实验流程：
+
+1. 训练熵编码码本。
+2. 启动 offline receiver。
+3. 延迟启动 offline sender。
+4. 运行 `realtime_offline_splines_fit.py`。
+5. 运行 `tools/splines_metrics.py`。
+6. 运行 `tools/splines_metrics_batch.py`。
+
+```bash
+conda activate face_detec
+cd /Users/twz/demo_sys_user/HVCCS
+bash test.sh
+```
+
+运行前请检查 `grpc_offline_splines_codec_config.json` 中的 `sender.feature_file`、`train.input_path`、码本路径和输出目录；这些路径决定实验输入、码本和结果保存位置。
