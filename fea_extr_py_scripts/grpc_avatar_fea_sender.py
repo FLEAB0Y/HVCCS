@@ -23,6 +23,9 @@ DEFAULT_CODEC_CONFIG_PATH = os.path.join(
     "checkpoints",
     "grpc_online_avatar_fea_codec_config.json",
 )
+DEFAULT_SERVER_ADDR = "127.0.0.1"
+DEFAULT_PORT_NUM = 50051
+DEFAULT_SENDER_FPS = 30.0
 
 
 def load_runtime_config(config_path: str) -> dict:
@@ -366,8 +369,9 @@ def build_pose_codec_context(config_path: str) -> dict:
         "channel": int(sender_cfg.get("channel", 0)),
         "buffer_limit": int(sender_cfg.get("buffer_limit", 5)),
         "sender_debug": bool(sender_cfg.get("debug", False)),
-        "sender_server_addr": str(sender_cfg.get("server_addr", "127.0.0.1")),
-        "sender_port": int(sender_cfg.get("port_num", 50051)),
+        "sender_server_addr": str(sender_cfg.get("server_addr", DEFAULT_SERVER_ADDR)),
+        "sender_port": int(sender_cfg.get("port_num", DEFAULT_PORT_NUM)),
+        "sender_fps": float(sender_cfg.get("fps", DEFAULT_SENDER_FPS)),
         "face_dims": face_dims,
         "face_i_frame_interval": face_i_frame_interval,
         "face_quantize_i_frame": face_quantize_i_frame,
@@ -758,6 +762,7 @@ def main(
     pose_model_path=None,
     face_model_path=None,
     debug=False,
+    fps=None,
     codec_config_path=DEFAULT_CODEC_CONFIG_PATH,
 ):
     vision_running_mode = mp.tasks.vision.RunningMode
@@ -772,10 +777,15 @@ def main(
 
     pose_model_path = pose_model_path or default_pose_model
     face_model_path = face_model_path or default_face_model
-    server_addr = server_addr or str(sender_cfg.get("server_addr", codec_ctx["sender_server_addr"]))
-    port_num = int(port_num or int(sender_cfg.get("port_num", codec_ctx["sender_port"])))
+    server_addr = server_addr or str(
+        sender_cfg.get("server_addr", codec_ctx.get("sender_server_addr", DEFAULT_SERVER_ADDR))
+    )
+    port_num = int(port_num or int(sender_cfg.get("port_num", codec_ctx.get("sender_port", DEFAULT_PORT_NUM))))
     debug = bool(debug or codec_ctx["sender_debug"])
     buffer_limit = max(int(codec_ctx.get("buffer_limit", 5)), 1)
+    target_fps = float(fps if fps is not None else codec_ctx.get("sender_fps", DEFAULT_SENDER_FPS))
+    if target_fps <= 0:
+        raise ValueError(f"fps must be > 0, got {target_fps}")
 
     if not os.path.exists(pose_model_path):
         raise FileNotFoundError(f"姿势模型文件不存在: {pose_model_path}")
@@ -850,12 +860,31 @@ def main(
         last_stream_timestamp_ms = int(candidate)
         return int(candidate)
 
+    # Keep the capture/MediaPipe input rate explicit. grpc2socket's spline
+    # factor is defined relative to this source rate (for example 30 FPS x 4
+    # produces 120 output frames per second). Without this pacing loop the
+    # camera read loop can run as fast as the CPU permits and overfill the
+    # gRPC/TCP/Unity pipeline.
+    frame_interval_s = 1.0 / target_fps
+    next_capture_deadline = time.monotonic()
+
     try:
         while cap.isOpened():
+            wait_s = next_capture_deadline - time.monotonic()
+            if wait_s > 0:
+                time.sleep(wait_s)
+
             ret, frame = cap.read()
             if not ret:
                 print("摄像头读帧失败，结束发送循环")
                 break
+
+            now_mono = time.monotonic()
+            next_capture_deadline += frame_interval_s
+            if next_capture_deadline < now_mono:
+                # Detector or backpressure fell behind; avoid a burst of
+                # catch-up frames and resume from the current wall clock.
+                next_capture_deadline = now_mono + frame_interval_s
 
             frame_timestamp_ms = _next_stream_timestamp_ms()
 
@@ -896,11 +925,27 @@ def main(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="运行姿势和面部表情检测发送器")
-    parser.add_argument("--server_addr", type=str, help="服务器地址（默认取配置文件 sender.server_addr）")
-    parser.add_argument("--port_num", type=int, help="端口号（默认取配置文件 sender.port_num）")
+    parser.add_argument(
+        "--server_addr",
+        type=str,
+        default=None,
+        help=f"服务器地址（默认取配置文件 sender.server_addr，缺省为 {DEFAULT_SERVER_ADDR}）",
+    )
+    parser.add_argument(
+        "--port_num",
+        type=int,
+        default=None,
+        help=f"gRPC端口（默认取配置文件 sender.port_num，缺省为 {DEFAULT_PORT_NUM}）",
+    )
     parser.add_argument("--pose_model_path", type=str, help="姿势模型路径")
     parser.add_argument("--face_model_path", type=str, help="面部模型路径")
     parser.add_argument("--debug", action="store_true", help="调试模式")
+    parser.add_argument(
+        "--fps",
+        type=float,
+        default=None,
+        help=f"摄像头/MediaPipe输入帧率（默认取配置文件 sender.fps，缺省为 {DEFAULT_SENDER_FPS:g}）",
+    )
     parser.add_argument(
         "--codec_config_path",
         type=str,
@@ -916,5 +961,6 @@ if __name__ == "__main__":
         pose_model_path=args.pose_model_path,
         face_model_path=args.face_model_path,
         debug=args.debug,
+        fps=args.fps,
         codec_config_path=args.codec_config_path,
     )

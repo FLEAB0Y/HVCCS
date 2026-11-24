@@ -27,6 +27,7 @@
 	"sender": {
 		"server_addr": "127.0.0.1",
 		"port_num": 50051,
+		"fps": 30.0,
 		"buffer_limit": 5,
 		"channel": 0,
 		"debug": false

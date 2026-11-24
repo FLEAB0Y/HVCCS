@@ -157,6 +157,7 @@ npm install
 - 在unity中打开`Assets/Samples/Unity Render Streaming/3.1.0-exp.6/Example/`，将里面子文件夹中的场景拖入`Hierarchy`中。
 - 在`Assets`中新建`models`文件夹，将需要渲染的模型，如`nezha.fbx`放入该文件夹中。然后将模型拖入`Hierarchy/WebBrowserInput/`中。
 - 在`Assets`中新建`scripts`文件夹，将`unity_cs_scripts`文件夹中的`BSCtrl.cs`和`FaceDataReceiver.cs`拖入该文件夹中。
+- 如果使用 lhz 骨骼命名的单脚本实时端点，将 `real_time_lhz_cs_scripts/RealTimeLhzAvatarEndpoint.cs` 拖入 `Assets`，并按该目录 README 配置 `avatarRoot`、`faceRenderer`、数据端口和反馈端口。
 - 选中`nezha`点击`Add Component`，搜索`FaceDataReceiver.cs`，添加该组件。
 - 选中`nezha`点击`Add Component`，搜索`BSCtrl`，添加该组件。添加引用`head_m1`。
 - 在`inspector`中，为`FaceDataReceiver.cs`添加引用，选中`nezha`。
@@ -181,6 +182,20 @@ npm install
 - **step2**: `tools/time_diff_cal_sender.py`用于计算Sender和Server的本地时间差。修改`SENDER_IP`为本机IP地址，`RECEIVER_IP`为Server的IP地址。Sender是客户端，应该等Server启动后，再运行Sender。
 
 - **step5**: `fea_extr_py_scripts/grpc_avatar_fea_sender.py`自动获取系统摄像头列表中的第一个摄像头，用于获取直播视频流。需要确保Sender和Server处于同一网络下，将Sender目标IP地址设置为Server的IP地址。为每个客户端分别设置端口号。Sender是客户端，应该等Server启动后，再运行Sender。
+
+实时链路的输入帧率由 `checkpoints/grpc_online_avatar_fea_codec_config.json` 中的
+`sender.fps` 控制，默认是 `30.0` FPS；也可以用 `--fps` 临时覆盖。若使用
+`grpc2socket.py --spline_upsample 4`，应保持输入为 30 FPS，使样条输出稳定为
+约 120 FPS。`spline_upsample` 是相对输入帧率的倍数，并不是固定的目标帧率。
+实时样条对 52 个面部通道和 99 个姿势通道组成的 151 维特征一起拟合；MTP
+反馈缓存只登记原始输入帧时间戳，插值帧不会单独计入总时延。
+
+端口可以通过命令行覆盖：`grpc2socket.py` 使用
+`--grpc_ports 50051 --socket_ports 8890`，sender 使用 `--port_num 50051`
+和 `--server_addr 127.0.0.1`。省略这些参数时，Server 使用代码中的默认映射
+`50051→8890`、`50052→8891`、`50053→8892`、`50054→8893`、`50055→8894`；
+Sender 使用配置文件中的 `sender.port_num`，配置缺失时回退到代码默认端口
+`50051`。因此无参数运行仍可使用默认端口。
 
 ### Expected Effect
 - 运行后，请确保身体距离Sender三米左右以确保整个身体进入画面。当看到`fea_extr_py_scripts/grpc_avatar_fea_sender.py`不断打印发送信息说明运行正常

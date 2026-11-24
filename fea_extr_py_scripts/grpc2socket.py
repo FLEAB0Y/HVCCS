@@ -49,6 +49,16 @@ DEFAULT_CODEC_CONFIG_PATH = os.path.join(
     "grpc_online_avatar_fea_codec_config.json",
 )
 
+# Used when --grpc_ports/--socket_ports are omitted.  Command-line values
+# still take precedence over this mapping.
+DEFAULT_PORT_MAPPINGS = [
+    (50051, 8890),
+    (50052, 8891),
+    (50053, 8892),
+    (50054, 8893),
+    (50055, 8894),
+]
+
 
 def load_runtime_config(config_path: str) -> dict:
     if not os.path.exists(config_path):
@@ -821,18 +831,18 @@ class StreamingBaselineSplineUpsampler:
         self.prev_ts_ms = None
         self.prev_seg_right_v = None
 
-    def _parse_limb(self, limb_data_str):
-        vec = np.fromstring(limb_data_str, sep=',', dtype=np.float64)
+    def _parse_vector(self, data_str):
+        vec = np.fromstring(data_str, sep=',', dtype=np.float64)
         if vec.size == 0:
-            raise ValueError("empty limb data")
+            raise ValueError("empty avatar feature data")
         return vec
 
     def _vec_to_csv(self, vec):
         return ','.join(f"{float(v):.6f}" for v in vec)
 
-    def generate_upsampled_frames(self, curr_ts_ms, limb_data_str):
-        """返回[(ts_ms, limb_csv), ...]。首帧无可拟合区间时返回空列表。"""
-        curr_vec = self._parse_limb(limb_data_str)
+    def generate_upsampled_frames(self, curr_ts_ms, data_str):
+        """返回[(ts_ms, feature_csv), ...]。首帧无可拟合区间时返回空列表。"""
+        curr_vec = self._parse_vector(data_str)
 
         # 首帧：仅缓存，不输出。
         if self.prev_vec is None or self.prev_ts_ms is None:
@@ -1113,22 +1123,29 @@ def grpc_thread(grpc_port, socket_port, latency_monitor=None, point_cloud_grpc_p
                         if ts_text.isdigit():
                             frame_ts_ms = int(ts_text)
 
+                    # Face and body share one timestamp in the wire format.
+                    # Fit the complete 151-value feature vector together so
+                    # both modalities have the same output cadence.
+                    combined_feature_str = face_data_str + "," + limb_data_str
                     send_items = []
                     if spline_upsampler is not None and frame_ts_ms is not None:
                         try:
-                            send_items = spline_upsampler.generate_upsampled_frames(frame_ts_ms, limb_data_str)
+                            send_items = spline_upsampler.generate_upsampled_frames(
+                                frame_ts_ms,
+                                combined_feature_str,
+                            )
                         except Exception as e:
                             print(f"[gRPC Port {grpc_port}] 样条拟合失败，回退原始数据: {e}")
-                            send_items = [(frame_ts_ms, limb_data_str)]
+                            send_items = [(frame_ts_ms, combined_feature_str)]
                     else:
                         if frame_ts_ms is None:
                             frame_ts_ms = int(time.time() * 1000)
-                        send_items = [(frame_ts_ms, limb_data_str)]
+                        send_items = [(frame_ts_ms, combined_feature_str)]
 
-                    # 通过持久化连接发送合并后的数据（换行符分隔帧）
-                    for send_ts_ms, send_limb_data_str in send_items:
-                        _send_persistent(str(send_ts_ms) + "," + face_data_str + "," + send_limb_data_str)
-
+                    # 只为原始输入帧建立 MTP 反馈缓存；插值帧没有独立的
+                    # t_encode/t_net，因此不会参与总 MTP 统计。
+                    # 必须在 TCP 发送前写入，避免 Unity 处理首个输出帧并回传
+                    # timing 的速度快于本线程写缓存，造成原始 MTP 样本丢失。
                     if segment_cache is not None and t_begin_ms is not None:
                         snapshot = {
                             't_begin': t_begin_ms,
@@ -1151,6 +1168,23 @@ def grpc_thread(grpc_port, socket_port, latency_monitor=None, point_cloud_grpc_p
                             if len(segment_cache[grpc_port]) > 300:
                                 oldest_key = min(segment_cache[grpc_port].keys())
                                 del segment_cache[grpc_port][oldest_key]
+
+                    # 通过持久化连接发送合并后的数据（换行符分隔帧）。
+                    # send_items 可以包含多个样条插值帧，但它们不会写入
+                    # segment_cache，因此反馈服务器只会统计原始帧 MTP。
+                    for send_ts_ms, send_feature_str in send_items:
+                        feature_values = send_feature_str.split(",")
+                        if len(feature_values) != 151:
+                            print(
+                                f"[gRPC Port {grpc_port}] 丢弃维度错误的上采样帧: "
+                                f"expected 151, got {len(feature_values)}"
+                            )
+                            continue
+                        send_face_data_str = ",".join(feature_values[:52])
+                        send_limb_data_str = ",".join(feature_values[52:])
+                        _send_persistent(
+                            str(send_ts_ms) + "," + send_face_data_str + "," + send_limb_data_str
+                        )
 
                     # 注意：本地解码耗时不再写入 decoding 曲线，避免与
                     # 反馈链路中的 (t_transit - t_net) 口径混用。
@@ -1228,8 +1262,18 @@ def latency_feedback_server(feedback_port, port_mappings, latency_monitor=None,
 
 def main():
     parser = argparse.ArgumentParser(description="gRPC 转 Socket 转发与监控")
-    parser.add_argument("--grpc_ports", nargs='+', type=int, help="gRPC端口列表")
-    parser.add_argument("--socket_ports", nargs='+', type=int, help="Socket端口列表")
+    parser.add_argument(
+        "--grpc_ports",
+        nargs='+',
+        type=int,
+        help="gRPC端口列表（省略时使用默认映射 50051..50055）",
+    )
+    parser.add_argument(
+        "--socket_ports",
+        nargs='+',
+        type=int,
+        help="Socket端口列表（省略时使用默认映射 8890..8894）",
+    )
     parser.add_argument("--point_cloud_grpc_port", type=int, help="点云数据gRPC端口")
     parser.add_argument("--feedback_offset", type=int, default=1000, help="反馈端口与Socket端口的偏移量")
     parser.add_argument("--spline_upsample", type=int, default=1, help="baseline样条段内上采样倍数（>=1）")
@@ -1238,20 +1282,14 @@ def main():
 
     decoder_ctx = build_decoder_context(args.codec_config_path)
 
-    default_mappings = [
-        (50051, 8890),
-        (50052, 8891),
-        (50053, 8892),
-        (50054, 8893),
-        (50055, 8894)
-    ]
-
     if args.grpc_ports and args.socket_ports:
         if len(args.grpc_ports) != len(args.socket_ports):
             parser.error("gRPC端口与Socket端口数量必须一致")
         port_mappings = list(zip(args.grpc_ports, args.socket_ports))
+    elif args.grpc_ports or args.socket_ports:
+        parser.error("--grpc_ports 与 --socket_ports 必须同时提供")
     else:
-        port_mappings = default_mappings
+        port_mappings = list(DEFAULT_PORT_MAPPINGS)
 
     point_cloud_grpc_port = None
     if args.point_cloud_grpc_port:
