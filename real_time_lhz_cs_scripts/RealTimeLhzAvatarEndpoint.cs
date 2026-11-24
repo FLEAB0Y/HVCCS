@@ -29,6 +29,9 @@ namespace RealTimeLhzScripts
         [SerializeField] private int listenPort = 8890;
         [SerializeField] private string feedbackAddress = "127.0.0.1";
         [SerializeField] private int feedbackPort = 9890;
+        [Tooltip("Receiver (Unity/Windows) clock minus sender clock, in milliseconds. " +
+                 "Positive when the receiver clock is ahead. grpc2socket subtracts this from network/total latency.")]
+        [SerializeField] private float clockOffsetMs = 0f;
         [SerializeField] private int receiveBufferSize = 8192;
         [SerializeField] private int maxFrameBytes = 65536;
         [Tooltip("Maximum decoded frames waiting for the Unity main thread. Oldest frames are dropped when this is exceeded.")]
@@ -43,6 +46,13 @@ namespace RealTimeLhzScripts
         [SerializeField] private float poseOffsetX;
         [SerializeField] private float poseOffsetY;
         [SerializeField] private float poseOffsetZ;
+
+        [Header("Grounding and Gravity")]
+        [Tooltip("Use a CharacterController with real gravity and ground collision instead of following the camera hip Y.")]
+        [SerializeField] private bool enableGrounding = true;
+        [Tooltip("Space triggers the same physical jump as the old grounding component.")]
+        [SerializeField] private bool enableSpaceJump = true;
+        [SerializeField] private LiveAvatarGrounding liveGrounding;
 
         private sealed class ReceivedFrame
         {
@@ -104,6 +114,9 @@ namespace RealTimeLhzScripts
 
                 ProcessReceivedFrame(frame.Payload, frame.TransitTimestampMs);
             }
+
+            if (enableSpaceJump && liveGrounding != null && Input.GetKeyDown(KeyCode.Space))
+                liveGrounding.RequestJump();
         }
 
         private void LateUpdate()
@@ -365,7 +378,13 @@ namespace RealTimeLhzScripts
         {
             try
             {
-                string message = $"timing:{beginTimestampMs},{transitTimestampMs},{finalTimestampMs}";
+                string message = string.Format(
+                    CultureInfo.InvariantCulture,
+                    "timing:{0},{1},{2},{3}",
+                    beginTimestampMs,
+                    transitTimestampMs,
+                    finalTimestampMs,
+                    clockOffsetMs);
                 using (TcpClient client = new TcpClient())
                 {
                     client.Connect(feedbackAddress, feedbackPort);
@@ -850,6 +869,20 @@ namespace RealTimeLhzScripts
             debugRestRotations[24] = neckCalibration;
         }
 
+        private void EnsureLiveGrounding()
+        {
+            if (liveGrounding == null)
+            {
+                liveGrounding = GetComponent<LiveAvatarGrounding>();
+                if (liveGrounding == null)
+                    liveGrounding = gameObject.AddComponent<LiveAvatarGrounding>();
+            }
+            if (!liveGrounding.isActiveAndEnabled)
+                liveGrounding.enabled = true;
+            liveGrounding.detectJumpFromHeadHeight = true;
+            liveGrounding.Initialize(boneTransforms[0], avatarRoot);
+        }
+
         private void UpdateBodyModel(float[] data, bool live = false)
         {
             float[] scaledData = new float[data.Length];
@@ -864,6 +897,8 @@ namespace RealTimeLhzScripts
             }
             if (live)
             {
+                if (enableGrounding) EnsureLiveGrounding();
+
                 Vector3 inputHips = new Vector3((scaledData[69] + scaledData[72]) * 0.5f,
                     (scaledData[70] + scaledData[73]) * 0.5f, (scaledData[71] + scaledData[74]) * 0.5f);
                 if (!livePoseAnchored)
@@ -872,11 +907,23 @@ namespace RealTimeLhzScripts
                     liveSceneOrigin = boneTransforms[0].position;
                     lastLiveBodyForward = bodyForward.sqrMagnitude > 0.0001f ? bodyForward : restBodyForward;
                     livePoseAnchored = true;
+                    if (liveGrounding != null) liveGrounding.ResetObservation();
                     Debug.Log("[RealTimeLhzAvatarEndpoint] Live movement anchored at current scene hips.");
                 }
                 Vector3 desired = liveSceneOrigin + inputHips - liveInputOrigin;
-                // Rebase every point equally so limb directions remain unchanged.
-                TranslateLivePose(scaledData, inputHips, desired);
+                if (enableGrounding && liveGrounding != null)
+                {
+                    // Horizontal motion follows the camera, but the vertical
+                    // position is owned by the CharacterController: gravity,
+                    // real ground collision and jump landing.
+                    Vector3 groundedHips = liveGrounding.Observe(desired, scaledData);
+                    TranslateLivePose(scaledData, inputHips, groundedHips);
+                }
+                else
+                {
+                    // Rebase every point equally so limb directions remain unchanged.
+                    TranslateLivePose(scaledData, inputHips, desired);
+                }
             }
             lastScaledBodyData = scaledData;
 

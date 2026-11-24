@@ -420,10 +420,11 @@ def qt_align(name):
 
 
 class LatencyMonitor(QMainWindow):
-    def __init__(self, port_mappings, point_cloud_grpc_port=None):
+    def __init__(self, port_mappings, point_cloud_grpc_port=None, hide_point_cloud_ui=False):
         super().__init__()
         self.port_mappings = port_mappings
         self.point_cloud_grpc_port = point_cloud_grpc_port
+        self.hide_point_cloud_ui = hide_point_cloud_ui
         self.latency_data = {}  # Stores total latency samples as (timestamp, value)
         self.network_latency_data = {}  # Network transit latency samples as (timestamp, value)
         self.decoding_latency_data = {}  # Decoding and fitting latency samples as (timestamp, value)
@@ -481,10 +482,18 @@ class LatencyMonitor(QMainWindow):
         self.rendering_plots = {}
         self.stats_labels = {}
         
-        # 计数器用于跟踪B类用户的位置
+        # Counters: one for the "Avatar N" title, one for the grid cell.
+        # They must be separate: the point-cloud user has no avatar number but
+        # still needs its own grid cell, otherwise it overlaps Avatar 1.
         b_user_count = 0
-        
+        grid_index = 0
+
         for grpc_port, socket_port in self.port_mappings:
+            # The point-cloud port is often only a protocol placeholder in the
+            # avatar demo. It should not occupy a second half of the window.
+            if self.hide_point_cloud_ui and self.point_cloud_grpc_port and grpc_port == self.point_cloud_grpc_port:
+                continue
+
             # 创建每个用户的容器
             user_container = QWidget()
             user_layout = QVBoxLayout(user_container)
@@ -571,7 +580,11 @@ class LatencyMonitor(QMainWindow):
             
             # 添加统计信息标签
             stats_label = QLabel()
-            stats_label.setFont(QFont(PLOT_FONT_FAMILY, PLOT_FONT_SIZE))
+            # The plot axis labels intentionally use PLOT_FONT_SIZE (23pt).
+            # The statistics block needs a smaller, wrapping font or the long
+            # lines overlap when two user panels share the 1200px window.
+            stats_label.setFont(QFont(PLOT_FONT_FAMILY, 12))
+            stats_label.setWordWrap(True)
             stats_label.setAlignment(cast(Any, qt_align('AlignLeft')))
             stats_label.setText("Collecting data...")
             self.stats_labels[grpc_port] = stats_label
@@ -581,11 +594,12 @@ class LatencyMonitor(QMainWindow):
             user_layout.addWidget(stats_label)
             
             # 根据用户类型放置在对应的网格位置
+            grid_index += 1
             if grpc_port == 50055:
                 main_layout.addWidget(user_container)
             else:
-                row = (b_user_count - 1) // 2
-                col = (b_user_count - 1) % 2
+                row = (grid_index - 1) // 2
+                col = (grid_index - 1) % 2
                 b_users_layout.addWidget(user_container, row, col)
 
         if b_user_count:
@@ -1212,7 +1226,8 @@ def latency_feedback_server(feedback_port, port_mappings, latency_monitor=None,
     if latency_compensation and grpc_port in latency_compensation:
         compensation = latency_compensation[grpc_port]
         print(f"[延迟反馈] 端口 {grpc_port} 应用延迟补偿: {compensation}ms")
-    
+
+    last_frame_offset = None
     while True:
         try:
             client, addr = server.accept()
@@ -1222,10 +1237,22 @@ def latency_feedback_server(feedback_port, port_mappings, latency_monitor=None,
                 if feedback.startswith("timing:"):
                     payload = feedback[len("timing:"):]
                     parts = payload.split(',')
-                    if len(parts) == 3:
+                    if len(parts) in (3, 4):
                         t_begin_ms = int(parts[0])
                         t_transit_ms = int(parts[1])
                         t_final_ms = int(parts[2])
+                        frame_compensation = compensation
+                        if len(parts) == 4:
+                            try:
+                                frame_compensation = float(parts[3])
+                            except ValueError:
+                                frame_compensation = compensation
+                            if frame_compensation != last_frame_offset:
+                                print(
+                                    f"[延迟反馈] 端口 {grpc_port} 使用 Unity 时钟补偿: "
+                                    f"{frame_compensation}ms"
+                                )
+                                last_frame_offset = frame_compensation
 
                         segment_snapshot = None
                         if segment_cache is not None and grpc_port:
@@ -1241,11 +1268,18 @@ def latency_feedback_server(feedback_port, port_mappings, latency_monitor=None,
                             t_encode_ms = segment_snapshot.get('t_encode')
                             t_net_ms = segment_snapshot.get('t_net')
                             if isinstance(t_encode_ms, int) and isinstance(t_net_ms, int):
-                                sender_ms = max(0, t_encode_ms - t_begin_ms)
-                                network_ms = max(0, t_net_ms - t_encode_ms)
-                                decoding_ms = max(0, t_transit_ms - t_net_ms)
-                                rendering_ms = max(0, t_final_ms - t_transit_ms)
-                                total_ms = max(0, t_final_ms - t_begin_ms - compensation)
+                                sender_ms = max(0.0, t_encode_ms - t_begin_ms)
+                                # t_encode is on the sender clock, t_net is on
+                                # the receiver clock. Without removing the clock
+                                # offset, a perfectly local Ethernet link shows
+                                # the full clock difference as "network" time.
+                                network_ms = max(0.0, t_net_ms - t_encode_ms - frame_compensation)
+                                decoding_ms = max(0.0, t_transit_ms - t_net_ms)
+                                rendering_ms = max(0.0, t_final_ms - t_transit_ms)
+                                # Keep Total equal to the sum of the corrected
+                                # segments; do not double-subtract the offset
+                                # when the network sample is near zero.
+                                total_ms = sender_ms + network_ms + decoding_ms + rendering_ms
 
                                 latency_monitor.add_latency_data(grpc_port, total_ms)
                                 latency_monitor.add_segment_data(
@@ -1275,7 +1309,18 @@ def main():
         help="Socket端口列表（省略时使用默认映射 8890..8894）",
     )
     parser.add_argument("--point_cloud_grpc_port", type=int, help="点云数据gRPC端口")
+    parser.add_argument(
+        "--hide_point_cloud_ui",
+        action="store_true",
+        help="Hide the point-cloud panel in the latency window (for avatar-only demos).",
+    )
     parser.add_argument("--feedback_offset", type=int, default=1000, help="反馈端口与Socket端口的偏移量")
+    parser.add_argument(
+        "--clock_offset_ms",
+        type=float,
+        default=0.0,
+        help="Receiver clock minus sender clock, in milliseconds. Cross-machine network/total latency is corrected by this value.",
+    )
     parser.add_argument("--spline_upsample", type=int, default=1, help="baseline样条段内上采样倍数（>=1）")
     parser.add_argument("--codec_config_path", type=str, default=DEFAULT_CODEC_CONFIG_PATH, help="编解码配置路径")
     args = parser.parse_args()
@@ -1299,7 +1344,7 @@ def main():
     elif port_mappings:
         point_cloud_grpc_port = port_mappings[-1][0]
 
-    latency_compensation = {grpc_port: 0 for grpc_port, _ in port_mappings}
+    latency_compensation = {grpc_port: args.clock_offset_ms for grpc_port, _ in port_mappings}
     feedback_ports = [socket_port + args.feedback_offset for _, socket_port in port_mappings]
 
     print("[配置] 用户延迟补偿值:")
@@ -1309,7 +1354,7 @@ def main():
 
     app = QApplication(sys.argv)
     app.setFont(QFont(PLOT_FONT_FAMILY, PLOT_FONT_SIZE))
-    latency_monitor = LatencyMonitor(port_mappings, point_cloud_grpc_port)
+    latency_monitor = LatencyMonitor(port_mappings, point_cloud_grpc_port, args.hide_point_cloud_ui)
     latency_monitor.show()
     segment_cache = {}
     cache_lock = threading.Lock()
