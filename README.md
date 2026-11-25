@@ -4,16 +4,19 @@ Hologram Virtual Conference Communication System
 - 从官网安装anaconda3
 - 运行以下命令创建虚拟环境
 ```
-conda env create -f HVCCS.yaml
-pip install -r requirements.txt
-pip install mediapipe==0.10.20 --no-deps
+conda env create -n face_detec -f HVCCS.yaml
+conda activate face_detec
 ```
+
+`HVCCS.yaml` 已包含实时链路的 Python 依赖；仓库当前没有单独的
+`requirements.txt`，不需要再执行额外的 `pip install`。如果 YAML 中的
+`prefix` 指向了另一台机器上的路径，请删除该行后再创建环境。
 
 ## Unity & Quest 3 Setup
 
-- Unity Hub安装unity h3.3.3-c2
+- 安装 Unity Hub，并通过 Unity Hub 安装 Unity `2022.3.55f1`。
 - 在浏览器输入`unityhub://2022.3.55f1/9f374180d209`自动跳转到Unity Hub安装unity 2022.3.55f1，安装时选择`Android Build Support`和`Android SDK & NDK Tools`
-- 新建HDRP项目（如果需要编译为app部署到Quest上，应该新建URP项目，因为Quest部署Anroid应用目前不支持HDRP），并进入。
+- 新建 HDRP 项目并进入；如果要编译 Android 应用部署到 Quest 3，使用 URP 项目。
 
 ### 1 Setup Meta Quest 3
 #### 1.1 Install Link & MQDH
@@ -133,34 +136,40 @@ Bip001 Pelvis # x是-前+后，y是+左-右，z是+上-下
 
 ### 3 Unity Render Streaming & WebRTC
 #### 3.1 prepare
-- 在unity中打开`Window/Package Manager`，点击`+`按钮，选择`Add package from git URL...`，输入以下地址：
+- Unity Render Streaming 是浏览器查看 Unity 画面的链路，与 gRPC 特征传输和
+  Unity 端口（8890、9890 等）相互独立。先在 Unity 2022.3.55f1 项目中打开
+  `Window/Package Manager`。
+- 选择 `Add package by name...`，添加 WebRTC 包：
 ```
-com.unity.webrtc@3.0.0-pre.5
+Name: com.unity.webrtc
+Version: 3.0.0-pre.5
 ```
-- 点击`Add`，等待安装完成
-- 在unity中打开`Window/Package Manager`，点击`+`按钮，选择`Add package by name...`，输入以下文字：
+- 再次选择 `Add package by name...`，添加 Unity Render Streaming：
 ```
-com.unity.renderstreaming
+Name: com.unity.renderstreaming
+Version: 3.1.0-exp.6
 ```
-- 下方可选安装版本，输入`3.1.0-exp.6`点击`Add`，等待安装完成。安装包后会自动打开`Render Streaming Wizard`窗口。选择`Fix all`。
+- 安装后打开 `Render Streaming Wizard`，执行 `Fix all`。
 - 在`Render Streaming Wizard`窗口点击`Download latest version web app`，下载最新的web app。如果无法下载请访问[github](https://github.com/Unity-Technologies/UnityRenderStreaming)下载`WebApp`文件夹。
-- 在unity中打开`Window/Package Manager`，找到`Unity Render Streaming`点击进入详情，找到`samples`，点击`Import`，等待完成。
+- 在 `Window/Package Manager` 中打开 `Unity Render Streaming` 的 `Samples`，导入示例场景。
 - 在[nodejs](https://nodejs.org/en/)下载对应版本node.js并安装。
-- 可以通过修改源码来修改传输端口和模式，源码在`/WebApp/src/index.ts`中。选中场景`HDRP/RenderStreaming`中`signaling manager`选择`open project settings`，在面板选择`create new setting assets`，在一个地方保存即可。然后再次选择`open project settings`，即可修改URL。
-- node.js完成安装后进入`WebApp`文件夹，打开命令行窗口，输入以下命令安装依赖：
+- 进入下载的 `WebApp` 目录安装依赖：
 ```bash
 npm install
 ```
-- Windows直接双击运行`run.bat`，linux在命令行运行`./run.sh`
+- Windows 运行 `run.bat`；macOS/Linux 运行 `./run.sh`。如果脚本没有执行权限，先运行 `chmod +x run.sh`。
+- 在 Unity 场景的 `Signaling Manager` 中打开项目设置并配置 signaling URL；WebApp 的
+  signaling 端口和浏览器访问地址以 `run.bat`/`run.sh` 的输出为准，不要与 8890/9890
+  的数字人数据和反馈端口混用。
 
 #### 3.2 setup unity scene
 - 在unity中打开`Assets/Samples/Unity Render Streaming/3.1.0-exp.6/Example/`，将里面子文件夹中的场景拖入`Hierarchy`中。
 - 在`Assets`中新建`models`文件夹，将需要渲染的模型，如`nezha.fbx`放入该文件夹中。然后将模型拖入`Hierarchy/WebBrowserInput/`中。
-- 在`Assets`中新建`scripts`文件夹，将`unity_cs_scripts`文件夹中的`BSCtrl.cs`和`FaceDataReceiver.cs`拖入该文件夹中。
-- 如果使用 lhz 骨骼命名的单脚本实时端点，将 `real_time_lhz_cs_scripts/RealTimeLhzAvatarEndpoint.cs` 拖入 `Assets`，并按该目录 README 配置 `avatarRoot`、`faceRenderer`、数据端口和反馈端口。
-- 选中`nezha`点击`Add Component`，搜索`FaceDataReceiver.cs`，添加该组件。
-- 选中`nezha`点击`Add Component`，搜索`BSCtrl`，添加该组件。添加引用`head_m1`。
-- 在`inspector`中，为`FaceDataReceiver.cs`添加引用，选中`nezha`。
+- 当前 LHZ 实时链路推荐只挂载 `real_time_lhz_cs_scripts/RealTimeLhzAvatarEndpoint.cs`。
+  将脚本复制到 `Assets/Scripts/`，把 `Avatar Root`、`Face Renderer`、数据端口、反馈端口、
+  `Clock Offset Ms` 和 Grounding 选项配置好；同一个输入流只连接一个数字人端点。
+- 旧版 `unity_cs_scripts/FaceDataReceiver.cs + BSCtrl.cs` 仍可用于旧场景，但不要与
+  `RealTimeLhzAvatarEndpoint` 同时挂载到同一个数字人，否则会重复读取和驱动骨骼。
 - 进入`WebAPP`文件夹，运行`WebApp/run.bat`，启动web服务，可以看到ip地址。
 - 在unity中点击`play`按钮，运行unity场景。
 - 在本机浏览器中输入`127.0.0.1`，或其他电脑浏览器中输入`run.bat`运行后显示的sigaling server的ip地址，可以看到unity渲染的画面。
@@ -168,20 +177,42 @@ npm install
 
 ## Python Scripts Setup
 
-- `HVCCS/fea_extr_py_scripts/`中存放了所有实时系统所需的python脚本。
+- `HVCCS/fea_extr_py_scripts/`中存放了实时链路所需的 Python 脚本。先在项目根目录
+  激活 `face_detec` 环境，并确保 `data/pose_landmarker_full.task` 和
+  `data/face_landmarker_v2_with_blendshapes.task` 存在。
 
 ### 1 Server
 
-- **stpe1**: `tools/time_diff_cal_receiver.py`用于计算Sender和Server的本地时间差。将`RECEIVER_IP`改为Server本机IP地址，运行本程序。
-
-- **step3**: 配置好unity项目，点击运行。
-
-- **step4**： `fea_extr_py_scripts/grpc2socket.py`用于接收Sender的gprc协议推送的数据，通过socket协议转发给unity软件c#脚本`unity_cs_scripts/FaceDataReceiver.cs`。统计发送数据大小，通过Sender数据包中的时间戳，和unity返回的时间戳计算MTP时延。使用时首先为每个端口号对应的Sender设置时延校正，校正值通过`tools/time_diff_cal_receiver.py`获取。
+- **step1：启动 Unity。** 按上面的 Unity 场景说明运行 WebRTC 场景和
+  `RealTimeLhzAvatarEndpoint`。端点监听数据端口 8890，向反馈端口 9890 发送时延反馈。
+- **step2：校准跨机器时钟。** 如果 Sender 和 Server 不在同一台电脑，运行
+  `tools/time_diff_cal_receiver.py`（Server）和 `tools/time_diff_cal_sender.py`（Sender），
+  计算“Server 时间 − Sender 时间”的毫秒值。将该值填入 Unity 端点的 `Clock Offset Ms`。
+  同机运行时填 `0`。旧版三字段 Unity 反馈才使用 Server 的 `--clock_offset_ms` 参数。
+- **step3：启动 gRPC 转发。** 默认命令会监听 `50051..50055`，转发到 `8890..8894`，并保留
+  `50055/8894` 作为点云端口：
+  ```bash
+  python fea_extr_py_scripts/grpc2socket.py --spline_upsample 4
+  ```
+  如果需要自定义端口，`--grpc_ports` 和 `--socket_ports` 必须同时提供且数量相同；默认映射
+  的最后一项会作为点云端口。`--hide_point_cloud_ui` 只隐藏监控面板，不会改变协议端口。
+- `grpc2socket.py` 通过持久 TCP 连接向 Unity 逐帧发送 UTF-8 文本：时间戳、52 个面部值和
+  99 个姿势值；`--spline_upsample 4` 将 30 FPS 输入上采样到约 120 FPS。MTP 只统计原始输入帧。
 
 ### 2 Sender
-- **step2**: `tools/time_diff_cal_sender.py`用于计算Sender和Server的本地时间差。修改`SENDER_IP`为本机IP地址，`RECEIVER_IP`为Server的IP地址。Sender是客户端，应该等Server启动后，再运行Sender。
-
-- **step5**: `fea_extr_py_scripts/grpc_avatar_fea_sender.py`自动获取系统摄像头列表中的第一个摄像头，用于获取直播视频流。需要确保Sender和Server处于同一网络下，将Sender目标IP地址设置为Server的IP地址。为每个客户端分别设置端口号。Sender是客户端，应该等Server启动后，再运行Sender。
+- Sender 是客户端，必须在 Server 的 gRPC 端口启动后运行。默认读取
+  `checkpoints/grpc_online_avatar_fea_codec_config.json` 中的 `sender.server_addr`、
+  `sender.port_num` 和 `sender.fps`（当前默认 `127.0.0.1:50051`、30 FPS）：
+  ```bash
+  python fea_extr_py_scripts/grpc_avatar_fea_sender.py
+  ```
+- 远程 Server 或不同端口使用命令行覆盖：
+  ```bash
+  python fea_extr_py_scripts/grpc_avatar_fea_sender.py \
+    --server_addr 192.168.1.11 --port_num 50051 --fps 30
+  ```
+- Sender 自动读取系统摄像头列表中的第一个摄像头；如模型文件不在 `data/`，通过
+  `--pose_model_path` 和 `--face_model_path` 指定。`--codec_config_path` 可替换编解码配置。
 
 实时链路的输入帧率由 `checkpoints/grpc_online_avatar_fea_codec_config.json` 中的
 `sender.fps` 控制，默认是 `30.0` FPS；也可以用 `--fps` 临时覆盖。若使用
@@ -197,7 +228,7 @@ npm install
 Sender 使用配置文件中的 `sender.port_num`，配置缺失时回退到代码默认端口
 `50051`。因此无参数运行仍可使用默认端口。
 
-### Expected Effect
+#### Expected Effect
 - 运行后，请确保身体距离Sender三米左右以确保整个身体进入画面。当看到`fea_extr_py_scripts/grpc_avatar_fea_sender.py`不断打印发送信息说明运行正常
 - 在Server中弹出用户网络参数监控画面，Sender对应用户的统计表中不断更新折线图。
 - unity中对应数字人做出相应动作。如果画面中未找到数字人，可以切换Scend窗口，双击左侧Hierarchy窗口的Avatar对象，视角会自动追踪到该数字人，通过修改偏移量可以调整位置（而不是数字人本身的位置和旋转）。
